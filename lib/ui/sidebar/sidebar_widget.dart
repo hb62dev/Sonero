@@ -177,7 +177,7 @@ class _Header extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           const Text(
-            'Shazam Music',
+            'Sonero',
             style: TextStyle(
               color: AppTheme.textPrimary,
               fontWeight: FontWeight.w700,

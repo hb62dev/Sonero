@@ -16,7 +16,7 @@ void main() async {
         size: Size(1100, 720),
         minimumSize: Size(800, 580),
         center: true,
-        title: 'Shazam Music Manager',
+        title: 'Sonero',
         titleBarStyle: TitleBarStyle.normal,
         backgroundColor: Color(0xFF0A0A10),
       ),

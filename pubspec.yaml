@@ -1,5 +1,5 @@
-name: shazam_app
-description: "Shazam Music Manager — Desktop app for Windows"
+name: sonero_app
+description: "Sonero — Tu colector de música personal"
 publish_to: 'none'
 version: 1.0.0+1
 

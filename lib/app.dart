@@ -95,7 +95,7 @@ class _ShazamAppState extends State<ShazamApp> {
         Provider.value(value: _hotkeys),
       ],
       child: MaterialApp(
-        title: 'Shazam Music Manager',
+        title: 'Sonero',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.dark,
         home: const AppShell(),
