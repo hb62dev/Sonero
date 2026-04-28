@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/api_client.dart';
 
@@ -7,6 +7,9 @@ class SettingsProvider extends ChangeNotifier {
   static const _keyMusicFolder = 'music_folder';
   static const _keyDeviceIndex = 'device_index';
   static const _keyListenDuration = 'listen_duration';
+  static const _keyThemeMode = 'theme_mode';
+  static const _keyAccentColor = 'accent_color';
+  static const _keySidebarColor = 'sidebar_color';
 
   String _apiUrl = 'http://localhost:8000';
   String _musicFolder = '';
@@ -14,12 +17,20 @@ class SettingsProvider extends ChangeNotifier {
   int _listenDuration = 10;
   bool _isLoaded = false;
 
+  ThemeMode _themeMode = ThemeMode.dark;
+  Color _accentColor = const Color(0xFF7B2FFF);
+  Color? _sidebarColor;
+
   String get apiUrl => _apiUrl;
   String get musicFolder => _musicFolder;
   int? get deviceIndex => _deviceIndex;
   int get listenDuration => _listenDuration;
   bool get isLoaded => _isLoaded;
   bool get hasMusicFolder => _musicFolder.isNotEmpty;
+
+  ThemeMode get themeMode => _themeMode;
+  Color get accentColor => _accentColor;
+  Color? get sidebarColor => _sidebarColor;
 
   late ApiClient _api;
   ApiClient get api => _api;
@@ -30,6 +41,18 @@ class SettingsProvider extends ChangeNotifier {
     _musicFolder = prefs.getString(_keyMusicFolder) ?? '';
     _deviceIndex = prefs.getInt(_keyDeviceIndex);
     _listenDuration = prefs.getInt(_keyListenDuration) ?? 10;
+
+    final themeModeStr = prefs.getString(_keyThemeMode);
+    if (themeModeStr == 'light') _themeMode = ThemeMode.light;
+    else if (themeModeStr == 'system') _themeMode = ThemeMode.system;
+    else _themeMode = ThemeMode.dark;
+
+    final accentVal = prefs.getInt(_keyAccentColor);
+    if (accentVal != null) _accentColor = Color(accentVal);
+
+    final sidebarVal = prefs.getInt(_keySidebarColor);
+    if (sidebarVal != null) _sidebarColor = Color(sidebarVal);
+
     _api = ApiClient(baseUrl: _apiUrl);
     _isLoaded = true;
     notifyListeners();
@@ -65,6 +88,31 @@ class SettingsProvider extends ChangeNotifier {
     _listenDuration = seconds;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_keyListenDuration, seconds);
+    notifyListeners();
+  }
+
+  Future<void> setThemeMode(ThemeMode mode) async {
+    _themeMode = mode;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyThemeMode, mode.name);
+    notifyListeners();
+  }
+
+  Future<void> setAccentColor(Color color) async {
+    _accentColor = color;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keyAccentColor, color.toARGB32());
+    notifyListeners();
+  }
+
+  Future<void> setSidebarColor(Color? color) async {
+    _sidebarColor = color;
+    final prefs = await SharedPreferences.getInstance();
+    if (color == null) {
+      await prefs.remove(_keySidebarColor);
+    } else {
+      await prefs.setInt(_keySidebarColor, color.toARGB32());
+    }
     notifyListeners();
   }
 }

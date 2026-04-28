@@ -9,6 +9,7 @@ import '../providers/settings_provider.dart';
 import 'sidebar/sidebar_widget.dart';
 import 'library/library_page.dart';
 import 'listen/listen_overlay.dart';
+import 'player/mini_player.dart';
 import 'theme.dart';
 
 class AppShell extends StatefulWidget {
@@ -79,12 +80,19 @@ class _AppShellState extends State<AppShell> {
     return Stack(
       children: [
         Scaffold(
-          backgroundColor: AppTheme.bg,
-          body: Row(
+          backgroundColor: context.colors.bg,
+          body: Column(
             children: [
-              const SidebarWidget(),
-              const VerticalDivider(width: 1, color: AppTheme.border),
-              const Expanded(child: LibraryPage()),
+              Expanded(
+                child: Row(
+                  children: [
+                    const SidebarWidget(),
+                    VerticalDivider(width: 1, color: context.colors.border),
+                    const Expanded(child: LibraryPage()),
+                  ],
+                ),
+              ),
+              const MiniPlayer(),
             ],
           ),
         ),
@@ -93,3 +101,5 @@ class _AppShellState extends State<AppShell> {
     );
   }
 }
+
+

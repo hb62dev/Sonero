@@ -46,12 +46,12 @@ class _OverlayCard extends StatelessWidget {
       width: 340,
       padding: const EdgeInsets.all(28),
       decoration: BoxDecoration(
-        color: AppTheme.surface,
+        color: context.colors.surface,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AppTheme.border),
+        border: Border.all(color: context.colors.border),
         boxShadow: [
           BoxShadow(
-            color: AppTheme.accent1.withOpacity(0.2),
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
             blurRadius: 40,
             spreadRadius: 4,
           ),
@@ -68,8 +68,8 @@ class _OverlayCard extends StatelessWidget {
             _SuccessIcon(track: job.track),
             const SizedBox(height: 20),
           ] else if (job.isFailed) ...[
-            const Icon(Icons.error_outline_rounded,
-                color: AppTheme.error, size: 52),
+            Icon(Icons.error_outline_rounded,
+                color: context.colors.error, size: 52),
             const SizedBox(height: 20),
           ],
 
@@ -77,8 +77,8 @@ class _OverlayCard extends StatelessWidget {
           Text(
             job.step.replaceAll(RegExp(r'^[^\w]*'), ''),
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppTheme.textPrimary,
+            style: TextStyle(
+              color: context.colors.textPrimary,
               fontSize: 16,
               fontWeight: FontWeight.w600,
             ),
@@ -91,9 +91,9 @@ class _OverlayCard extends StatelessWidget {
               borderRadius: BorderRadius.circular(4),
               child: LinearProgressIndicator(
                 value: job.progress / 100,
-                backgroundColor: AppTheme.border,
+                backgroundColor: context.colors.border,
                 valueColor:
-                    const AlwaysStoppedAnimation<Color>(AppTheme.accent1),
+                    AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
                 minHeight: 4,
               ),
             ),
@@ -105,8 +105,8 @@ class _OverlayCard extends StatelessWidget {
             Text(
               job.error!,
               textAlign: TextAlign.center,
-              style: const TextStyle(
-                  color: AppTheme.textSecondary, fontSize: 12),
+              style: TextStyle(
+                  color: context.colors.textSecondary, fontSize: 12),
             ),
           ],
 
@@ -116,8 +116,8 @@ class _OverlayCard extends StatelessWidget {
           if (job.isActive)
             TextButton(
               onPressed: listen.cancel,
-              child: const Text('Cancelar',
-                  style: TextStyle(color: AppTheme.textSecondary)),
+              child: Text('Cancelar',
+                  style: TextStyle(color: context.colors.textSecondary)),
             )
           else
             ElevatedButton(
@@ -129,7 +129,7 @@ class _OverlayCard extends StatelessWidget {
                   library.loadPlaylists(settings.api);
                 }
               },
-              child: const Text('Cerrar'),
+              child: Text('Cerrar'),
             ),
         ],
       ),
@@ -192,7 +192,7 @@ class _WaveformAnimationState extends State<_WaveformAnimation>
                 height: h,
                 margin: const EdgeInsets.symmetric(horizontal: 2),
                 decoration: BoxDecoration(
-                  gradient: AppTheme.gradient,
+                  gradient: context.colors.gradient,
                   borderRadius: BorderRadius.circular(3),
                 ),
               );
@@ -220,20 +220,23 @@ class _SuccessIcon extends StatelessWidget {
           width: 80,
           height: 80,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _defaultIcon,
+          errorBuilder: (_, __, ___) => _defaultIcon(context),
         ),
       );
     }
-    return _defaultIcon;
+    return _defaultIcon(context);
   }
 
-  Widget get _defaultIcon => Container(
+  Widget _defaultIcon(BuildContext context) => Container(
         width: 80,
         height: 80,
         decoration: BoxDecoration(
-          gradient: AppTheme.gradient,
+          gradient: context.colors.gradient,
           borderRadius: BorderRadius.circular(12),
         ),
-        child: const Icon(Icons.check_rounded, color: Colors.white, size: 40),
+        child: Icon(Icons.check_rounded, color: Colors.white, size: 40),
       );
 }
+
+
+

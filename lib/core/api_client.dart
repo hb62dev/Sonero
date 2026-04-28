@@ -92,6 +92,34 @@ class ApiClient {
     _check(res);
   }
 
+  Future<void> autoFillMetadata(List<String> filenames) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/api/v1/metadata/auto'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'filenames': filenames}),
+    );
+    _check(res);
+  }
+
+  Future<Map<String, dynamic>?> getTrackMetadata(String filename) async {
+    final res = await http.get(Uri.parse('$baseUrl/api/v1/metadata?filenames=$filename'));
+    _check(res);
+    final list = jsonDecode(res.body) as List;
+    if (list.isNotEmpty) {
+      return list.first as Map<String, dynamic>;
+    }
+    return null;
+  }
+
+  Future<void> updateTrackMetadata(Map<String, dynamic> update) async {
+    final res = await http.patch(
+      Uri.parse('$baseUrl/api/v1/metadata'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'updates': [update]}),
+    );
+    _check(res);
+  }
+
   // ── Downloads (library root) ─────────────────────────────────────────────
 
   Future<Map<String, dynamic>> getDownloads() async {

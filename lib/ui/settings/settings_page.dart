@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:flutter/services.dart';
 import 'package:hotkey_manager/hotkey_manager.dart';
 import 'package:provider/provider.dart';
@@ -39,16 +40,16 @@ class _SettingsPageState extends State<SettingsPage> {
     final settings = context.watch<SettingsProvider>();
 
     return Scaffold(
-      backgroundColor: AppTheme.bg,
+      backgroundColor: context.colors.bg,
       appBar: AppBar(
-        backgroundColor: AppTheme.surface,
-        title: const Text('Configuración',
-            style: TextStyle(color: AppTheme.textPrimary, fontSize: 16, fontWeight: FontWeight.w600)),
-        iconTheme: const IconThemeData(color: AppTheme.textSecondary),
+        backgroundColor: context.colors.surface,
+        title: Text('Configuración',
+            style: TextStyle(color: context.colors.textPrimary, fontSize: 16, fontWeight: FontWeight.w600)),
+        iconTheme: IconThemeData(color: context.colors.textSecondary),
         elevation: 0,
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: AppTheme.border),
+          child: Container(height: 1, color: context.colors.border),
         ),
       ),
       body: ListView(
@@ -68,8 +69,8 @@ class _SettingsPageState extends State<SettingsPage> {
               Row(
                 children: [
                   ElevatedButton.icon(
-                    icon: const Icon(Icons.folder_open, size: 16),
-                    label: const Text('Seleccionar carpeta'),
+                    icon: Icon(Icons.folder_open, size: 16),
+                    label: Text('Seleccionar carpeta'),
                     onPressed: () async {
                       final result = await FilePicker.platform.getDirectoryPath(
                         dialogTitle: 'Selecciona la carpeta donde guardar la música',
@@ -83,8 +84,8 @@ class _SettingsPageState extends State<SettingsPage> {
                     const SizedBox(width: 8),
                     TextButton(
                       onPressed: () => settings.setMusicFolder(''),
-                      child: const Text('Limpiar',
-                          style: TextStyle(color: AppTheme.textSecondary)),
+                      child: Text('Limpiar',
+                          style: TextStyle(color: context.colors.textSecondary)),
                     ),
                   ],
                 ],
@@ -94,6 +95,79 @@ class _SettingsPageState extends State<SettingsPage> {
 
           const SizedBox(height: 24),
 
+          // ── Appearance ──────────────────────────────────────────────────
+          _Section(
+            title: 'Apariencia',
+            icon: Icons.palette_outlined,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Modo de tema', style: TextStyle(color: context.colors.textPrimary)),
+                  DropdownButton<ThemeMode>(
+                    value: settings.themeMode,
+                    dropdownColor: context.colors.surfaceAlt,
+                    underline: const SizedBox(),
+                    items: const [
+                      DropdownMenuItem(value: ThemeMode.system, child: Text('Sistema')),
+                      DropdownMenuItem(value: ThemeMode.light, child: Text('Claro')),
+                      DropdownMenuItem(value: ThemeMode.dark, child: Text('Oscuro')),
+                    ],
+                    onChanged: (mode) {
+                      if (mode != null) settings.setThemeMode(mode);
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Color principal', style: TextStyle(color: context.colors.textPrimary)),
+                  GestureDetector(
+                    onTap: () => _pickColor(context, settings.accentColor, (c) => settings.setAccentColor(c)),
+                    child: Container(
+                      width: 32, height: 32,
+                      decoration: BoxDecoration(color: settings.accentColor, shape: BoxShape.circle),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Color de barra lateral', style: TextStyle(color: context.colors.textPrimary)),
+                  Row(
+                    children: [
+                      if (settings.sidebarColor != null)
+                        TextButton(
+                          onPressed: () => settings.setSidebarColor(null),
+                          child: Text('Por defecto'),
+                        ),
+                      GestureDetector(
+                        onTap: () => _pickColor(
+                          context, 
+                          settings.sidebarColor ?? context.colors.surface, 
+                          (c) => settings.setSidebarColor(c)
+                        ),
+                        child: Container(
+                          width: 32, height: 32,
+                          decoration: BoxDecoration(
+                            color: settings.sidebarColor ?? context.colors.surface,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: context.colors.border),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 24),
           // ── Backend API URL ────────────────────────────────────────────
           _Section(
             title: 'Backend API',
@@ -105,7 +179,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   hintText: 'http://localhost:8000',
                   prefixIcon: Icon(Icons.link, size: 18),
                 ),
-                style: const TextStyle(fontSize: 13),
+                style: TextStyle(fontSize: 13),
                 onSubmitted: (v) => settings.setApiUrl(v.trim()),
               ),
               const SizedBox(height: 8),
@@ -113,7 +187,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 alignment: Alignment.centerLeft,
                 child: ElevatedButton(
                   onPressed: () => settings.setApiUrl(_apiUrlCtrl.text.trim()),
-                  child: const Text('Guardar URL'),
+                  child: Text('Guardar URL'),
                 ),
               ),
             ],
@@ -135,7 +209,7 @@ class _SettingsPageState extends State<SettingsPage> {
                       keyboardType: TextInputType.number,
                       decoration:
                           const InputDecoration(suffixText: 'seg'),
-                      style: const TextStyle(fontSize: 13),
+                      style: TextStyle(fontSize: 13),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -144,19 +218,19 @@ class _SettingsPageState extends State<SettingsPage> {
                       final v = int.tryParse(_durationCtrl.text);
                       if (v != null && v >= 5 && v <= 60) {
                         settings.setListenDuration(v);
-                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
                           content: Text('Duración guardada'),
                           duration: Duration(seconds: 1),
                         ));
                       }
                     },
-                    child: const Text('Guardar'),
+                    child: Text('Guardar'),
                   ),
                 ],
               ),
               const SizedBox(height: 4),
-              const Text('Entre 5 y 60 segundos.',
-                  style: TextStyle(color: AppTheme.textSecondary, fontSize: 11)),
+              Text('Entre 5 y 60 segundos.',
+                  style: TextStyle(color: context.colors.textSecondary, fontSize: 11)),
             ],
           ),
 
@@ -167,9 +241,9 @@ class _SettingsPageState extends State<SettingsPage> {
             title: 'Atajos de teclado globales',
             icon: Icons.keyboard_outlined,
             children: [
-              const Text(
+              Text(
                 'Funcionan aunque la ventana esté minimizada.',
-                style: TextStyle(color: AppTheme.textSecondary, fontSize: 12),
+                style: TextStyle(color: context.colors.textSecondary, fontSize: 12),
               ),
               const SizedBox(height: 16),
               _HotkeyRow(
@@ -202,21 +276,50 @@ class _SettingsPageState extends State<SettingsPage> {
               Row(
                 children: [
                   ElevatedButton.icon(
-                    icon: const Icon(Icons.search, size: 16),
-                    label: const Text('Detectar dispositivos'),
+                    icon: Icon(Icons.search, size: 16),
+                    label: Text('Detectar dispositivos'),
                     onPressed: () => _showDeviceDialog(context, settings),
                   ),
                   if (settings.deviceIndex != null) ...[
                     const SizedBox(width: 8),
                     TextButton(
                       onPressed: () => settings.setDeviceIndex(null),
-                      child: const Text('Usar default',
-                          style: TextStyle(color: AppTheme.textSecondary)),
+                      child: Text('Usar default',
+                          style: TextStyle(color: context.colors.textSecondary)),
                     ),
                   ],
                 ],
               ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _pickColor(BuildContext context, Color currentColor, ValueChanged<Color> onColorChanged) {
+    Color tempColor = currentColor;
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: Theme.of(context).extension<SoneroColors>()!.surfaceAlt,
+        title: Text('Seleccionar color'),
+        content: SingleChildScrollView(
+          child: ColorPicker(
+            pickerColor: tempColor,
+            onColorChanged: (c) => tempColor = c,
+            enableAlpha: false,
+            labelTypes: const [],
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: Text('Cancelar')),
+          ElevatedButton(
+            onPressed: () {
+              onColorChanged(tempColor);
+              Navigator.pop(context);
+            },
+            child: Text('Guardar'),
           ),
         ],
       ),
@@ -256,9 +359,9 @@ class _SettingsPageState extends State<SettingsPage> {
 
     setState(() {}); // refresh labels
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Atajo guardado'),
-        backgroundColor: AppTheme.success,
+        backgroundColor: context.colors.success,
         duration: Duration(seconds: 2),
       ));
     }
@@ -283,7 +386,7 @@ class _SettingsPageState extends State<SettingsPage> {
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Error: $e'), backgroundColor: AppTheme.error));
+            SnackBar(content: Text('Error: $e'), backgroundColor: context.colors.error));
       }
       return;
     }
@@ -292,8 +395,8 @@ class _SettingsPageState extends State<SettingsPage> {
     await showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        backgroundColor: AppTheme.surfaceAlt,
-        title: const Text('Dispositivos de audio'),
+        backgroundColor: context.colors.surfaceAlt,
+        title: Text('Dispositivos de audio'),
         content: SizedBox(
           width: 400,
           child: ListView.builder(
@@ -303,9 +406,9 @@ class _SettingsPageState extends State<SettingsPage> {
               final d = devices[i] as Map<String, dynamic>;
               return ListTile(
                 title: Text('[${d['index']}] ${d['name']}',
-                    style: const TextStyle(fontSize: 13)),
+                    style: TextStyle(fontSize: 13)),
                 trailing: settings.deviceIndex == d['index']
-                    ? const Icon(Icons.check, color: AppTheme.success, size: 16)
+                    ? Icon(Icons.check, color: context.colors.success, size: 16)
                     : null,
                 onTap: () {
                   settings.setDeviceIndex(d['index'] as int);
@@ -318,7 +421,7 @@ class _SettingsPageState extends State<SettingsPage> {
         actions: [
           TextButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Cerrar')),
+              child: Text('Cerrar')),
         ],
       ),
     );
@@ -342,20 +445,20 @@ class _Section extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
-          color: AppTheme.surface,
+          color: context.colors.surface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppTheme.border),
+          border: Border.all(color: context.colors.border),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(icon, size: 18, color: AppTheme.accent1),
+                Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
                 const SizedBox(width: 8),
                 Text(title,
-                    style: const TextStyle(
-                        color: AppTheme.textPrimary,
+                    style: TextStyle(
+                        color: context.colors.textPrimary,
                         fontWeight: FontWeight.w600,
                         fontSize: 14)),
               ],
@@ -375,13 +478,13 @@ class _InfoText extends StatelessWidget {
   Widget build(BuildContext context) => Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: AppTheme.surfaceAlt,
+          color: context.colors.surfaceAlt,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: AppTheme.border),
+          border: Border.all(color: context.colors.border),
         ),
         child: Text(text,
-            style: const TextStyle(
-                color: AppTheme.textSecondary, fontSize: 12),
+            style: TextStyle(
+                color: context.colors.textSecondary, fontSize: 12),
             overflow: TextOverflow.ellipsis),
       );
 }
@@ -405,19 +508,19 @@ class _HotkeyRow extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(label,
-                    style: const TextStyle(
-                        color: AppTheme.textPrimary, fontSize: 13)),
+                    style: TextStyle(
+                        color: context.colors.textPrimary, fontSize: 13)),
                 const SizedBox(height: 4),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
                   decoration: BoxDecoration(
-                    color: AppTheme.bg,
+                    color: context.colors.bg,
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: AppTheme.accent1.withValues(alpha: 0.5)),
+                    border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5)),
                   ),
                   child: Text(currentKey,
-                      style: const TextStyle(
-                          color: AppTheme.accent1,
+                      style: TextStyle(
+                          color: Theme.of(context).colorScheme.primary,
                           fontSize: 12,
                           fontFamily: 'monospace')),
                 ),
@@ -428,12 +531,12 @@ class _HotkeyRow extends StatelessWidget {
           OutlinedButton(
             onPressed: onRecord,
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppTheme.accent2,
-              side: const BorderSide(color: AppTheme.accent2),
+              foregroundColor: Theme.of(context).colorScheme.secondary,
+              side: BorderSide(color: Theme.of(context).colorScheme.secondary),
               shape:
                   RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            child: const Text('Cambiar', style: TextStyle(fontSize: 12)),
+            child: Text('Cambiar', style: TextStyle(fontSize: 12)),
           ),
         ],
       );
@@ -460,14 +563,14 @@ class _HotkeyRecorderDialogState extends State<_HotkeyRecorderDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: AppTheme.surfaceAlt,
+      backgroundColor: context.colors.surfaceAlt,
       title: Text(widget.title),
       content: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Text(
+          Text(
             'Presiona la combinación de teclas que quieres usar.',
-            style: TextStyle(color: AppTheme.textSecondary, fontSize: 13),
+            style: TextStyle(color: context.colors.textSecondary, fontSize: 13),
           ),
           const SizedBox(height: 20),
           HotKeyRecorder(
@@ -480,15 +583,18 @@ class _HotkeyRecorderDialogState extends State<_HotkeyRecorderDialog> {
         ],
       ),
       actions: [
-        TextButton(onPressed: widget.onCancel, child: const Text('Cancelar')),
+        TextButton(onPressed: widget.onCancel, child: Text('Cancelar')),
         ElevatedButton(
           onPressed: _recorded != null
               ? () => widget.onRecorded(_recorded!)
               : null,
-          child: const Text('Confirmar'),
+          child: Text('Confirmar'),
         ),
       ],
     );
   }
 }
+
+
+
 

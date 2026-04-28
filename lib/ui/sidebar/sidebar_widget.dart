@@ -16,13 +16,13 @@ class SidebarWidget extends StatelessWidget {
 
     return Container(
       width: 220,
-      color: AppTheme.surface,
+      color: context.colors.sidebarBg ?? context.colors.surface,
       child: Column(
         children: [
           // ── Header ─────────────────────────────────────────────────────
           _Header(onSettings: () => _openSettings(context)),
 
-          const Divider(height: 1, color: AppTheme.border),
+          Divider(height: 1, color: context.colors.border),
 
           // ── Playlists list ─────────────────────────────────────────────
           Expanded(
@@ -46,7 +46,7 @@ class SidebarWidget extends StatelessWidget {
             ),
           ),
 
-          const Divider(height: 1, color: AppTheme.border),
+          Divider(height: 1, color: context.colors.border),
 
           // ── New playlist button ─────────────────────────────────────────
           _NewPlaylistButton(
@@ -72,8 +72,8 @@ class SidebarWidget extends StatelessWidget {
     final name = await showDialog<String>(
       context: context,
       builder: (_) => AlertDialog(
-        backgroundColor: AppTheme.surfaceAlt,
-        title: const Text('Nueva Playlist'),
+        backgroundColor: context.colors.surfaceAlt,
+        title: Text('Nueva Playlist'),
         content: TextField(
           controller: ctrl,
           autofocus: true,
@@ -83,11 +83,11 @@ class SidebarWidget extends StatelessWidget {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
+            child: Text('Cancelar'),
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, ctrl.text),
-            child: const Text('Crear'),
+            child: Text('Crear'),
           ),
         ],
       ),
@@ -107,8 +107,8 @@ class SidebarWidget extends StatelessWidget {
     final newName = await showDialog<String>(
       context: context,
       builder: (_) => AlertDialog(
-        backgroundColor: AppTheme.surfaceAlt,
-        title: const Text('Renombrar Playlist'),
+        backgroundColor: context.colors.surfaceAlt,
+        title: Text('Renombrar Playlist'),
         content: TextField(
           controller: ctrl,
           autofocus: true,
@@ -116,10 +116,10 @@ class SidebarWidget extends StatelessWidget {
           onSubmitted: (v) => Navigator.pop(context, v),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancelar')),
+          TextButton(onPressed: () => Navigator.pop(context), child: Text('Cancelar')),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, ctrl.text),
-            child: const Text('Renombrar'),
+            child: Text('Renombrar'),
           ),
         ],
       ),
@@ -138,17 +138,17 @@ class SidebarWidget extends StatelessWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        backgroundColor: AppTheme.surfaceAlt,
-        title: const Text('Eliminar Playlist'),
+        backgroundColor: context.colors.surfaceAlt,
+        title: Text('Eliminar Playlist'),
         content: Text(
           'Se eliminará "${pl.name}". Las canciones volverán a la Biblioteca.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancelar')),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: Text('Cancelar')),
           ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.error),
+            style: ElevatedButton.styleFrom(backgroundColor: context.colors.error),
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Eliminar'),
+            child: Text('Eliminar'),
           ),
         ],
       ),
@@ -172,22 +172,22 @@ class _Header extends StatelessWidget {
       child: Row(
         children: [
           ShaderMask(
-            shaderCallback: (b) => AppTheme.gradient.createShader(b),
-            child: const Icon(Icons.music_note_rounded, color: Colors.white, size: 22),
+            shaderCallback: (b) => context.colors.gradient.createShader(b),
+            child: Icon(Icons.music_note_rounded, color: Colors.white, size: 22),
           ),
           const SizedBox(width: 8),
-          const Text(
+          Text(
             'Sonero',
             style: TextStyle(
-              color: AppTheme.textPrimary,
+              color: context.colors.textPrimary,
               fontWeight: FontWeight.w700,
               fontSize: 14,
             ),
           ),
           const Spacer(),
           IconButton(
-            icon: const Icon(Icons.settings_outlined, size: 18),
-            color: AppTheme.textSecondary,
+            icon: Icon(Icons.settings_outlined, size: 18),
+            color: context.colors.textSecondary,
             onPressed: onSettings,
             tooltip: 'Configuración',
             padding: EdgeInsets.zero,
@@ -208,8 +208,8 @@ class _SectionLabel extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
         child: Text(
           label,
-          style: const TextStyle(
-            color: AppTheme.textSecondary,
+          style: TextStyle(
+            color: context.colors.textSecondary,
             fontSize: 10,
             fontWeight: FontWeight.w600,
             letterSpacing: 1.2,
@@ -242,7 +242,7 @@ class _PlaylistTile extends StatelessWidget {
       child: ListTile(
         dense: true,
         selected: isSelected,
-        selectedTileColor: AppTheme.accent1.withOpacity(0.12),
+        selectedTileColor: Theme.of(context).colorScheme.primary.withOpacity(0.12),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
         leading: Icon(
@@ -250,21 +250,21 @@ class _PlaylistTile extends StatelessWidget {
               ? Icons.library_music_outlined
               : Icons.queue_music_outlined,
           size: 18,
-          color: isSelected ? AppTheme.accent1 : AppTheme.textSecondary,
+          color: isSelected ? Theme.of(context).colorScheme.primary : context.colors.textSecondary,
         ),
         title: Text(
           playlist.name,
           style: TextStyle(
             fontSize: 13,
-            color: isSelected ? AppTheme.textPrimary : AppTheme.textSecondary,
+            color: isSelected ? context.colors.textPrimary : context.colors.textSecondary,
             fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
           ),
         ),
         trailing: playlist.trackCount > 0
             ? Text(
                 '${playlist.trackCount}',
-                style: const TextStyle(
-                  color: AppTheme.textSecondary,
+                style: TextStyle(
+                  color: context.colors.textSecondary,
                   fontSize: 11,
                 ),
               )
@@ -278,14 +278,13 @@ class _PlaylistTile extends StatelessWidget {
     final action = await showMenu<String>(
       context: context,
       position: RelativeRect.fromLTRB(position.dx, position.dy, position.dx, position.dy),
-      color: AppTheme.surfaceAlt,
+      color: context.colors.surfaceAlt,
       items: [
         if (onRename != null)
           const PopupMenuItem(value: 'rename', child: Text('Renombrar')),
         if (onDelete != null)
-          const PopupMenuItem(
-            value: 'delete',
-            child: Text('Eliminar', style: TextStyle(color: AppTheme.error)),
+          PopupMenuItem(value: 'delete',
+            child: Text('Eliminar', style: TextStyle(color: context.colors.error)),
           ),
       ],
     );
@@ -304,11 +303,11 @@ class _NewPlaylistButton extends StatelessWidget {
         child: SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
-            icon: const Icon(Icons.add, size: 16),
-            label: const Text('Nueva Playlist', style: TextStyle(fontSize: 13)),
+            icon: Icon(Icons.add, size: 16),
+            label: Text('Nueva Playlist', style: TextStyle(fontSize: 13)),
             style: OutlinedButton.styleFrom(
-              foregroundColor: AppTheme.accent1,
-              side: const BorderSide(color: AppTheme.accent1),
+              foregroundColor: Theme.of(context).colorScheme.primary,
+              side: BorderSide(color: Theme.of(context).colorScheme.primary),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               padding: const EdgeInsets.symmetric(vertical: 10),
             ),
@@ -317,3 +316,6 @@ class _NewPlaylistButton extends StatelessWidget {
         ),
       );
 }
+
+
+

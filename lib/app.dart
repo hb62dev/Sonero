@@ -6,6 +6,7 @@ import 'core/hotkey_service.dart';
 import 'providers/settings_provider.dart';
 import 'providers/library_provider.dart';
 import 'providers/listen_provider.dart';
+import 'providers/player_provider.dart';
 import 'ui/app_shell.dart';
 import 'ui/theme.dart';
 
@@ -20,6 +21,7 @@ class _ShazamAppState extends State<ShazamApp> {
   final _settings  = SettingsProvider();
   final _library   = LibraryProvider();
   final _listen    = ListenProvider();
+  final _player    = PlayerProvider();
   final _hotkeys   = HotkeyService();
   bool _initialized = false;
 
@@ -92,13 +94,21 @@ class _ShazamAppState extends State<ShazamApp> {
         ChangeNotifierProvider.value(value: _settings),
         ChangeNotifierProvider.value(value: _library),
         ChangeNotifierProvider.value(value: _listen),
+        ChangeNotifierProvider.value(value: _player),
         Provider.value(value: _hotkeys),
       ],
-      child: MaterialApp(
-        title: 'Sonero',
-        debugShowCheckedModeBanner: false,
-        theme: AppTheme.dark,
-        home: const AppShell(),
+      child: Builder(
+        builder: (context) {
+          final settings = context.watch<SettingsProvider>();
+          return MaterialApp(
+            title: 'Sonero',
+            debugShowCheckedModeBanner: false,
+            themeMode: settings.themeMode,
+            theme: AppTheme.getTheme(settings, isDark: false),
+            darkTheme: AppTheme.getTheme(settings, isDark: true),
+            home: const AppShell(),
+          );
+        }
       ),
     );
   }
