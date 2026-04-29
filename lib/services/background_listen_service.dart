@@ -1,8 +1,8 @@
 import 'dart:async';
 import 'dart:ui';
+import 'dart:io';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import '../providers/settings_provider.dart';
 import '../providers/listen_provider.dart';
 
@@ -10,24 +10,15 @@ import '../providers/listen_provider.dart';
 void onStart(ServiceInstance service) async {
   DartPluginRegistrant.ensureInitialized();
   WidgetsFlutterBinding.ensureInitialized();
-
-  final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
   
   service.on('listen_now').listen((event) async {
-    // Show a notification that we are listening
-    await flutterLocalNotificationsPlugin.show(
-      888,
-      'Sonero',
-      'Escuchando el entorno...',
-      const NotificationDetails(
-        android: AndroidNotificationDetails(
-          'sonero_background',
-          'Sonero Background Service',
-          icon: 'ic_launcher',
-          ongoing: true,
-        ),
-      ),
-    );
+    // Show a notification that we are listening (Android only)
+    if (Platform.isAndroid) {
+       // Need to dynamically invoke to avoid importing android specific types on iOS
+       try {
+           service.invoke('setAsForeground');
+       } catch(_) {}
+    }
 
     // Initialize dependencies
     final settings = SettingsProvider();
@@ -40,26 +31,17 @@ void onStart(ServiceInstance service) async {
       duration: settings.listenDuration,
       deviceIndex: settings.deviceIndex,
       onDone: () async {
-        // Stop ongoing notification and show result
-        final track = listen.currentTrack;
-        final message = track != null 
-          ? '✅ Descargado: ${track.artist} - ${track.title}'
+        final job = listen.currentJob;
+        final message = job?.isDone == true
+          ? job!.step.replaceAll('✅ Listo: ', '')
           : '❌ No se pudo reconocer la canción.';
 
-        await flutterLocalNotificationsPlugin.show(
-          888,
-          'Sonero',
-          message,
-          const NotificationDetails(
-            android: AndroidNotificationDetails(
-              'sonero_background',
-              'Sonero Background Service',
-              icon: 'ic_launcher',
-              ongoing: false,
-            ),
-          ),
-        );
-        service.stopSelf(); // Stop the service when done
+        if (Platform.isAndroid) {
+            try {
+                // Update the background notification
+                service.invoke('stopService'); // stop background service when done
+            } catch(_) {}
+        }
       },
     );
   });
@@ -68,18 +50,6 @@ void onStart(ServiceInstance service) async {
 class BackgroundListenService {
   static Future<void> initialize() async {
     final service = FlutterBackgroundService();
-
-    const AndroidNotificationChannel channel = AndroidNotificationChannel(
-      'sonero_background',
-      'Sonero Background Service',
-      description: 'Notificaciones en segundo plano de Sonero',
-      importance: Importance.high,
-    );
-
-    final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin = FlutterLocalNotificationsPlugin();
-    await flutterLocalNotificationsPlugin
-        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
-        ?.createNotificationChannel(channel);
 
     await service.configure(
       androidConfiguration: AndroidConfiguration(

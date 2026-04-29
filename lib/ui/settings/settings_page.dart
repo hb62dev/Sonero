@@ -74,7 +74,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     icon: Icon(Icons.folder_open, size: 16),
                     label: Text('Seleccionar carpeta'),
                     onPressed: () async {
-                      final result = await FilePicker.platform.getDirectoryPath(
+                      final result = await FilePicker.getDirectoryPath(
                         dialogTitle: 'Selecciona la carpeta donde guardar la música',
                       );
                       if (result != null) {
@@ -129,7 +129,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     icon: Icon(Icons.folder_open, size: 16),
                     label: Text('Seleccionar carpeta'),
                     onPressed: () async {
-                      final result = await FilePicker.platform.getDirectoryPath(
+                      final result = await FilePicker.getDirectoryPath(
                         dialogTitle: 'Selecciona la carpeta donde guardar los videos',
                       );
                       if (result != null) {
@@ -185,6 +185,81 @@ class _SettingsPageState extends State<SettingsPage> {
                 onChanged: (lang) {
                   if (lang != null) settings.setLocale(lang);
                 },
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 24),
+
+          // ── Authentication (Anti-Bot) ──────────────────────────────────
+          _Section(
+            title: 'Autenticación (Anti-Bot)',
+            icon: Icons.security_outlined,
+            children: [
+              Text(
+                'Usa tus cookies de YouTube para evitar bloqueos al descargar.',
+                style: TextStyle(color: context.colors.textSecondary, fontSize: 12),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      icon: Icon(Icons.cloud_sync, size: 16),
+                      label: Text('Sincronizar (Benrio)'),
+                      onPressed: () async {
+                        try {
+                          await settings.api.syncBenrioCookies();
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                              content: Text('Cookies sincronizadas correctamente.'),
+                              backgroundColor: context.colors.success,
+                            ));
+                          }
+                        } catch (e) {
+                          if (context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                              content: Text('Error: $e'),
+                              backgroundColor: context.colors.error,
+                            ));
+                          }
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      icon: Icon(Icons.upload_file, size: 16),
+                      label: Text('Cargar cookies.txt'),
+                      onPressed: () async {
+                        final result = await FilePicker.pickFiles(
+                          dialogTitle: 'Selecciona tu archivo cookies.txt',
+                          type: FileType.custom,
+                          allowedExtensions: ['txt'],
+                        );
+                        if (result != null && result.files.single.path != null) {
+                          try {
+                            await settings.api.uploadCookies(result.files.single.path!);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                content: Text('Archivo cargado correctamente.'),
+                                backgroundColor: context.colors.success,
+                              ));
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                content: Text('Error: $e'),
+                                backgroundColor: context.colors.error,
+                              ));
+                            }
+                          }
+                        }
+                      },
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -279,12 +354,27 @@ class _SettingsPageState extends State<SettingsPage> {
                 onSubmitted: (v) => settings.setApiUrl(v.trim()),
               ),
               const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: ElevatedButton(
-                  onPressed: () => settings.setApiUrl(_apiUrlCtrl.text.trim()),
-                  child: Text('Guardar URL'),
-                ),
+              Row(
+                children: [
+                  ElevatedButton(
+                    onPressed: () => settings.setApiUrl(_apiUrlCtrl.text.trim()),
+                    child: Text('Guardar URL'),
+                  ),
+                  const SizedBox(width: 8),
+                  OutlinedButton.icon(
+                    icon: Icon(Icons.refresh, size: 16),
+                    label: Text('Refetch / Probar'),
+                    onPressed: () async {
+                      final isAlive = await settings.api.checkHealth();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                          content: Text(isAlive ? '✅ Conexión exitosa al backend.' : '❌ No se pudo conectar al backend.'),
+                          backgroundColor: isAlive ? context.colors.success : context.colors.error,
+                        ));
+                      }
+                    },
+                  ),
+                ],
               ),
             ],
           ),

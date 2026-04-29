@@ -177,6 +177,22 @@ class ApiClient {
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
+  // ── Settings & Cookies ───────────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> syncBenrioCookies() async {
+    final res = await http.post(Uri.parse('$baseUrl/api/v1/settings/cookies/benrio'));
+    _check(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<void> uploadCookies(String filePath) async {
+    var request = http.MultipartRequest('POST', Uri.parse('$baseUrl/api/v1/settings/cookies/upload'));
+    request.files.add(await http.MultipartFile.fromPath('file', filePath));
+    final streamedResponse = await request.send();
+    final res = await http.Response.fromStream(streamedResponse);
+    _check(res);
+  }
+
   // ── Health ───────────────────────────────────────────────────────────────
 
   Future<bool> checkHealth() async {

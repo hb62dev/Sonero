@@ -92,11 +92,19 @@ class ListenProvider extends ChangeNotifier {
   }
 
   void _showNotification(String title, String body) {
-    LocalNotification notification = LocalNotification(
-      title: title,
-      body: body,
-    );
-    notification.show();
+    // local_notifier is only supported on Desktop platforms
+    if (kIsWeb) return;
+    try {
+      if (defaultTargetPlatform == TargetPlatform.windows ||
+          defaultTargetPlatform == TargetPlatform.macOS ||
+          defaultTargetPlatform == TargetPlatform.linux) {
+        LocalNotification notification = LocalNotification(
+          title: title,
+          body: body,
+        );
+        notification.show();
+      }
+    } catch (_) {}
   }
 
   void _stopPolling() {

@@ -28,7 +28,7 @@ dependencies:
   shared_preferences: ^2.3.2
 
   # File/folder picker
-  file_picker: ^8.1.2
+  file_picker: ^11.0.2
 
   # Path utilities
   path: ^1.9.0
@@ -51,7 +51,6 @@ dependencies:
   media_kit_libs_video: ^1.0.7
   carousel_slider: ^5.1.2
   flutter_background_service: ^5.1.0
-  flutter_local_notifications: ^19.5.0
 
 dev_dependencies:
   flutter_test:
