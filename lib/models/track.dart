@@ -39,10 +39,13 @@ class Track {
         sizeMb: (json['size_mb'] as num?)?.toDouble() ?? 0,
       );
 
-  factory Track.fromApiFile(Map<String, dynamic> json, {String playlist = ''}) => Track(
+  factory Track.fromApiFile(Map<String, dynamic> json, {String playlist = '', String baseUrl = ''}) => Track(
         filename: json['filename'] as String? ?? '',
-        title: _titleFromFilename(json['filename'] as String? ?? ''),
-        artist: '',
+        title: json['title'] as String? ?? _titleFromFilename(json['filename'] as String? ?? ''),
+        artist: json['artist'] as String? ?? '',
+        album: json['album'] as String? ?? '',
+        year: json['year'] as String? ?? '',
+        coverUrl: json['cover_url'] != null ? '$baseUrl${json['cover_url']}' : null,
         sizeMb: (json['size_mb'] as num?)?.toDouble() ?? 0,
         playlist: playlist,
       );

@@ -51,12 +51,12 @@ class LibraryProvider extends ChangeNotifier {
       if (_selected.isLibrary) {
         final data = await api.getDownloads();
         _tracks = (data['downloads'] as List)
-            .map((e) => Track.fromApiFile(e as Map<String, dynamic>))
+            .map((e) => Track.fromApiFile(e as Map<String, dynamic>, baseUrl: api.baseUrl))
             .toList();
       } else {
         final data = await api.getPlaylistTracks(_selected.name);
         _tracks = (data['tracks'] as List)
-            .map((e) => Track.fromApiFile(e as Map<String, dynamic>, playlist: _selected.name))
+            .map((e) => Track.fromApiFile(e as Map<String, dynamic>, playlist: _selected.name, baseUrl: api.baseUrl))
             .toList();
       }
     } catch (e) {
@@ -96,5 +96,10 @@ class LibraryProvider extends ChangeNotifier {
     );
     await loadTracks(api);
     await loadPlaylists(api);
+  }
+
+  Future<void> deleteTrack(ApiClient api, Track track) async {
+    await api.deleteTrack(track.filename);
+    await loadTracks(api);
   }
 }

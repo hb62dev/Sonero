@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
@@ -8,6 +9,7 @@ import '../../core/hotkey_service.dart';
 import '../../providers/listen_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../theme.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -43,7 +45,7 @@ class _SettingsPageState extends State<SettingsPage> {
       backgroundColor: context.colors.bg,
       appBar: AppBar(
         backgroundColor: context.colors.surface,
-        title: Text('Configuración',
+        title: Text(AppLocalizations.of(context)!.settings,
             style: TextStyle(color: context.colors.textPrimary, fontSize: 16, fontWeight: FontWeight.w600)),
         iconTheme: IconThemeData(color: context.colors.textSecondary),
         elevation: 0,
@@ -57,7 +59,7 @@ class _SettingsPageState extends State<SettingsPage> {
         children: [
           // ── Music folder ───────────────────────────────────────────────
           _Section(
-            title: 'Carpeta de música',
+            title: AppLocalizations.of(context)!.musicFolder,
             icon: Icons.folder_outlined,
             children: [
               _InfoText(
@@ -82,6 +84,21 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                   if (settings.hasMusicFolder) ...[
                     const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      icon: Icon(Icons.open_in_new, size: 16),
+                      label: Text('Abrir'),
+                      onPressed: () {
+                        final path = settings.musicFolder;
+                        if (Platform.isWindows) {
+                          Process.run('explorer', [path]);
+                        } else if (Platform.isMacOS) {
+                          Process.run('open', [path]);
+                        } else if (Platform.isLinux) {
+                          Process.run('xdg-open', [path]);
+                        }
+                      },
+                    ),
+                    const SizedBox(width: 8),
                     TextButton(
                       onPressed: () => settings.setMusicFolder(''),
                       child: Text('Limpiar',
@@ -95,9 +112,88 @@ class _SettingsPageState extends State<SettingsPage> {
 
           const SizedBox(height: 24),
 
+          // ── Video folder ───────────────────────────────────────────────
+          _Section(
+            title: 'Carpeta de Video',
+            icon: Icons.video_library_outlined,
+            children: [
+              _InfoText(
+                settings.hasVideoFolder
+                    ? settings.videoFolder
+                    : 'No seleccionada',
+              ),
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  ElevatedButton.icon(
+                    icon: Icon(Icons.folder_open, size: 16),
+                    label: Text('Seleccionar carpeta'),
+                    onPressed: () async {
+                      final result = await FilePicker.platform.getDirectoryPath(
+                        dialogTitle: 'Selecciona la carpeta donde guardar los videos',
+                      );
+                      if (result != null) {
+                        await settings.setVideoFolder(result);
+                      }
+                    },
+                  ),
+                  if (settings.hasVideoFolder) ...[
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      icon: Icon(Icons.open_in_new, size: 16),
+                      label: Text('Abrir'),
+                      onPressed: () {
+                        final path = settings.videoFolder;
+                        if (Platform.isWindows) {
+                          Process.run('explorer', [path]);
+                        } else if (Platform.isMacOS) {
+                          Process.run('open', [path]);
+                        } else if (Platform.isLinux) {
+                          Process.run('xdg-open', [path]);
+                        }
+                      },
+                    ),
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: () => settings.setVideoFolder(''),
+                      child: Text('Limpiar',
+                          style: TextStyle(color: context.colors.textSecondary)),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 24),
+
+          // ── Language ────────────────────────────────────────────────────
+          _Section(
+            title: AppLocalizations.of(context)!.language,
+            icon: Icons.language,
+            children: [
+              DropdownButton<String>(
+                value: settings.locale,
+                dropdownColor: context.colors.surfaceAlt,
+                underline: const SizedBox(),
+                isExpanded: true,
+                items: [
+                  DropdownMenuItem(value: 'es', child: Text(AppLocalizations.of(context)!.languageSpanish)),
+                  DropdownMenuItem(value: 'en', child: Text(AppLocalizations.of(context)!.languageEnglish)),
+                  DropdownMenuItem(value: 'ja', child: Text(AppLocalizations.of(context)!.languageJapanese)),
+                ],
+                onChanged: (lang) {
+                  if (lang != null) settings.setLocale(lang);
+                },
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 24),
+
           // ── Appearance ──────────────────────────────────────────────────
           _Section(
-            title: 'Apariencia',
+            title: AppLocalizations.of(context)!.appearance,
             icon: Icons.palette_outlined,
             children: [
               Row(
@@ -170,7 +266,7 @@ class _SettingsPageState extends State<SettingsPage> {
           const SizedBox(height: 24),
           // ── Backend API URL ────────────────────────────────────────────
           _Section(
-            title: 'Backend API',
+            title: AppLocalizations.of(context)!.apiConnection,
             icon: Icons.api_outlined,
             children: [
               TextField(
@@ -250,14 +346,35 @@ class _SettingsPageState extends State<SettingsPage> {
                 label: '🎙️ Escuchar con Micrófono',
                 currentKey: HotkeyService.label(
                     context.read<HotkeyService>().currentMicHotkey),
-                onRecord: () => _recordHotkey(context, isMic: true),
+                onRecord: () => _recordHotkey(context, type: 'mic'),
               ),
               const SizedBox(height: 12),
               _HotkeyRow(
                 label: '🖥️ Escuchar Audio del Sistema',
                 currentKey: HotkeyService.label(
                     context.read<HotkeyService>().currentSystemHotkey),
-                onRecord: () => _recordHotkey(context, isMic: false),
+                onRecord: () => _recordHotkey(context, type: 'system'),
+              ),
+              const SizedBox(height: 12),
+              _HotkeyRow(
+                label: '📺 Descargar Video (Portapapeles)',
+                currentKey: HotkeyService.label(
+                    context.read<HotkeyService>().currentVideoHotkey),
+                onRecord: () => _recordHotkey(context, type: 'video'),
+              ),
+              const SizedBox(height: 12),
+              _HotkeyRow(
+                label: '👀 Mostrar Ventana',
+                currentKey: HotkeyService.label(
+                    context.read<HotkeyService>().currentShowHotkey),
+                onRecord: () => _recordHotkey(context, type: 'show'),
+              ),
+              const SizedBox(height: 12),
+              _HotkeyRow(
+                label: '👻 Ocultar Ventana',
+                currentKey: HotkeyService.label(
+                    context.read<HotkeyService>().currentHideHotkey),
+                onRecord: () => _recordHotkey(context, type: 'hide'),
               ),
             ],
           ),
@@ -326,14 +443,20 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Future<void> _recordHotkey(BuildContext context, {required bool isMic}) async {
-    // Show a dialog that captures the next key combination
+  Future<void> _recordHotkey(BuildContext context, {required String type}) async {
+    String title = 'Atajo';
+    if (type == 'mic') title = '🎙️ Atajo — Micrófono';
+    else if (type == 'system') title = '🖥️ Atajo — Sistema';
+    else if (type == 'video') title = '📺 Atajo — Video';
+    else if (type == 'show') title = '👀 Atajo — Mostrar Ventana';
+    else if (type == 'hide') title = '👻 Atajo — Ocultar Ventana';
+
     HotKey? recorded;
     await showDialog(
       context: context,
       barrierDismissible: false,
       builder: (ctx) => _HotkeyRecorderDialog(
-        title: isMic ? '🎙️ Atajo — Micrófono' : '🖥️ Atajo — Sistema',
+        title: title,
         onRecorded: (hk) {
           recorded = hk;
           Navigator.pop(ctx);
@@ -345,16 +468,16 @@ class _SettingsPageState extends State<SettingsPage> {
 
     final service = context.read<HotkeyService>();
 
-    if (isMic) {
-      await service.updateMicHotkey(
-        recorded!,
-        () => _triggerListen(context, source: 'mic'),
-      );
-    } else {
-      await service.updateSystemHotkey(
-        recorded!,
-        () => _triggerListen(context, source: 'system'),
-      );
+    if (type == 'mic') {
+      await service.updateMicHotkey(recorded!);
+    } else if (type == 'system') {
+      await service.updateSystemHotkey(recorded!);
+    } else if (type == 'video') {
+      await service.updateVideoHotkey(recorded!);
+    } else if (type == 'show') {
+      await service.updateShowHotkey(recorded!);
+    } else if (type == 'hide') {
+      await service.updateHideHotkey(recorded!);
     }
 
     setState(() {}); // refresh labels
@@ -365,16 +488,6 @@ class _SettingsPageState extends State<SettingsPage> {
         duration: Duration(seconds: 2),
       ));
     }
-  }
-
-  void _triggerListen(BuildContext context, {required String source}) {
-    final settings = context.read<SettingsProvider>();
-    context.read<ListenProvider>().startListening(
-          api: settings.api,
-          source: source,
-          duration: settings.listenDuration,
-          deviceIndex: settings.deviceIndex,
-        );
   }
 
   Future<void> _showDeviceDialog(

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:media_kit/media_kit.dart';
 import '../../providers/player_provider.dart';
 import '../theme.dart';
+import '../widgets/hover_scale.dart';
 import 'video_player_view.dart';
 
 class MiniPlayer extends StatelessWidget {
@@ -15,7 +17,7 @@ class MiniPlayer extends StatelessWidget {
     if (track == null) return const SizedBox.shrink();
 
     return Container(
-      height: 80,
+      height: 96,
       decoration: BoxDecoration(
         color: context.colors.surfaceAlt,
         border: Border(top: BorderSide(color: context.colors.border)),
@@ -87,23 +89,70 @@ class MiniPlayer extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    IconButton(
-                      icon: Icon(
-                        player.isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                        color: context.colors.textPrimary,
-                        size: 32,
+                    HoverScale(
+                      scale: 1.15,
+                      child: IconButton(
+                        icon: Icon(
+                          Icons.shuffle_rounded, 
+                          color: player.isShuffle ? Theme.of(context).colorScheme.primary : context.colors.textSecondary, 
+                          size: 22
+                        ),
+                        tooltip: 'Aleatorio',
+                        onPressed: player.toggleShuffle,
                       ),
-                      onPressed: player.playPause,
                     ),
-                    if (player.isVideo)
-                      IconButton(
-                        icon: Icon(Icons.fullscreen_rounded, color: context.colors.textSecondary),
-                        tooltip: 'Mostrar Video',
-                        onPressed: () {
-                          // TODO: Open video dialog/route
-                          _showVideoDialog(context);
-                        },
+                    HoverScale(
+                      scale: 1.15,
+                      child: IconButton(
+                        icon: Icon(Icons.skip_previous_rounded, color: context.colors.textPrimary, size: 28),
+                        tooltip: 'Anterior',
+                        onPressed: player.previous,
                       ),
+                    ),
+                    HoverScale(
+                      scale: 1.15,
+                      child: IconButton(
+                        icon: Icon(
+                          player.isPlaying ? Icons.pause_circle_filled_rounded : Icons.play_circle_filled_rounded,
+                          color: Theme.of(context).colorScheme.primary,
+                          size: 40,
+                        ),
+                        onPressed: player.playPause,
+                      ),
+                    ),
+                    HoverScale(
+                      scale: 1.15,
+                      child: IconButton(
+                        icon: Icon(Icons.skip_next_rounded, color: context.colors.textPrimary, size: 28),
+                        tooltip: 'Siguiente',
+                        onPressed: player.next,
+                      ),
+                    ),
+                    HoverScale(
+                      scale: 1.15,
+                      child: IconButton(
+                        icon: Icon(
+                          player.repeatMode == PlaylistMode.single ? Icons.repeat_one_rounded : Icons.repeat_rounded, 
+                          color: player.repeatMode != PlaylistMode.none ? Theme.of(context).colorScheme.primary : context.colors.textSecondary, 
+                          size: 22
+                        ),
+                        tooltip: 'Repetir',
+                        onPressed: player.toggleRepeat,
+                      ),
+                    ),
+                    if (player.isVideo) ...[
+                      const SizedBox(width: 8),
+                      HoverScale(
+                        scale: 1.15,
+                        child: IconButton(
+                          icon: Icon(Icons.fullscreen_rounded, color: context.colors.textSecondary),
+                          tooltip: 'Mostrar Video',
+                          onPressed: () {
+                            _showVideoDialog(context);
+                          },
+                        ),
+                      ),
+                    ],
                   ],
                 ),
                 Row(

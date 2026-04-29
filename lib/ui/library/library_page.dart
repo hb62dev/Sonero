@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/track.dart';
@@ -166,18 +167,14 @@ class _AutoFillButtonState extends State<_AutoFillButton> {
         setState(() => _isLoading = true);
         try {
           final filenames = widget.tracks.map((t) => t.filename).toList();
+          final jobId = await widget.settings.api.autoFillMetadata(filenames);
+          
           if (context.mounted) {
-             ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: Text('Autocompletando metadatos para ${filenames.length} canciones. Esto puede tomar un tiempo...'),
-              duration: const Duration(seconds: 4),
-            ));
-          }
-          await widget.settings.api.autoFillMetadata(filenames);
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-              content: const Text('Metadatos autocompletados con éxito'),
-              backgroundColor: context.colors.success,
-            ));
+            await showDialog(
+              context: context,
+              barrierDismissible: false,
+              builder: (ctx) => _AutofillProgressDialog(jobId: jobId, settings: widget.settings),
+            );
             context.read<LibraryProvider>().loadTracks(widget.settings.api);
           }
         } catch (e) {
@@ -285,7 +282,8 @@ class _TrackListRowState extends State<_TrackListRow> {
         onTap: () async {
           try {
             final settings = context.read<SettingsProvider>();
-            await context.read<PlayerProvider>().playTrack(track, settings.musicFolder);
+            final library = context.read<LibraryProvider>();
+            await context.read<PlayerProvider>().playTrack(track, library.tracks, settings.musicFolder);
           } catch (e) {
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -429,6 +427,10 @@ void _showTrackContextMenu(BuildContext context, Track track, Offset position) a
         value: '__auto__',
         child: Text('Autocompletar metadatos (API)'),
       ),
+      PopupMenuItem(
+        value: '__delete__',
+        child: Text('Eliminar archivo', style: TextStyle(color: context.colors.error)),
+      ),
       const PopupMenuDivider(),
       PopupMenuItem(enabled: false,
         child: Text('Mover a...',
@@ -462,12 +464,13 @@ void _showTrackContextMenu(BuildContext context, Track track, Offset position) a
 
     if (action == '__auto__') {
       try {
-        await settings.api.autoFillMetadata([track.filename]);
+        final jobId = await settings.api.autoFillMetadata([track.filename]);
         if (context.mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('Metadatos autocompletados con éxito'),
-            backgroundColor: context.colors.success,
-          ));
+          await showDialog(
+            context: context,
+            barrierDismissible: false,
+            builder: (ctx) => _AutofillProgressDialog(jobId: jobId, settings: settings),
+          );
           context.read<LibraryProvider>().loadTracks(settings.api);
         }
       } catch (e) {
@@ -476,6 +479,47 @@ void _showTrackContextMenu(BuildContext context, Track track, Offset position) a
             content: Text('Error: $e'),
             backgroundColor: context.colors.error,
           ));
+        }
+      }
+      return;
+    }
+
+    if (action == '__delete__') {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (_) => AlertDialog(
+          title: const Text('Eliminar canción'),
+          content: Text('¿Seguro que quieres eliminar "${track.title.isNotEmpty ? track.title : track.filename}" del disco?'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: Text('Eliminar', style: TextStyle(color: context.colors.error)),
+            ),
+          ],
+        ),
+      );
+
+      if (confirm == true) {
+        try {
+          await library.deleteTrack(settings.api, track);
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: const Text('Archivo eliminado'),
+              backgroundColor: context.colors.success,
+              duration: const Duration(seconds: 2),
+            ));
+          }
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text('Error: $e'),
+              backgroundColor: context.colors.error,
+            ));
+          }
         }
       }
       return;
@@ -540,7 +584,8 @@ class _TrackCardState extends State<_TrackCard> {
         onTap: () async {
           try {
             final settings = context.read<SettingsProvider>();
-            await context.read<PlayerProvider>().playTrack(track, settings.musicFolder);
+            final library = context.read<LibraryProvider>();
+            await context.read<PlayerProvider>().playTrack(track, library.tracks, settings.musicFolder);
           } catch (e) {
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -563,9 +608,9 @@ class _TrackCardState extends State<_TrackCard> {
             boxShadow: _hovered
                 ? [
                     BoxShadow(
-                      color: Theme.of(context).colorScheme.primary.withOpacity(0.15),
-                      blurRadius: 20,
-                      spreadRadius: 2,
+                      color: Theme.of(context).colorScheme.primary.withOpacity(0.08),
+                      blurRadius: 8,
+                      spreadRadius: 0,
                     )
                   ]
                 : [],
@@ -666,6 +711,96 @@ class _EmptyState extends StatelessWidget {
         ),
       );
 }
+
+class _AutofillProgressDialog extends StatefulWidget {
+  final String jobId;
+  final SettingsProvider settings;
+  const _AutofillProgressDialog({required this.jobId, required this.settings});
+
+  @override
+  State<_AutofillProgressDialog> createState() => _AutofillProgressDialogState();
+}
+
+class _AutofillProgressDialogState extends State<_AutofillProgressDialog> {
+  double _progress = 0.0;
+  String _step = 'Iniciando escaneo...';
+  String? _errorMessage;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _startPolling();
+  }
+
+  void _startPolling() {
+    _timer = Timer.periodic(const Duration(milliseconds: 500), (timer) async {
+      try {
+        final status = await widget.settings.api.getAutofillJobStatus(widget.jobId);
+        if (!mounted) {
+          timer.cancel();
+          return;
+        }
+        
+        final total = status['total'] as int? ?? 1;
+        final completed = status['completed'] as int? ?? 0;
+        final failed = status['failed'] as int? ?? 0;
+        
+        setState(() {
+          _progress = total > 0 ? (completed + failed) / total : 0;
+          _step = status['current'] ?? '';
+        });
+
+        if (status['status'] == 'done' || status['status'] == 'failed') {
+          timer.cancel();
+          if (mounted) {
+            Navigator.of(context).pop(true);
+          }
+        }
+      } catch (e) {
+        timer.cancel();
+        if (mounted) {
+          setState(() {
+            _errorMessage = e.toString();
+          });
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Escaneando Metadatos'),
+      content: SizedBox(
+        width: 300,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_errorMessage != null)
+              Text(_errorMessage!, style: const TextStyle(color: Colors.red))
+            else ...[
+              LinearProgressIndicator(value: _progress > 0 ? _progress : null),
+              const SizedBox(height: 16),
+              Text(_step, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13)),
+            ],
+          ],
+        ),
+      ),
+      actions: [
+        if (_errorMessage != null || _progress >= 1.0)
+          TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cerrar')),
+      ],
+    );
+  }
+}
+
 
 
 

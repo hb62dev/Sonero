@@ -51,9 +51,9 @@ class _OverlayCard extends StatelessWidget {
         border: Border.all(color: context.colors.border),
         boxShadow: [
           BoxShadow(
-            color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
-            blurRadius: 40,
-            spreadRadius: 4,
+            color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+            blurRadius: 15,
+            spreadRadius: 0,
           ),
         ],
       ),

@@ -1,0 +1,40 @@
+{
+  "@@locale": "ja",
+  "appTitle": "Sonero",
+  "navHome": "ホーム",
+  "navLibrary": "ライブラリ",
+  "navAnalytics": "アナリティクス",
+  "navDownload": "YouTubeからダウンロード",
+  "downloadComplete": "ダウンロードが完了しました",
+  "librarySection": "ライブラリ",
+  "newPlaylist": "新しいプレイリスト",
+  "newPlaylistHint": "プレイリスト名",
+  "create": "作成",
+  "cancel": "キャンセル",
+  "renamePlaylist": "プレイリスト名を変更",
+  "newPlaylistName": "新しい名前",
+  "rename": "名前を変更",
+  "deletePlaylist": "プレイリストを削除",
+  "deletePlaylistConfirm": "「{name}」を削除します。ファイルはライブラリに保持されます。",
+  "@deletePlaylistConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "delete": "削除",
+  "settings": "設定",
+  "welcomeHome": "Soneroへようこそ",
+  "play": "再生",
+  "moreInfo": "詳細",
+  "continueWatching": "再生を続ける",
+  "yourSmartPlaylists": "スマートプレイリスト",
+  "language": "言語",
+  "languageSpanish": "スペイン語",
+  "languageEnglish": "英語",
+  "languageJapanese": "日本語",
+  "appearance": "外観",
+  "apiConnection": "API接続（ローカル/リモート）",
+  "musicFolder": "メディアフォルダ"
+}

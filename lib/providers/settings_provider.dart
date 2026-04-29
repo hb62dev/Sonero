@@ -5,14 +5,17 @@ import '../core/api_client.dart';
 class SettingsProvider extends ChangeNotifier {
   static const _keyApiUrl = 'api_url';
   static const _keyMusicFolder = 'music_folder';
+  static const _keyVideoFolder = 'video_folder';
   static const _keyDeviceIndex = 'device_index';
   static const _keyListenDuration = 'listen_duration';
   static const _keyThemeMode = 'theme_mode';
   static const _keyAccentColor = 'accent_color';
   static const _keySidebarColor = 'sidebar_color';
+  static const _keyLocale = 'locale';
 
   String _apiUrl = 'http://localhost:8000';
   String _musicFolder = '';
+  String _videoFolder = '';
   int? _deviceIndex;
   int _listenDuration = 10;
   bool _isLoaded = false;
@@ -20,17 +23,21 @@ class SettingsProvider extends ChangeNotifier {
   ThemeMode _themeMode = ThemeMode.dark;
   Color _accentColor = const Color(0xFF7B2FFF);
   Color? _sidebarColor;
+  String _locale = 'es';
 
   String get apiUrl => _apiUrl;
   String get musicFolder => _musicFolder;
+  String get videoFolder => _videoFolder;
   int? get deviceIndex => _deviceIndex;
   int get listenDuration => _listenDuration;
   bool get isLoaded => _isLoaded;
   bool get hasMusicFolder => _musicFolder.isNotEmpty;
+  bool get hasVideoFolder => _videoFolder.isNotEmpty;
 
   ThemeMode get themeMode => _themeMode;
   Color get accentColor => _accentColor;
   Color? get sidebarColor => _sidebarColor;
+  String get locale => _locale;
 
   late ApiClient _api;
   ApiClient get api => _api;
@@ -39,6 +46,7 @@ class SettingsProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     _apiUrl = prefs.getString(_keyApiUrl) ?? 'http://localhost:8000';
     _musicFolder = prefs.getString(_keyMusicFolder) ?? '';
+    _videoFolder = prefs.getString(_keyVideoFolder) ?? '';
     _deviceIndex = prefs.getInt(_keyDeviceIndex);
     _listenDuration = prefs.getInt(_keyListenDuration) ?? 10;
 
@@ -52,6 +60,8 @@ class SettingsProvider extends ChangeNotifier {
 
     final sidebarVal = prefs.getInt(_keySidebarColor);
     if (sidebarVal != null) _sidebarColor = Color(sidebarVal);
+
+    _locale = prefs.getString(_keyLocale) ?? 'es';
 
     _api = ApiClient(baseUrl: _apiUrl);
     _isLoaded = true;
@@ -70,6 +80,13 @@ class SettingsProvider extends ChangeNotifier {
     _musicFolder = folder;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyMusicFolder, folder);
+    notifyListeners();
+  }
+
+  Future<void> setVideoFolder(String folder) async {
+    _videoFolder = folder;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyVideoFolder, folder);
     notifyListeners();
   }
 
@@ -113,6 +130,13 @@ class SettingsProvider extends ChangeNotifier {
     } else {
       await prefs.setInt(_keySidebarColor, color.toARGB32());
     }
+    notifyListeners();
+  }
+
+  Future<void> setLocale(String locale) async {
+    _locale = locale;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyLocale, locale);
     notifyListeners();
   }
 }

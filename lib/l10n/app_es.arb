@@ -1,0 +1,40 @@
+{
+  "@@locale": "es",
+  "appTitle": "Sonero",
+  "navHome": "Inicio",
+  "navLibrary": "Biblioteca",
+  "navAnalytics": "Estadísticas",
+  "navDownload": "Descargar de YouTube",
+  "downloadComplete": "Descarga Completada",
+  "librarySection": "BIBLIOTECA",
+  "newPlaylist": "Nueva Playlist",
+  "newPlaylistHint": "Nombre de la playlist",
+  "create": "Crear",
+  "cancel": "Cancelar",
+  "renamePlaylist": "Renombrar Playlist",
+  "newPlaylistName": "Nuevo nombre",
+  "rename": "Renombrar",
+  "deletePlaylist": "Eliminar Playlist",
+  "deletePlaylistConfirm": "Se eliminará \"{name}\". El contenido se mantendrá en tu Biblioteca.",
+  "@deletePlaylistConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "delete": "Eliminar",
+  "settings": "Configuración",
+  "welcomeHome": "Bienvenido a Sonero",
+  "play": "Reproducir",
+  "moreInfo": "Más información",
+  "continueWatching": "Seguir Reproduciendo",
+  "yourSmartPlaylists": "Playlists Inteligentes",
+  "language": "Idioma",
+  "languageSpanish": "Español",
+  "languageEnglish": "Inglés",
+  "languageJapanese": "Japonés",
+  "appearance": "Apariencia",
+  "apiConnection": "Conexión a la API (Local/Remota)",
+  "musicFolder": "Carpeta de Medios"
+}

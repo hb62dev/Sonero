@@ -75,6 +75,11 @@ class ApiClient {
 
   // ── Tracks ───────────────────────────────────────────────────────────────
 
+  Future<void> deleteTrack(String filename) async {
+    final res = await http.delete(Uri.parse('$baseUrl/api/v1/downloads/$filename'));
+    _check(res);
+  }
+
   Future<void> moveTrack({
     required String filename,
     String? fromPlaylist,
@@ -92,13 +97,20 @@ class ApiClient {
     _check(res);
   }
 
-  Future<void> autoFillMetadata(List<String> filenames) async {
+  Future<String> autoFillMetadata(List<String> filenames) async {
     final res = await http.post(
       Uri.parse('$baseUrl/api/v1/metadata/auto'),
       headers: {'Content-Type': 'application/json'},
       body: jsonEncode({'filenames': filenames}),
     );
     _check(res);
+    return jsonDecode(res.body)['job_id'] as String;
+  }
+
+  Future<Map<String, dynamic>> getAutofillJobStatus(String jobId) async {
+    final res = await http.get(Uri.parse('$baseUrl/api/v1/metadata/auto/jobs/$jobId'));
+    _check(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>?> getTrackMetadata(String filename) async {
@@ -124,6 +136,35 @@ class ApiClient {
 
   Future<Map<String, dynamic>> getDownloads() async {
     final res = await http.get(Uri.parse('$baseUrl/api/v1/downloads'));
+    _check(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  // ── Video Downloads ────────────────────────────────────────────────────────
+  
+  Future<Map<String, dynamic>> getVideoInfo(String url) async {
+    final encodedUrl = Uri.encodeQueryComponent(url);
+    final res = await http.get(Uri.parse('$baseUrl/api/v1/downloads/video/info?url=$encodedUrl'))
+        .timeout(const Duration(seconds: 25));
+    _check(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<String> downloadVideo(String url, String formatId) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/api/v1/downloads/video'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'url': url,
+        'format_id': formatId,
+      }),
+    ).timeout(const Duration(minutes: 5));
+    _check(res);
+    return jsonDecode(res.body)['job_id'] as String;
+  }
+
+  Future<Map<String, dynamic>> getVideoJobStatus(String jobId) async {
+    final res = await http.get(Uri.parse('$baseUrl/api/v1/downloads/video/jobs/$jobId'));
     _check(res);
     return jsonDecode(res.body) as Map<String, dynamic>;
   }

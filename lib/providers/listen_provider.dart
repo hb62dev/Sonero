@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../core/api_client.dart';
 import '../models/listen_job.dart';
+import 'package:local_notifier/local_notifier.dart';
 
 class ListenProvider extends ChangeNotifier {
   ListenJob? _currentJob;
@@ -56,11 +57,13 @@ class ListenProvider extends ChangeNotifier {
             _isListening = false;
             notifyListeners();
             onDone?.call();
+            _showNotification('Canción identificada y descargada', '${_currentJob!.step.replaceAll('✅ Listo: ', '')}');
           } else if (_currentJob!.isFailed) {
             _stopPolling();
             _isListening = false;
             notifyListeners();
             onError?.call(_currentJob?.error ?? 'Error desconocido');
+            _showNotification('Error al escuchar', _currentJob?.error ?? 'Error desconocido');
           }
         } catch (e) {
           _stopPolling();
@@ -86,6 +89,14 @@ class ListenProvider extends ChangeNotifier {
   void dismiss() {
     _currentJob = null;
     notifyListeners();
+  }
+
+  void _showNotification(String title, String body) {
+    LocalNotification notification = LocalNotification(
+      title: title,
+      body: body,
+    );
+    notification.show();
   }
 
   void _stopPolling() {

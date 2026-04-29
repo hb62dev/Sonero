@@ -27,6 +27,15 @@ class PlayerProvider extends ChangeNotifier {
   bool _isVideo = false;
   bool get isVideo => _isVideo;
 
+  bool _isShuffle = false;
+  bool get isShuffle => _isShuffle;
+
+  PlaylistMode _repeatMode = PlaylistMode.none;
+  PlaylistMode get repeatMode => _repeatMode;
+
+  List<Track> _queue = [];
+  List<Track> get queue => _queue;
+
   PlayerProvider() {
     player = Player();
     videoController = VideoController(player);
@@ -56,34 +65,51 @@ class PlayerProvider extends ChangeNotifier {
       _isVideo = tracks.video.isNotEmpty && tracks.video.first.id != 'no';
       notifyListeners();
     });
+
+    player.stream.playlist.listen((playlist) {
+      if (playlist.index >= 0 && playlist.index < _queue.length) {
+        _currentTrack = _queue[playlist.index];
+        _isVideo = _isVideoExt(_currentTrack!.filename);
+        notifyListeners();
+      }
+    });
   }
 
-  Future<void> playTrack(Track track, String musicFolder) async {
+  Future<void> playTrack(Track track, List<Track> queue, String musicFolder) async {
+    _queue = queue;
+    int startIndex = queue.indexOf(track);
+    if (startIndex == -1) startIndex = 0;
+
     _currentTrack = track;
     _isVideo = _isVideoExt(track.filename);
     notifyListeners();
 
-    String uri = track.filename;
-    if (!uri.startsWith('http')) {
-      if (!p.isAbsolute(uri)) {
-        if (track.playlist.isNotEmpty) {
-          uri = p.join(musicFolder, track.playlist, track.filename);
-        } else {
-          uri = p.join(musicFolder, track.filename);
+    final medias = <Media>[];
+    for (var t in queue) {
+      String uri = t.filename;
+      if (!uri.startsWith('http')) {
+        if (!p.isAbsolute(uri)) {
+          if (t.playlist.isNotEmpty) {
+            uri = p.join(musicFolder, t.playlist, t.filename);
+          } else {
+            uri = p.join(musicFolder, t.filename);
+          }
+        }
+        uri = p.normalize(uri);
+        
+        // Ensure the clicked track's file exists locally, others we can skip if not found
+        // But for simplicity, we won't throw exception for whole queue.
+        if (t == track && !File(uri).existsSync()) {
+          debugPrint('File does not exist: $uri');
+          throw Exception('El archivo no existe en el disco: $uri\nVerifica tu "Directorio de Música" en Ajustes.');
         }
       }
-      uri = p.normalize(uri);
-      
-      // Check if file exists locally
-      if (!File(uri).existsSync()) {
-        debugPrint('File does not exist: $uri');
-        throw Exception('El archivo no existe en el disco: $uri\nVerifica tu "Directorio de Música" en Ajustes.');
-      }
+      medias.add(Media(uri));
     }
 
     try {
-      debugPrint('Attempting to play: $uri');
-      await player.open(Media(uri));
+      debugPrint('Attempting to play playlist, starting at: $startIndex');
+      await player.open(Playlist(medias, index: startIndex));
       await player.play();
     } catch (e) {
       debugPrint('Error playing media: $e');
@@ -105,6 +131,32 @@ class PlayerProvider extends ChangeNotifier {
 
   void setVolume(double vol) {
     player.setVolume(vol);
+  }
+
+  void next() {
+    player.next();
+  }
+
+  void previous() {
+    player.previous();
+  }
+
+  void toggleShuffle() {
+    _isShuffle = !_isShuffle;
+    player.setShuffle(_isShuffle);
+    notifyListeners();
+  }
+
+  void toggleRepeat() {
+    if (_repeatMode == PlaylistMode.none) {
+      _repeatMode = PlaylistMode.loop;
+    } else if (_repeatMode == PlaylistMode.loop) {
+      _repeatMode = PlaylistMode.single;
+    } else {
+      _repeatMode = PlaylistMode.none;
+    }
+    player.setPlaylistMode(_repeatMode);
+    notifyListeners();
   }
 
   void stop() {
