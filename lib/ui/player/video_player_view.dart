@@ -22,7 +22,7 @@ class VideoPlayerView extends StatelessWidget {
             children: [
               Video(
                 controller: player.videoController,
-                controls: NoVideoControls, // We can use custom or default controls. Let's use default material controls.
+                controls: MaterialVideoControls,
               ),
               Positioned(
                 top: 16,

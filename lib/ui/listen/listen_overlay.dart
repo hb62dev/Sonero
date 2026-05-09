@@ -120,16 +120,35 @@ class _OverlayCard extends StatelessWidget {
                   style: TextStyle(color: context.colors.textSecondary)),
             )
           else
-            ElevatedButton(
-              onPressed: () {
-                listen.dismiss();
-                // Refresh library when done
-                if (job.isDone) {
-                  library.loadTracks(settings.api);
-                  library.loadPlaylists(settings.api);
-                }
-              },
-              child: Text('Cerrar'),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                if (job.isFailed) ...[
+                  ElevatedButton(
+                    onPressed: listen.retry,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context).colorScheme.primary,
+                    ),
+                    child: Text('Reintentar'),
+                  ),
+                  const SizedBox(width: 12),
+                ],
+                ElevatedButton(
+                  onPressed: () {
+                    listen.dismiss();
+                    // Refresh library when done
+                    if (job.isDone) {
+                      library.loadTracks(settings.api);
+                      library.loadPlaylists(settings.api);
+                    }
+                  },
+                  style: job.isFailed ? ElevatedButton.styleFrom(
+                    backgroundColor: context.colors.border,
+                    foregroundColor: context.colors.textPrimary,
+                  ) : null,
+                  child: Text('Cerrar'),
+                ),
+              ],
             ),
         ],
       ),

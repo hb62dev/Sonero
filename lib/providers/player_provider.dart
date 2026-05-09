@@ -70,18 +70,25 @@ class PlayerProvider extends ChangeNotifier {
       if (playlist.index >= 0 && playlist.index < _queue.length) {
         _currentTrack = _queue[playlist.index];
         _isVideo = _isVideoExt(_currentTrack!.filename);
+        // Reset position/duration to avoid stale values from the previous
+        // track causing Slider assertion errors (value > max) during the
+        // brief moment before the new track's streams update.
+        _position = Duration.zero;
+        _duration = Duration.zero;
         notifyListeners();
       }
     });
   }
 
-  Future<void> playTrack(Track track, List<Track> queue, String musicFolder) async {
+  Future<void> playTrack(Track track, List<Track> queue, SettingsProvider settings) async {
     _queue = queue;
     int startIndex = queue.indexOf(track);
     if (startIndex == -1) startIndex = 0;
 
     _currentTrack = track;
     _isVideo = _isVideoExt(track.filename);
+    _position = Duration.zero;
+    _duration = Duration.zero;
     notifyListeners();
 
     final medias = <Media>[];
@@ -89,10 +96,14 @@ class PlayerProvider extends ChangeNotifier {
       String uri = t.filename;
       if (!uri.startsWith('http')) {
         if (!p.isAbsolute(uri)) {
-          if (t.playlist.isNotEmpty) {
-            uri = p.join(musicFolder, t.playlist, t.filename);
+          if (_isVideoExt(t.filename)) {
+            // Remove 'videos/' prefix if present
+            final cleanFilename = t.filename.startsWith('videos/') ? t.filename.substring(7) : t.filename;
+            uri = p.join(settings.videoFolder, cleanFilename);
+          } else if (t.playlist.isNotEmpty) {
+            uri = p.join(settings.musicFolder, t.playlist, t.filename);
           } else {
-            uri = p.join(musicFolder, t.filename);
+            uri = p.join(settings.musicFolder, t.filename);
           }
         }
         uri = p.normalize(uri);

@@ -14,6 +14,8 @@ import 'listen/listen_overlay.dart';
 import 'player/mini_player.dart';
 import 'theme.dart';
 import 'video_download_dialog.dart';
+import 'downloads/downloads_page.dart';
+import 'search/search_view.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 class AppShell extends StatefulWidget {
@@ -24,7 +26,8 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
-  int _currentViewIndex = 0; // 0: Home, 1: Library, 2: Analytics
+  int _currentViewIndex = 0; // 0: Home, 1: Library, 2: Analytics, 3: Search
+  bool _isSidebarCollapsed = true; // start collapsed by default
 
   @override
   void initState() {
@@ -59,11 +62,17 @@ class _AppShellState extends State<AppShell> {
       showDialog(
         context: context,
         builder: (_) => const VideoDownloadDialog(),
-      ).then((success) {
-        if (success == true) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(AppLocalizations.of(context)!.downloadComplete)),
-          );
+      ).then((result) {
+        if (result != null) {
+          if (result is String) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Descarga completada con advertencias: $result'), backgroundColor: Colors.orange, duration: const Duration(seconds: 5)),
+            );
+          } else if (result == true) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text(AppLocalizations.of(context)!.downloadComplete)),
+            );
+          }
           final settings = context.read<SettingsProvider>();
           context.read<LibraryProvider>().loadTracks(settings.api);
         }
@@ -110,6 +119,12 @@ class _AppShellState extends State<AppShell> {
       case 2:
         currentView = const AnalyticsView();
         break;
+      case 3:
+        currentView = SearchView(onNavigate: (index) => setState(() => _currentViewIndex = index));
+        break;
+      case 4:
+        currentView = const DownloadsPage();
+        break;
       default:
         currentView = HomeView(onNavigate: (index) => setState(() => _currentViewIndex = index));
     }
@@ -127,6 +142,8 @@ class _AppShellState extends State<AppShell> {
           drawer: isMobile ? Drawer(
             child: SidebarWidget(
               currentIndex: _currentViewIndex,
+              isCollapsed: false,
+              onToggle: () => Navigator.pop(context),
               onNavigate: (index) {
                 setState(() => _currentViewIndex = index);
                 Navigator.pop(context);
@@ -136,16 +153,38 @@ class _AppShellState extends State<AppShell> {
           body: Column(
             children: [
               Expanded(
-                child: Row(
+                child: Stack(
                   children: [
-                    if (!isMobile) ...[
-                      SidebarWidget(
-                        currentIndex: _currentViewIndex,
-                        onNavigate: (index) => setState(() => _currentViewIndex = index),
+                    // Main content
+                    Positioned.fill(
+                      left: isMobile ? 0 : 64, // Keep space for collapsed sidebar
+                      child: currentView,
+                    ),
+                    // Invisible barrier to close sidebar when tapping outside
+                    if (!isMobile && !_isSidebarCollapsed)
+                      Positioned.fill(
+                        left: 64, // Cover only the content area, not the collapsed sidebar area
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: () => setState(() => _isSidebarCollapsed = true),
+                          child: Container(
+                            color: Colors.black.withOpacity(0.3), // Optional: Add a slight dimming effect
+                          ),
+                        ),
                       ),
-                      VerticalDivider(width: 1, color: context.colors.border),
-                    ],
-                    Expanded(child: currentView),
+                    // Sidebar
+                    if (!isMobile)
+                      Positioned(
+                        left: 0,
+                        top: 0,
+                        bottom: 0,
+                        child: SidebarWidget(
+                          currentIndex: _currentViewIndex,
+                          isCollapsed: _isSidebarCollapsed,
+                          onToggle: () => setState(() => _isSidebarCollapsed = !_isSidebarCollapsed),
+                          onNavigate: (index) => setState(() => _currentViewIndex = index),
+                        ),
+                      ),
                   ],
                 ),
               ),

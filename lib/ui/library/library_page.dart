@@ -111,6 +111,39 @@ class _PageHeader extends StatelessWidget {
           if (!playlist.isLibrary && tracks.isNotEmpty)
             _ExportButton(playlist: playlist, tracks: tracks, settings: settings),
           const SizedBox(width: 8),
+          // Sort button
+          PopupMenuButton<SortOption>(
+            icon: const Icon(Icons.sort_rounded),
+            color: context.colors.surfaceAlt,
+            tooltip: 'Ordenar',
+            initialValue: context.read<LibraryProvider>().sortOption,
+            onSelected: (option) {
+              context.read<LibraryProvider>().setSortOption(option);
+            },
+            itemBuilder: (ctx) => [
+              const PopupMenuItem(
+                value: SortOption.dateAdded,
+                child: Text('Más recientes'),
+              ),
+              const PopupMenuItem(
+                value: SortOption.titleAsc,
+                child: Text('Título (A-Z)'),
+              ),
+              const PopupMenuItem(
+                value: SortOption.titleDesc,
+                child: Text('Título (Z-A)'),
+              ),
+              const PopupMenuItem(
+                value: SortOption.artistAsc,
+                child: Text('Artista (A-Z)'),
+              ),
+              const PopupMenuItem(
+                value: SortOption.artistDesc,
+                child: Text('Artista (Z-A)'),
+              ),
+            ],
+          ),
+          const SizedBox(width: 8),
           // View Toggle Button
           IconButton(
             icon: Icon(isListView ? Icons.grid_view_rounded : Icons.list_rounded),
@@ -283,7 +316,7 @@ class _TrackListRowState extends State<_TrackListRow> {
           try {
             final settings = context.read<SettingsProvider>();
             final library = context.read<LibraryProvider>();
-            await context.read<PlayerProvider>().playTrack(track, library.tracks, settings.musicFolder);
+            await context.read<PlayerProvider>().playTrack(track, library.tracks, settings);
           } catch (e) {
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -585,7 +618,7 @@ class _TrackCardState extends State<_TrackCard> {
           try {
             final settings = context.read<SettingsProvider>();
             final library = context.read<LibraryProvider>();
-            await context.read<PlayerProvider>().playTrack(track, library.tracks, settings.musicFolder);
+            await context.read<PlayerProvider>().playTrack(track, library.tracks, settings);
           } catch (e) {
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(

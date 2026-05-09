@@ -132,12 +132,54 @@ class ApiClient {
     _check(res);
   }
 
+  Future<void> updatePaths({String? music, String? video}) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/api/v1/settings/paths'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'music_dir': music,
+        'video_dir': video,
+      }),
+    );
+    _check(res);
+  }
+
   // ── Downloads (library root) ─────────────────────────────────────────────
 
   Future<Map<String, dynamic>> getDownloads() async {
     final res = await http.get(Uri.parse('$baseUrl/api/v1/downloads'));
     _check(res);
     return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  // ── Search ───────────────────────────────────────────────────────────────
+
+  Future<List<dynamic>> getMetadata({List<String>? filenames}) async {
+    final query = filenames?.map((f) => 'filenames=${Uri.encodeComponent(f)}').join('&') ?? '';
+    final url = '$baseUrl/api/v1/metadata${query.isNotEmpty ? '?$query' : ''}';
+    final res = await http.get(Uri.parse(url));
+    _check(res);
+    return jsonDecode(res.body) as List<dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getLyrics(String title, String artist) async {
+    final uri = Uri.parse('$baseUrl/api/v1/metadata/lyrics').replace(
+      queryParameters: {
+        'title': title,
+        'artist': artist,
+      },
+    );
+    final res = await http.get(uri);
+    _check(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<List<dynamic>> searchOnline(String query, {int limit = 20}) async {
+    final encodedQuery = Uri.encodeQueryComponent(query);
+    final res = await http.get(Uri.parse('$baseUrl/api/v1/search?q=$encodedQuery&limit=$limit'))
+        .timeout(const Duration(seconds: 30));
+    _check(res);
+    return jsonDecode(res.body) as List<dynamic>;
   }
 
   // ── Video Downloads ────────────────────────────────────────────────────────
@@ -163,10 +205,46 @@ class ApiClient {
     return jsonDecode(res.body)['job_id'] as String;
   }
 
+  Future<String> downloadMp3Direct({
+    required String url,
+    required String title,
+    String artist = '',
+    String? playlist,
+  }) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/api/v1/downloads/mp3'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({
+        'url': url,
+        'title': title,
+        'artist': artist,
+        if (playlist != null) 'playlist': playlist,
+      }),
+    ).timeout(const Duration(minutes: 5));
+    _check(res);
+    return jsonDecode(res.body)['job_id'] as String;
+  }
+
   Future<Map<String, dynamic>> getVideoJobStatus(String jobId) async {
     final res = await http.get(Uri.parse('$baseUrl/api/v1/downloads/video/jobs/$jobId'));
     _check(res);
     return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<List<dynamic>> getAllVideoJobs() async {
+    final res = await http.get(Uri.parse('$baseUrl/api/v1/downloads/video/jobs'));
+    _check(res);
+    return jsonDecode(res.body) as List<dynamic>;
+  }
+
+  Future<void> pauseVideoJob(String jobId) async {
+    final res = await http.post(Uri.parse('$baseUrl/api/v1/downloads/video/jobs/$jobId/pause'));
+    _check(res);
+  }
+
+  Future<void> resumeVideoJob(String jobId) async {
+    final res = await http.post(Uri.parse('$baseUrl/api/v1/downloads/video/jobs/$jobId/resume'));
+    _check(res);
   }
 
   // ── Devices ──────────────────────────────────────────────────────────────

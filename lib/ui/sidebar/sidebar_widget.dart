@@ -1,40 +1,45 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/playlist.dart';
 import '../../providers/library_provider.dart';
 import '../../providers/settings_provider.dart';
+import '../../providers/downloads_provider.dart';
 import '../theme.dart';
 import '../settings/settings_page.dart';
 import '../video_download_dialog.dart';
 import '../widgets/hover_scale.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
-class SidebarWidget extends StatefulWidget {
+class SidebarWidget extends StatelessWidget {
   final int currentIndex;
   final ValueChanged<int> onNavigate;
+  final bool isCollapsed;
+  final VoidCallback onToggle;
 
   const SidebarWidget({
     super.key,
     required this.currentIndex,
     required this.onNavigate,
+    required this.isCollapsed,
+    required this.onToggle,
   });
-
-  @override
-  State<SidebarWidget> createState() => _SidebarWidgetState();
-}
-
-class _SidebarWidgetState extends State<SidebarWidget> {
-  bool isCollapsed = false;
 
   @override
   Widget build(BuildContext context) {
     final library = context.watch<LibraryProvider>();
     final settings = context.read<SettingsProvider>();
+    final downloads = context.watch<DownloadsProvider>();
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
       width: isCollapsed ? 64 : 220,
-      color: context.colors.sidebarBg ?? context.colors.surface,
+      decoration: BoxDecoration(
+        color: context.colors.sidebarBg ?? context.colors.glassSurface,
+        border: Border(
+          right: BorderSide(color: context.colors.border, width: 1),
+        ),
+      ),
       clipBehavior: Clip.hardEdge,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -42,7 +47,7 @@ class _SidebarWidgetState extends State<SidebarWidget> {
           // ── Header ─────────────────────────────────────────────────────
           _Header(
             isCollapsed: isCollapsed,
-            onToggle: () => setState(() => isCollapsed = !isCollapsed),
+            onToggle: onToggle,
           ),
 
           Divider(height: 1, color: context.colors.border),
@@ -56,21 +61,29 @@ class _SidebarWidgetState extends State<SidebarWidget> {
                   key: const ValueKey('nav_home'),
                   icon: Icons.home_filled,
                   label: AppLocalizations.of(context)!.navHome,
-                  isSelected: widget.currentIndex == 0,
+                  isSelected: currentIndex == 0,
                   isCollapsed: isCollapsed,
-                  onTap: () => widget.onNavigate(0),
+                  onTap: () => onNavigate(0),
                 ),
                 _NavItem(
                   key: const ValueKey('nav_analytics'),
                   icon: Icons.analytics_outlined,
                   label: AppLocalizations.of(context)!.navAnalytics,
-                  isSelected: widget.currentIndex == 2,
+                  isSelected: currentIndex == 2,
                   isCollapsed: isCollapsed,
-                  onTap: () => widget.onNavigate(2),
+                  onTap: () => onNavigate(2),
+                ),
+                _NavItem(
+                  key: const ValueKey('nav_search'),
+                  icon: Icons.search_rounded,
+                  label: 'Buscador',
+                  isSelected: currentIndex == 3,
+                  isCollapsed: isCollapsed,
+                  onTap: () => onNavigate(3),
                 ),
                 _NavItem(
                   key: const ValueKey('nav_download'),
-                  icon: Icons.download_rounded,
+                  icon: Icons.add_link_rounded,
                   label: AppLocalizations.of(context)!.navDownload,
                   isSelected: false,
                   isCollapsed: isCollapsed,
@@ -78,16 +91,33 @@ class _SidebarWidgetState extends State<SidebarWidget> {
                     showDialog(
                       context: context,
                       builder: (_) => const VideoDownloadDialog(),
-                    ).then((success) {
-                      if (success == true) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text(AppLocalizations.of(context)!.downloadComplete)),
-                        );
+                    ).then((result) {
+                      if (result != null) {
+                        if (result is String) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Descarga completada con advertencias: $result'), backgroundColor: Colors.orange, duration: const Duration(seconds: 5)),
+                          );
+                        } else if (result == true) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(AppLocalizations.of(context)!.downloadComplete)),
+                          );
+                        }
                         final settings = context.read<SettingsProvider>();
                         context.read<LibraryProvider>().loadTracks(settings.api);
                       }
                     });
                   },
+                ),
+                _NavItem(
+                  key: const ValueKey('nav_active_downloads'),
+                  icon: downloads.activeJobsCount > 0 ? Icons.downloading_rounded : Icons.download_done_rounded,
+                  label: downloads.activeJobsCount > 0 
+                      ? 'Descargas (${downloads.activeJobsCount})' 
+                      : 'Descargas',
+                  isSelected: currentIndex == 4,
+                  isCollapsed: isCollapsed,
+                  badgeCount: downloads.activeJobsCount,
+                  onTap: () => onNavigate(4),
                 ),
               ],
             ),
@@ -109,7 +139,7 @@ class _SidebarWidgetState extends State<SidebarWidget> {
                     isSelected: library.selected.name == pl.name,
                     isCollapsed: isCollapsed,
                     onTap: () {
-                      widget.onNavigate(1); // Switch to library view
+                      onNavigate(1); // Switch to library view
                       library.selectPlaylist(settings.api, pl);
                     },
                     onDelete: pl.isLibrary
@@ -307,7 +337,7 @@ class _SectionLabel extends StatelessWidget {
           label,
           style: TextStyle(
             color: context.colors.textSecondary,
-            fontSize: 10,
+            fontSize: 12,
             fontWeight: FontWeight.w600,
             letterSpacing: 1.2,
           ),
@@ -354,7 +384,7 @@ class _PlaylistTile extends StatelessWidget {
         child: Text(
           initial,
           style: TextStyle(
-            fontSize: 11,
+            fontSize: 13,
             fontWeight: FontWeight.w700,
             color: isSelected ? color : context.colors.textPrimary,
           ),
@@ -396,7 +426,7 @@ class _PlaylistTile extends StatelessWidget {
                           child: Text(
                             playlist.name,
                             style: TextStyle(
-                              fontSize: 13,
+                              fontSize: 15,
                               color: isSelected ? context.colors.textPrimary : context.colors.textSecondary,
                               fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                             ),
@@ -408,7 +438,7 @@ class _PlaylistTile extends StatelessWidget {
                             '${playlist.trackCount}',
                             style: TextStyle(
                               color: context.colors.textSecondary,
-                              fontSize: 11,
+                              fontSize: 13,
                             ),
                           ),
                       ],
@@ -471,7 +501,7 @@ class _NewPlaylistButton extends StatelessWidget {
                       children: [
                         Icon(Icons.add, size: 16),
                         const SizedBox(width: 8),
-                        Text(AppLocalizations.of(context)!.newPlaylist, style: TextStyle(fontSize: 13)),
+                        Text(AppLocalizations.of(context)!.newPlaylist, style: TextStyle(fontSize: 15)),
                       ],
                     ),
             ),
@@ -486,6 +516,7 @@ class _NavItem extends StatelessWidget {
   final bool isSelected;
   final bool isCollapsed;
   final VoidCallback onTap;
+  final int badgeCount;
 
   const _NavItem({
     super.key,
@@ -494,6 +525,7 @@ class _NavItem extends StatelessWidget {
     required this.isSelected,
     required this.isCollapsed,
     required this.onTap,
+    this.badgeCount = 0,
   });
 
   @override
@@ -521,10 +553,28 @@ class _NavItem extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: isCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
                   children: [
-                    Icon(
-                      icon,
-                      size: 20,
-                      color: isSelected ? Theme.of(context).colorScheme.primary : context.colors.textSecondary,
+                    Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                        Icon(
+                          icon,
+                          size: 20,
+                          color: isSelected ? Theme.of(context).colorScheme.primary : context.colors.textSecondary,
+                        ),
+                        if (isCollapsed && badgeCount > 0)
+                          Positioned(
+                            right: -2,
+                            top: -2,
+                            child: Container(
+                              padding: const EdgeInsets.all(2),
+                              decoration: BoxDecoration(
+                                color: Theme.of(context).colorScheme.primary,
+                                shape: BoxShape.circle,
+                              ),
+                              constraints: const BoxConstraints(minWidth: 8, minHeight: 8),
+                            ),
+                          ),
+                      ],
                     ),
                     if (!isCollapsed) ...[
                       const SizedBox(width: 12),
@@ -532,7 +582,7 @@ class _NavItem extends StatelessWidget {
                         child: Text(
                           label,
                           style: TextStyle(
-                            fontSize: 13,
+                            fontSize: 15,
                             color: isSelected ? context.colors.textPrimary : context.colors.textSecondary,
                             fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                           ),

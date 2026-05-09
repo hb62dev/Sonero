@@ -12,6 +12,15 @@ class ListenProvider extends ChangeNotifier {
   ListenJob? get currentJob => _currentJob;
   bool get isListening => _isListening;
 
+  // Parámetros para el reintento
+  ApiClient? _lastApi;
+  String? _lastSource;
+  int? _lastDuration;
+  int? _lastDeviceIndex;
+  String? _lastPlaylist;
+  VoidCallback? _lastOnDone;
+  ValueChanged<String>? _lastOnError;
+
   Future<void> startListening({
     required ApiClient api,
     required String source, // 'mic' or 'system'
@@ -22,6 +31,14 @@ class ListenProvider extends ChangeNotifier {
     ValueChanged<String>? onError,
   }) async {
     if (_isListening) return;
+
+    _lastApi = api;
+    _lastSource = source;
+    _lastDuration = duration;
+    _lastDeviceIndex = deviceIndex;
+    _lastPlaylist = playlist;
+    _lastOnDone = onDone;
+    _lastOnError = onError;
 
     _isListening = true;
     _currentJob = null;
@@ -84,6 +101,21 @@ class ListenProvider extends ChangeNotifier {
     _isListening = false;
     _currentJob = null;
     notifyListeners();
+  }
+
+  void retry() {
+    if (_lastApi != null && _lastSource != null && _lastDuration != null) {
+      dismiss();
+      startListening(
+        api: _lastApi!,
+        source: _lastSource!,
+        duration: _lastDuration!,
+        deviceIndex: _lastDeviceIndex,
+        playlist: _lastPlaylist,
+        onDone: _lastOnDone,
+        onError: _lastOnError,
+      );
+    }
   }
 
   void dismiss() {

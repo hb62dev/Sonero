@@ -10,6 +10,7 @@ class Track {
   final String playlist; // empty string = root library
   final String downloaded;
   final double sizeMb;
+  final double createdAt;
 
   const Track({
     required this.filename,
@@ -23,6 +24,7 @@ class Track {
     this.playlist = '',
     this.downloaded = '',
     this.sizeMb = 0,
+    this.createdAt = 0,
   });
 
   factory Track.fromJson(Map<String, dynamic> json) => Track(
@@ -37,6 +39,7 @@ class Track {
         playlist: json['playlist'] as String? ?? '',
         downloaded: json['downloaded'] as String? ?? '',
         sizeMb: (json['size_mb'] as num?)?.toDouble() ?? 0,
+        createdAt: (json['created_at'] as num?)?.toDouble() ?? 0,
       );
 
   factory Track.fromApiFile(Map<String, dynamic> json, {String playlist = '', String baseUrl = ''}) => Track(
@@ -47,6 +50,7 @@ class Track {
         year: json['year'] as String? ?? '',
         coverUrl: json['cover_url'] != null ? '$baseUrl${json['cover_url']}' : null,
         sizeMb: (json['size_mb'] as num?)?.toDouble() ?? 0,
+        createdAt: (json['created_at'] as num?)?.toDouble() ?? 0,
         playlist: playlist,
       );
 
@@ -67,5 +71,6 @@ class Track {
         playlist: playlist ?? this.playlist,
         downloaded: downloaded,
         sizeMb: sizeMb,
+        createdAt: createdAt,
       );
 }

@@ -87,7 +87,7 @@ class _VideoDownloadDialogState extends State<VideoDownloadDialog> {
           
           if (status['status'] == 'done') {
             timer.cancel();
-            Navigator.of(context).pop(true);
+            Navigator.of(context).pop(status['warning'] ?? true);
           } else if (status['status'] == 'failed') {
             timer.cancel();
             setState(() {

@@ -13,7 +13,7 @@ class SettingsProvider extends ChangeNotifier {
   static const _keySidebarColor = 'sidebar_color';
   static const _keyLocale = 'locale';
 
-  String _apiUrl = 'http://localhost:8000';
+  String _apiUrl = 'http://127.0.0.1:8000';
   String _musicFolder = '';
   String _videoFolder = '';
   int? _deviceIndex;
@@ -44,7 +44,11 @@ class SettingsProvider extends ChangeNotifier {
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
-    _apiUrl = prefs.getString(_keyApiUrl) ?? 'http://localhost:8000';
+    _apiUrl = prefs.getString(_keyApiUrl) ?? 'http://127.0.0.1:8000';
+    if (_apiUrl.contains('localhost')) {
+      _apiUrl = _apiUrl.replaceAll('localhost', '127.0.0.1');
+      await prefs.setString(_keyApiUrl, _apiUrl);
+    }
     _musicFolder = prefs.getString(_keyMusicFolder) ?? '';
     _videoFolder = prefs.getString(_keyVideoFolder) ?? '';
     _deviceIndex = prefs.getInt(_keyDeviceIndex);
@@ -64,6 +68,17 @@ class SettingsProvider extends ChangeNotifier {
     _locale = prefs.getString(_keyLocale) ?? 'es';
 
     _api = ApiClient(baseUrl: _apiUrl);
+    
+    // Sync paths with backend if we have any custom paths
+    if (_musicFolder.isNotEmpty || _videoFolder.isNotEmpty) {
+      try {
+        await _api.updatePaths(
+          music: _musicFolder.isNotEmpty ? _musicFolder : null, 
+          video: _videoFolder.isNotEmpty ? _videoFolder : null
+        );
+      } catch (_) {}
+    }
+    
     _isLoaded = true;
     notifyListeners();
   }
@@ -80,6 +95,11 @@ class SettingsProvider extends ChangeNotifier {
     _musicFolder = folder;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyMusicFolder, folder);
+    
+    try {
+      await _api.updatePaths(music: folder.isNotEmpty ? folder : null);
+    } catch (_) {}
+    
     notifyListeners();
   }
 
@@ -87,6 +107,11 @@ class SettingsProvider extends ChangeNotifier {
     _videoFolder = folder;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyVideoFolder, folder);
+    
+    try {
+      await _api.updatePaths(video: folder.isNotEmpty ? folder : null);
+    } catch (_) {}
+    
     notifyListeners();
   }
 

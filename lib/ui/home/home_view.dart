@@ -64,10 +64,10 @@ class HomeView extends StatelessWidget {
         children: [
           Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 48,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: context.colors.textPrimary,
             ),
             textAlign: TextAlign.center,
           ),
@@ -78,7 +78,7 @@ class HomeView extends StatelessWidget {
                 mainTrack.artist,
                 style: TextStyle(
                   fontSize: 24,
-                  color: Colors.white.withOpacity(0.8),
+                  color: context.colors.textSecondary,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -93,7 +93,7 @@ class HomeView extends StatelessWidget {
                     try {
                       final settings = context.read<SettingsProvider>();
                       final library = context.read<LibraryProvider>();
-                      await context.read<PlayerProvider>().playTrack(mainTrack, library.tracks, settings.musicFolder);
+                      await context.read<PlayerProvider>().playTrack(mainTrack, library.tracks, settings);
                     } catch (e) {
                       if (context.mounted) {
                         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -105,20 +105,20 @@ class HomeView extends StatelessWidget {
                     }
                   }
                 },
-                icon: const Icon(Icons.play_arrow, color: Colors.black),
-                label: Text(AppLocalizations.of(context)!.play, style: const TextStyle(color: Colors.black, fontWeight: FontWeight.bold)),
+                icon: Icon(Icons.play_arrow, color: context.colors.surface),
+                label: Text(AppLocalizations.of(context)!.play, style: TextStyle(color: context.colors.surface, fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.white,
+                  backgroundColor: context.colors.textPrimary,
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 ),
               ),
               const SizedBox(width: 16),
               OutlinedButton.icon(
                 onPressed: () {},
-                icon: const Icon(Icons.info_outline, color: Colors.white),
-                label: Text(AppLocalizations.of(context)!.moreInfo, style: const TextStyle(color: Colors.white)),
+                icon: Icon(Icons.info_outline, color: context.colors.textPrimary),
+                label: Text(AppLocalizations.of(context)!.moreInfo, style: TextStyle(color: context.colors.textPrimary)),
                 style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Colors.white),
+                  side: BorderSide(color: context.colors.textPrimary),
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 ),
               ),
@@ -138,10 +138,10 @@ class HomeView extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           child: Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: context.colors.textPrimary,
             ),
           ),
         ),
@@ -163,7 +163,7 @@ class HomeView extends StatelessWidget {
                     onTap: () async {
                       try {
                         final settings = context.read<SettingsProvider>();
-                        await context.read<PlayerProvider>().playTrack(item, items, settings.musicFolder);
+                        await context.read<PlayerProvider>().playTrack(item, items, settings);
                       } catch (e) {
                         if (context.mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -179,12 +179,12 @@ class HomeView extends StatelessWidget {
                       margin: const EdgeInsets.symmetric(horizontal: 8.0),
                       decoration: BoxDecoration(
                         color: context.colors.surfaceAlt,
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.15),
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
+                            color: Colors.black.withOpacity(0.3),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
                           )
                         ],
                         image: item.coverUrl != null && item.coverUrl!.isNotEmpty
@@ -196,7 +196,7 @@ class HomeView extends StatelessWidget {
                       ),
                       child: Container(
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(16),
                           gradient: LinearGradient(
                             begin: Alignment.bottomCenter,
                             end: Alignment.topCenter,
@@ -246,10 +246,10 @@ class HomeView extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
           child: Text(
             title,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
-              color: Colors.white,
+              color: context.colors.textPrimary,
             ),
           ),
         ),
@@ -278,13 +278,14 @@ class HomeView extends StatelessWidget {
                     margin: const EdgeInsets.symmetric(horizontal: 8),
                     decoration: BoxDecoration(
                       color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Theme.of(context).colorScheme.primary.withOpacity(0.5), width: 2),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Theme.of(context).colorScheme.primary.withOpacity(0.3), width: 1),
                       boxShadow: [
                         BoxShadow(
-                          color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
-                          blurRadius: 6,
+                          color: Colors.black.withOpacity(0.2),
+                          blurRadius: 10,
                           spreadRadius: 0,
+                          offset: const Offset(0, 4),
                         )
                       ],
                     ),
@@ -297,7 +298,7 @@ class HomeView extends StatelessWidget {
                           Text(
                             pl.name,
                             textAlign: TextAlign.center,
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                            style: TextStyle(color: context.colors.textPrimary, fontWeight: FontWeight.bold),
                           ),
                         ],
                       ),

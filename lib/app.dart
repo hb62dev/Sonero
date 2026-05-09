@@ -12,6 +12,7 @@ import 'providers/settings_provider.dart';
 import 'providers/library_provider.dart';
 import 'providers/listen_provider.dart';
 import 'providers/player_provider.dart';
+import 'providers/downloads_provider.dart';
 import 'ui/app_shell.dart';
 import 'ui/theme.dart';
 import 'ui/video_download_dialog.dart';
@@ -30,6 +31,7 @@ class _ShazamAppState extends State<ShazamApp> with TrayListener, WindowListener
   final _library   = LibraryProvider();
   final _listen    = ListenProvider();
   final _player    = PlayerProvider();
+  final _downloads = DownloadsProvider();
   final _hotkeys   = HotkeyService();
   final _navigatorKey = GlobalKey<NavigatorState>();
   bool _initialized = false;
@@ -42,6 +44,7 @@ class _ShazamAppState extends State<ShazamApp> with TrayListener, WindowListener
 
   Future<void> _boot() async {
     await _settings.load();
+    _downloads.startPolling(_settings.api);
 
     // Register global hotkeys (Windows desktop only)
     if (!kIsWeb && Platform.isWindows) {
@@ -109,11 +112,17 @@ class _ShazamAppState extends State<ShazamApp> with TrayListener, WindowListener
       showDialog(
         context: context,
         builder: (_) => const VideoDownloadDialog(),
-      ).then((success) {
-        if (success == true) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Video download started/completed successfully')),
-          );
+      ).then((result) {
+        if (result != null) {
+          if (result is String) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Descarga completada con advertencias: $result'), backgroundColor: Colors.orange, duration: const Duration(seconds: 5)),
+            );
+          } else if (result == true) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Video download started/completed successfully')),
+            );
+          }
           _library.loadTracks(_settings.api); // Optional: reload library to see the file, though videos go to /videos
         }
       });
@@ -160,6 +169,7 @@ class _ShazamAppState extends State<ShazamApp> with TrayListener, WindowListener
       trayManager.removeListener(this);
     }
     _hotkeys.dispose();
+    _downloads.dispose();
     super.dispose();
   }
 
@@ -182,6 +192,7 @@ class _ShazamAppState extends State<ShazamApp> with TrayListener, WindowListener
         ChangeNotifierProvider.value(value: _library),
         ChangeNotifierProvider.value(value: _listen),
         ChangeNotifierProvider.value(value: _player),
+        ChangeNotifierProvider.value(value: _downloads),
         Provider.value(value: _hotkeys),
       ],
       child: Builder(

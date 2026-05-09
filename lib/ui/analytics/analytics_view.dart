@@ -18,9 +18,9 @@ class AnalyticsView extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text(
+            Text(
               'Tus Hábitos',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.white),
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: context.colors.textPrimary),
             ),
             const SizedBox(height: 24),
             Row(
@@ -33,9 +33,9 @@ class AnalyticsView extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 32),
-            const Text(
+            Text(
               'Historial Reciente (Benrio)',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white),
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: context.colors.textPrimary),
             ),
             const SizedBox(height: 16),
             Expanded(
@@ -75,7 +75,7 @@ class AnalyticsView extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               value,
-              style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white),
+              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: context.colors.textPrimary),
             ),
             const SizedBox(height: 4),
             Text(
