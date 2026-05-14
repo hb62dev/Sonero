@@ -4,6 +4,7 @@ import 'package:path/path.dart' as p;
 import 'package:media_kit/media_kit.dart' hide Track;
 import 'package:media_kit_video/media_kit_video.dart';
 import '../models/track.dart';
+import 'settings_provider.dart';
 
 class PlayerProvider extends ChangeNotifier {
   late final Player player;
@@ -27,6 +28,63 @@ class PlayerProvider extends ChangeNotifier {
   bool _isVideo = false;
   bool get isVideo => _isVideo;
 
+  // ── Video overlay mode ────────────────────────────────────────────────────
+  bool _isVideoMode = false;
+  bool get isVideoMode => _isVideoMode;
+
+  void setVideoMode(bool val) {
+    _isVideoMode = val;
+    if (val) _isSidebarVisible = false; // auto-hide sidebar when video starts
+    if (!val) _isFullscreen = false;    // exit fullscreen when closing video
+    notifyListeners();
+  }
+
+  void toggleVideoMode() {
+    _isVideoMode = !_isVideoMode;
+    notifyListeners();
+  }
+
+  // ── Fullscreen (shared so keyboard handler can trigger it) ────────────────
+  bool _isFullscreen = false;
+  bool get isFullscreen => _isFullscreen;
+
+  void setFullscreen(bool val) {
+    _isFullscreen = val;
+    notifyListeners();
+  }
+
+  void toggleFullscreen() {
+    _isFullscreen = !_isFullscreen;
+    notifyListeners();
+  }
+
+  // ── Mute toggle ───────────────────────────────────────────────────────────
+  double _previousVolume = 100.0;
+
+  void toggleMute() {
+    if (_volume > 0) {
+      _previousVolume = _volume;
+      setVolume(0);
+    } else {
+      setVolume(_previousVolume > 0 ? _previousVolume : 100.0);
+    }
+  }
+
+  // ── Sidebar visibility (shared across AppShell & MiniPlayer) ─────────────
+  bool _isSidebarVisible = false; // starts collapsed
+  bool get isSidebarVisible => _isSidebarVisible;
+
+  void toggleSidebar() {
+    _isSidebarVisible = !_isSidebarVisible;
+    notifyListeners();
+  }
+
+  void setSidebarVisible(bool val) {
+    _isSidebarVisible = val;
+    notifyListeners();
+  }
+
+  // ── Shuffle / Repeat ──────────────────────────────────────────────────────
   bool _isShuffle = false;
   bool get isShuffle => _isShuffle;
 
@@ -59,9 +117,8 @@ class PlayerProvider extends ChangeNotifier {
       _volume = vol;
       notifyListeners();
     });
-    
+
     player.stream.tracks.listen((tracks) {
-      // Basic check: if there's a video track, it might be a video
       _isVideo = tracks.video.isNotEmpty && tracks.video.first.id != 'no';
       notifyListeners();
     });
@@ -70,9 +127,8 @@ class PlayerProvider extends ChangeNotifier {
       if (playlist.index >= 0 && playlist.index < _queue.length) {
         _currentTrack = _queue[playlist.index];
         _isVideo = _isVideoExt(_currentTrack!.filename);
-        // Reset position/duration to avoid stale values from the previous
-        // track causing Slider assertion errors (value > max) during the
-        // brief moment before the new track's streams update.
+        if (_isVideo) _isVideoMode = true;   // auto-open overlay for video
+        if (!_isVideo) _isVideoMode = false; // auto-close overlay for audio
         _position = Duration.zero;
         _duration = Duration.zero;
         notifyListeners();
@@ -87,6 +143,7 @@ class PlayerProvider extends ChangeNotifier {
 
     _currentTrack = track;
     _isVideo = _isVideoExt(track.filename);
+    if (_isVideo) _isVideoMode = true; // auto-open video overlay
     _position = Duration.zero;
     _duration = Duration.zero;
     notifyListeners();
@@ -97,8 +154,9 @@ class PlayerProvider extends ChangeNotifier {
       if (!uri.startsWith('http')) {
         if (!p.isAbsolute(uri)) {
           if (_isVideoExt(t.filename)) {
-            // Remove 'videos/' prefix if present
-            final cleanFilename = t.filename.startsWith('videos/') ? t.filename.substring(7) : t.filename;
+            final cleanFilename = t.filename.startsWith('videos/')
+                ? t.filename.substring(7)
+                : t.filename;
             uri = p.join(settings.videoFolder, cleanFilename);
           } else if (t.playlist.isNotEmpty) {
             uri = p.join(settings.musicFolder, t.playlist, t.filename);
@@ -107,12 +165,10 @@ class PlayerProvider extends ChangeNotifier {
           }
         }
         uri = p.normalize(uri);
-        
-        // Ensure the clicked track's file exists locally, others we can skip if not found
-        // But for simplicity, we won't throw exception for whole queue.
         if (t == track && !File(uri).existsSync()) {
           debugPrint('File does not exist: $uri');
-          throw Exception('El archivo no existe en el disco: $uri\nVerifica tu "Directorio de Música" en Ajustes.');
+          throw Exception(
+              'El archivo no existe en el disco: $uri\nVerifica tu "Directorio de Música" en Ajustes.');
         }
       }
       medias.add(Media(uri));
@@ -136,21 +192,15 @@ class PlayerProvider extends ChangeNotifier {
     }
   }
 
-  void seek(Duration pos) {
-    player.seek(pos);
-  }
+  void pause() => player.pause();
 
-  void setVolume(double vol) {
-    player.setVolume(vol);
-  }
+  void seek(Duration pos) => player.seek(pos);
 
-  void next() {
-    player.next();
-  }
+  void setVolume(double vol) => player.setVolume(vol);
 
-  void previous() {
-    player.previous();
-  }
+  void next() => player.next();
+
+  void previous() => player.previous();
 
   void toggleShuffle() {
     _isShuffle = !_isShuffle;
@@ -173,12 +223,17 @@ class PlayerProvider extends ChangeNotifier {
   void stop() {
     player.stop();
     _currentTrack = null;
+    _isVideoMode = false;
     notifyListeners();
   }
 
   bool _isVideoExt(String filename) {
     final lower = filename.toLowerCase();
-    return lower.endsWith('.mp4') || lower.endsWith('.mkv') || lower.endsWith('.avi') || lower.endsWith('.mov') || lower.endsWith('.webm');
+    return lower.endsWith('.mp4') ||
+        lower.endsWith('.mkv') ||
+        lower.endsWith('.avi') ||
+        lower.endsWith('.mov') ||
+        lower.endsWith('.webm');
   }
 
   @override

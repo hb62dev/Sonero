@@ -370,7 +370,7 @@ class _PlaylistTile extends StatelessWidget {
     
     Widget leadingIcon;
     if (playlist.isLibrary) {
-      leadingIcon = Icon(Icons.library_music_outlined, size: 20, color: color);
+      leadingIcon = Icon(Icons.library_music_outlined, size: 24, color: color);
     } else {
       final initial = playlist.name.isNotEmpty ? playlist.name[0].toUpperCase() : '?';
       leadingIcon = Container(
@@ -402,7 +402,7 @@ class _PlaylistTile extends StatelessWidget {
               ? (details) => _showContextMenu(context, details.globalPosition)
               : null,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 1),
             child: Material(
               type: MaterialType.transparency,
               child: InkWell(
@@ -414,7 +414,7 @@ class _PlaylistTile extends StatelessWidget {
                     color: isSelected ? Theme.of(context).colorScheme.primary.withOpacity(0.12) : Colors.transparent,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  padding: EdgeInsets.symmetric(horizontal: isCollapsed ? 0 : 8),
+                  padding: EdgeInsets.symmetric(horizontal: isCollapsed ? 0 : 2),
                   alignment: isCollapsed ? Alignment.center : Alignment.centerLeft,
                   child: Row(
                     mainAxisAlignment: isCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
@@ -479,7 +479,7 @@ class _NewPlaylistButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         child: SizedBox(
           width: double.infinity,
           height: 36,
@@ -536,7 +536,7 @@ class _NavItem extends StatelessWidget {
       child: HoverScale(
         scale: 1.02,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 1),
           child: Material(
             type: MaterialType.transparency,
             child: InkWell(
@@ -548,7 +548,7 @@ class _NavItem extends StatelessWidget {
                   color: isSelected ? Theme.of(context).colorScheme.primary.withOpacity(0.12) : Colors.transparent,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                padding: EdgeInsets.symmetric(horizontal: isCollapsed ? 0 : 8),
+                padding: EdgeInsets.symmetric(horizontal: isCollapsed ? 0 : 2),
                 alignment: isCollapsed ? Alignment.center : Alignment.centerLeft,
                 child: Row(
                   mainAxisAlignment: isCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
@@ -558,7 +558,7 @@ class _NavItem extends StatelessWidget {
                       children: [
                         Icon(
                           icon,
-                          size: 20,
+                          size: 24,
                           color: isSelected ? Theme.of(context).colorScheme.primary : context.colors.textSecondary,
                         ),
                         if (isCollapsed && badgeCount > 0)

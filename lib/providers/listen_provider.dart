@@ -1,5 +1,8 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:record/record.dart';
+import 'package:path_provider/path_provider.dart';
 import '../core/api_client.dart';
 import '../models/listen_job.dart';
 import 'package:local_notifier/local_notifier.dart';
@@ -45,13 +48,60 @@ class ListenProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      final jobId = await api.startListening(
-        duration: duration,
-        autoDownload: true,
-        source: source,
-        deviceIndex: deviceIndex,
-        playlist: playlist,
-      );
+      String jobId;
+
+      if (!kIsWeb && Platform.isAndroid && source == 'mic') {
+        _currentJob = ListenJob(
+          jobId: 'local',
+          status: ListenJobStatus.listening,
+          step: '🎙️ Escuchando...',
+          progress: 10,
+        );
+        notifyListeners();
+
+        final record = AudioRecorder();
+        if (await record.hasPermission()) {
+          final dir = await getTemporaryDirectory();
+          final path = '${dir.path}/listen_temp.wav';
+          
+          await record.start(
+            const RecordConfig(encoder: AudioEncoder.wav), 
+            path: path,
+          );
+          
+          await Future.delayed(Duration(seconds: duration));
+          final finalPath = await record.stop();
+          record.dispose();
+          
+          if (finalPath != null) {
+            _currentJob = ListenJob(
+              jobId: 'local',
+              status: ListenJobStatus.recognizing,
+              step: '⏳ Procesando audio...',
+              progress: 20,
+            );
+            notifyListeners();
+
+            jobId = await api.uploadAudioForListen(
+              filePath: finalPath,
+              autoDownload: true,
+              playlist: playlist,
+            );
+          } else {
+            throw Exception('No se pudo grabar el audio.');
+          }
+        } else {
+          throw Exception('Permiso de micrófono denegado.');
+        }
+      } else {
+        jobId = await api.startListening(
+          duration: duration,
+          autoDownload: true,
+          source: source,
+          deviceIndex: deviceIndex,
+          playlist: playlist,
+        );
+      }
 
       // Set initial job state
       _currentJob = ListenJob(

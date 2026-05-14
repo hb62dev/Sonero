@@ -182,9 +182,10 @@ class HomeView extends StatelessWidget {
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.3),
-                            blurRadius: 12,
-                            offset: const Offset(0, 4),
+                            color: Colors.black.withOpacity(0.09),
+                            blurRadius: 4,
+                            spreadRadius: 0,
+                            offset: const Offset(0, 1),
                           )
                         ],
                         image: item.coverUrl != null && item.coverUrl!.isNotEmpty
@@ -275,17 +276,17 @@ class HomeView extends StatelessWidget {
                   },
                   child: Container(
                     width: 150,
-                    margin: const EdgeInsets.symmetric(horizontal: 8),
+                    margin: const EdgeInsets.symmetric(horizontal: 10),
                     decoration: BoxDecoration(
-                      color: Theme.of(context).colorScheme.primary.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: Theme.of(context).colorScheme.primary.withOpacity(0.3), width: 1),
+                      color: Theme.of(context).colorScheme.primary.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Theme.of(context).colorScheme.primary.withOpacity(0.15), width: 1),
                       boxShadow: [
                         BoxShadow(
-                          color: Colors.black.withOpacity(0.2),
-                          blurRadius: 10,
+                          color: Colors.black.withOpacity(0.08),
+                          blurRadius: 4,
                           spreadRadius: 0,
-                          offset: const Offset(0, 4),
+                          offset: Offset.zero,
                         )
                       ],
                     ),

@@ -7,6 +7,7 @@ import '../../providers/library_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../providers/player_provider.dart';
 import '../../core/csv_service.dart';
+import '../../services/lyrics_service.dart';
 import '../theme.dart';
 import 'metadata_dialog.dart';
 
@@ -17,42 +18,129 @@ class LibraryPage extends StatefulWidget {
   State<LibraryPage> createState() => _LibraryPageState();
 }
 
-class _LibraryPageState extends State<LibraryPage> {
+class _LibraryPageState extends State<LibraryPage>
+    with SingleTickerProviderStateMixin {
   bool _isListView = false;
+  late TabController _tabController;
+
+  static const _videoExts = {'.mp4', '.mkv', '.avi', '.mov', '.webm'};
+
+  bool _isVideoTrack(Track t) {
+    final name = t.filename.toLowerCase();
+    return _videoExts.any((e) => name.endsWith(e));
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 3, vsync: this);
+    _tabController.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final library = context.watch<LibraryProvider>();
+    final library  = context.watch<LibraryProvider>();
     final settings = context.read<SettingsProvider>();
     final selected = library.selected;
+
+    final allTracks   = library.tracks;
+    final audioTracks = allTracks.where((t) => !_isVideoTrack(t)).toList();
+    final videoTracks = allTracks.where(_isVideoTrack).toList();
+
+    final List<Track> currentTracks = switch (_tabController.index) {
+      1 => audioTracks,
+      2 => videoTracks,
+      _ => allTracks,
+    };
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ── Header ────────────────────────────────────────────────────────
+        // ── Header ──────────────────────────────────────────────────────────
         _PageHeader(
-          playlist: selected, 
-          tracks: library.tracks, 
-          settings: settings,
-          isListView: _isListView,
+          playlist:    selected,
+          tracks:      currentTracks,
+          allTracks:   allTracks,
+          settings:    settings,
+          isListView:  _isListView,
+          tabIndex:    _tabController.index,
           onToggleView: () => setState(() => _isListView = !_isListView),
+        ),
+
+        // ── Tabs ─────────────────────────────────────────────────────────────
+        TabBar(
+          controller: _tabController,
+          isScrollable: false,
+          indicatorColor: Theme.of(context).colorScheme.primary,
+          labelColor: Theme.of(context).colorScheme.primary,
+          unselectedLabelColor: context.colors.textSecondary,
+          labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+          tabs: [
+            Tab(
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.library_music_rounded, size: 16),
+                const SizedBox(width: 6),
+                Text('Todo (${allTracks.length})'),
+              ]),
+            ),
+            Tab(
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.audiotrack_rounded, size: 16),
+                const SizedBox(width: 6),
+                Text('Audio (${audioTracks.length})'),
+              ]),
+            ),
+            Tab(
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                const Icon(Icons.videocam_rounded, size: 16),
+                const SizedBox(width: 6),
+                Text('Video (${videoTracks.length})'),
+              ]),
+            ),
+          ],
         ),
 
         Divider(height: 1, color: context.colors.border),
 
-        // ── Content ───────────────────────────────────────────────────────
+        // ── Content ─────────────────────────────────────────────────────────
         Expanded(
           child: library.loading
-              ? Center(
-                  child: CircularProgressIndicator(color: Theme.of(context).colorScheme.primary))
-              : library.tracks.isEmpty
-                  ? _EmptyState(playlist: selected)
-                  : _isListView 
-                      ? _TrackList(tracks: library.tracks)
-                      : _TrackGrid(tracks: library.tracks),
+              ? Center(child: CircularProgressIndicator(
+                  color: Theme.of(context).colorScheme.primary))
+              : currentTracks.isEmpty
+                  ? _EmptyState(
+                      playlist: selected,
+                      tabIndex: _tabController.index,
+                    )
+                  : TabBarView(
+                      controller: _tabController,
+                      children: [
+                        _buildContent(allTracks,   allTracks),
+                        _buildContent(audioTracks, audioTracks),
+                        _buildContent(videoTracks, videoTracks),
+                      ],
+                    ),
         ),
       ],
     );
+  }
+
+  Widget _buildContent(List<Track> tracks, List<Track> queue) {
+    if (tracks.isEmpty) {
+      return _EmptyState(
+        playlist: context.read<LibraryProvider>().selected,
+        tabIndex: _tabController.index,
+      );
+    }
+    return _isListView
+        ? _TrackList(tracks: tracks, queue: queue)
+        : _TrackGrid(tracks: tracks, queue: queue);
   }
 }
 
@@ -60,23 +148,33 @@ class _LibraryPageState extends State<LibraryPage> {
 
 class _PageHeader extends StatelessWidget {
   final Playlist playlist;
-  final List<Track> tracks;
+  final List<Track> tracks;     // current tab's tracks (for count)
+  final List<Track> allTracks; // all tracks (for autofill/export)
   final SettingsProvider settings;
   final bool isListView;
+  final int tabIndex;
   final VoidCallback onToggleView;
 
   const _PageHeader({
     required this.playlist,
     required this.tracks,
+    required this.allTracks,
     required this.settings,
     required this.isListView,
+    required this.tabIndex,
     required this.onToggleView,
   });
 
   @override
   Widget build(BuildContext context) {
+    final label = switch (tabIndex) {
+      1 => '${tracks.length} pista${tracks.length == 1 ? '' : 's'} de audio',
+      2 => '${tracks.length} video${tracks.length == 1 ? '' : 's'}',
+      _ => '${tracks.length} canción${tracks.length == 1 ? '' : 'es'}',
+    };
+
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 20, 24, 16),
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
       child: Row(
         children: [
           Column(
@@ -92,7 +190,7 @@ class _PageHeader extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               Text(
-                '${tracks.length} canción${tracks.length == 1 ? '' : 'es'}',
+                label,
                 style: TextStyle(
                   color: context.colors.textSecondary,
                   fontSize: 13,
@@ -101,15 +199,14 @@ class _PageHeader extends StatelessWidget {
             ],
           ),
           const Spacer(),
-          // Export CSV button (only for playlists, not library root)
-          // AutoFill Button
-          if (tracks.isNotEmpty)
-            _AutoFillButton(tracks: tracks, settings: settings),
-          if (tracks.isNotEmpty && !playlist.isLibrary)
+          // AutoFill Button (uses allTracks, not filtered)
+          if (allTracks.isNotEmpty)
+            _AutoFillButton(tracks: allTracks, settings: settings),
+          if (allTracks.isNotEmpty && !playlist.isLibrary)
             const SizedBox(width: 8),
           // Export CSV button (only for playlists, not library root)
-          if (!playlist.isLibrary && tracks.isNotEmpty)
-            _ExportButton(playlist: playlist, tracks: tracks, settings: settings),
+          if (!playlist.isLibrary && allTracks.isNotEmpty)
+            _ExportButton(playlist: playlist, tracks: allTracks, settings: settings),
           const SizedBox(width: 8),
           // Sort button
           PopupMenuButton<SortOption>(
@@ -281,21 +378,23 @@ class _ExportButton extends StatelessWidget {
 
 class _TrackList extends StatelessWidget {
   final List<Track> tracks;
-  const _TrackList({required this.tracks});
+  final List<Track> queue;
+  const _TrackList({required this.tracks, required this.queue});
 
   @override
   Widget build(BuildContext context) {
     return ListView.builder(
       padding: const EdgeInsets.all(20),
       itemCount: tracks.length,
-      itemBuilder: (_, i) => _TrackListRow(track: tracks[i]),
+      itemBuilder: (_, i) => _TrackListRow(track: tracks[i], queue: queue),
     );
   }
 }
 
 class _TrackListRow extends StatefulWidget {
   final Track track;
-  const _TrackListRow({required this.track});
+  final List<Track> queue;
+  const _TrackListRow({required this.track, required this.queue});
 
   @override
   State<_TrackListRow> createState() => _TrackListRowState();
@@ -315,8 +414,8 @@ class _TrackListRowState extends State<_TrackListRow> {
         onTap: () async {
           try {
             final settings = context.read<SettingsProvider>();
-            final library = context.read<LibraryProvider>();
-            await context.read<PlayerProvider>().playTrack(track, library.tracks, settings);
+            await context.read<PlayerProvider>().playTrack(
+                  widget.track, widget.queue, settings);
           } catch (e) {
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -341,7 +440,6 @@ class _TrackListRowState extends State<_TrackListRow> {
           ),
           child: Row(
             children: [
-              // Cover
               ClipRRect(
                 borderRadius: BorderRadius.circular(6),
                 child: SizedBox(
@@ -351,9 +449,10 @@ class _TrackListRowState extends State<_TrackListRow> {
                       ? Image.network(
                           track.coverUrl!,
                           fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) => _CoverPlaceholderSmall(),
+                          errorBuilder: (_, __, ___) =>
+                              _CoverPlaceholderSmall(isVideo: _isVideo(track)),
                         )
-                      : _CoverPlaceholderSmall(),
+                      : _CoverPlaceholderSmall(isVideo: _isVideo(track)),
                 ),
               ),
               const SizedBox(width: 16),
@@ -428,12 +527,18 @@ class _TrackListRowState extends State<_TrackListRow> {
 }
 
 class _CoverPlaceholderSmall extends StatelessWidget {
+  final bool isVideo;
+  const _CoverPlaceholderSmall({this.isVideo = false});
+
   @override
   Widget build(BuildContext context) => Container(
         color: context.colors.surfaceAlt,
         child: Center(
-          child: Icon(Icons.music_note_rounded,
-              color: context.colors.textSecondary, size: 20),
+          child: Icon(
+            isVideo ? Icons.videocam_rounded : Icons.music_note_rounded,
+            color: context.colors.textSecondary,
+            size: 20,
+          ),
         ),
       );
 }
@@ -459,6 +564,18 @@ void _showTrackContextMenu(BuildContext context, Track track, Offset position) a
       const PopupMenuItem(
         value: '__auto__',
         child: Text('Autocompletar metadatos (API)'),
+      ),
+      // Lyrics: show checkmark if already saved locally
+      PopupMenuItem(
+        value: '__lyrics__',
+        child: Row(
+          children: [
+            const Expanded(child: Text('Descargar letra')),
+            if (LyricsService.hasLocal(settings.musicFolder, track.filename))
+              Icon(Icons.offline_pin_rounded,
+                  size: 16, color: Colors.green.shade400),
+          ],
+        ),
       ),
       PopupMenuItem(
         value: '__delete__',
@@ -505,6 +622,61 @@ void _showTrackContextMenu(BuildContext context, Track track, Offset position) a
             builder: (ctx) => _AutofillProgressDialog(jobId: jobId, settings: settings),
           );
           context.read<LibraryProvider>().loadTracks(settings.api);
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: context.colors.error,
+          ));
+        }
+      }
+      return;
+    }
+
+    if (action == '__lyrics__') {
+      try {
+        final result = await settings.api.saveLyrics(
+          filename: track.filename,
+          title:    track.title.isNotEmpty ? track.title : track.filename,
+          artist:   track.artist,
+        );
+        if (context.mounted) {
+          if (result['saved'] == true) {
+            // Also persist locally in lyrics/ folder
+            final musicFolder = settings.musicFolder;
+            if (musicFolder.isNotEmpty) {
+              final syncedContent = result['synced'] as String?;
+              final plainContent  = result['plain']  as String?;
+              if (syncedContent != null && syncedContent.trim().isNotEmpty) {
+                await LyricsService.saveLrc(
+                    musicFolder, track.filename, syncedContent);
+              } else if (plainContent != null && plainContent.trim().isNotEmpty) {
+                await LyricsService.saveTxt(
+                    musicFolder, track.filename, plainContent);
+              }
+            }
+            if (context.mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Row(children: [
+                  const Icon(Icons.offline_pin_rounded,
+                      color: Colors.white, size: 18),
+                  const SizedBox(width: 8),
+                  Text('Letra guardada offline '
+                      '(${result['type'] == 'synced' ? 'sincronizada' : 'texto plano'})'),
+                ]),
+                backgroundColor: context.colors.success,
+                duration: const Duration(seconds: 3),
+              ));
+            }
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+              content: Text(
+                  result['error'] ?? 'No se pudo descargar la letra.'),
+              backgroundColor: context.colors.error,
+              duration: const Duration(seconds: 4),
+            ));
+          }
         }
       } catch (e) {
         if (context.mounted) {
@@ -571,11 +743,19 @@ void _showTrackContextMenu(BuildContext context, Track track, Offset position) a
   }
 }
 
+// ── Helper: detect video by extension ────────────────────────────────────────
+bool _isVideo(Track t) {
+  const exts = {'.mp4', '.mkv', '.avi', '.mov', '.webm'};
+  final name = t.filename.toLowerCase();
+  return exts.any((e) => name.endsWith(e));
+}
+
 // ── Track grid ────────────────────────────────────────────────────────────────
 
 class _TrackGrid extends StatelessWidget {
   final List<Track> tracks;
-  const _TrackGrid({required this.tracks});
+  final List<Track> queue;
+  const _TrackGrid({required this.tracks, required this.queue});
 
   @override
   Widget build(BuildContext context) {
@@ -588,7 +768,7 @@ class _TrackGrid extends StatelessWidget {
         childAspectRatio: 0.78,
       ),
       itemCount: tracks.length,
-      itemBuilder: (_, i) => _TrackCard(track: tracks[i]),
+      itemBuilder: (_, i) => _TrackCard(track: tracks[i], queue: queue),
     );
   }
 }
@@ -597,7 +777,8 @@ class _TrackGrid extends StatelessWidget {
 
 class _TrackCard extends StatefulWidget {
   final Track track;
-  const _TrackCard({required this.track});
+  final List<Track> queue;
+  const _TrackCard({required this.track, required this.queue});
 
   @override
   State<_TrackCard> createState() => _TrackCardState();
@@ -617,8 +798,8 @@ class _TrackCardState extends State<_TrackCard> {
         onTap: () async {
           try {
             final settings = context.read<SettingsProvider>();
-            final library = context.read<LibraryProvider>();
-            await context.read<PlayerProvider>().playTrack(track, library.tracks, settings);
+            await context.read<PlayerProvider>().playTrack(
+                  widget.track, widget.queue, settings);
           } catch (e) {
             if (context.mounted) {
               ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -661,9 +842,10 @@ class _TrackCardState extends State<_TrackCard> {
                           track.coverUrl!,
                           fit: BoxFit.cover,
                           width: double.infinity,
-                          errorBuilder: (_, __, ___) => _CoverPlaceholder(),
+                          errorBuilder: (_, __, ___) =>
+                              _CoverPlaceholder(isVideo: _isVideo(widget.track)),
                         )
-                      : _CoverPlaceholder(),
+                      : _CoverPlaceholder(isVideo: _isVideo(widget.track)),
                 ),
               ),
               // Info
@@ -706,43 +888,64 @@ class _TrackCardState extends State<_TrackCard> {
 }
 
 class _CoverPlaceholder extends StatelessWidget {
+  final bool isVideo;
+  const _CoverPlaceholder({this.isVideo = false});
+
   @override
   Widget build(BuildContext context) => Container(
         color: context.colors.surfaceAlt,
         child: Center(
-          child: Icon(Icons.music_note_rounded,
-              color: context.colors.textSecondary, size: 36),
+          child: Icon(
+            isVideo ? Icons.videocam_rounded : Icons.music_note_rounded,
+            color: context.colors.textSecondary,
+            size: 36,
+          ),
         ),
       );
 }
 
 class _EmptyState extends StatelessWidget {
   final Playlist playlist;
-  const _EmptyState({required this.playlist});
+  final int tabIndex;
+  const _EmptyState({required this.playlist, this.tabIndex = 0});
 
   @override
-  Widget build(BuildContext context) => Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.library_music_outlined,
-                color: context.colors.textSecondary, size: 52),
-            const SizedBox(height: 16),
-            Text(
-              playlist.isLibrary
-                  ? 'Tu biblioteca está vacía'
-                  : '${playlist.name} está vacía',
-              style: TextStyle(
-                  color: context.colors.textSecondary, fontSize: 16),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Presiona el atajo de teclado para reconocer una canción',
-              style: TextStyle(color: context.colors.textSecondary, fontSize: 13),
-            ),
-          ],
-        ),
-      );
+  Widget build(BuildContext context) {
+    final String message = switch (tabIndex) {
+      1 => playlist.isLibrary
+          ? 'No hay pistas de audio'
+          : 'Sin audio en ${playlist.name}',
+      2 => playlist.isLibrary
+          ? 'No hay videos en la biblioteca'
+          : 'Sin videos en ${playlist.name}',
+      _ => playlist.isLibrary
+          ? 'Tu biblioteca está vacía'
+          : '${playlist.name} está vacía',
+    };
+    final IconData icon = switch (tabIndex) {
+      2 => Icons.videocam_off_rounded,
+      _ => Icons.library_music_outlined,
+    };
+
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: context.colors.textSecondary, size: 52),
+          const SizedBox(height: 16),
+          Text(
+            message,
+            style: TextStyle(color: context.colors.textSecondary, fontSize: 16),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Presiona el atajo de teclado para reconocer una canción',
+            style: TextStyle(color: context.colors.textSecondary, fontSize: 13),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _AutofillProgressDialog extends StatefulWidget {

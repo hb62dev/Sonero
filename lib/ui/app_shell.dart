@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../providers/library_provider.dart';
 import '../providers/listen_provider.dart';
+import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import 'sidebar/sidebar_widget.dart';
 import 'library/library_page.dart';
@@ -12,6 +13,8 @@ import 'home/home_view.dart';
 import 'analytics/analytics_view.dart';
 import 'listen/listen_overlay.dart';
 import 'player/mini_player.dart';
+import 'player/video_player_view.dart';
+import 'player/lyrics_view.dart';
 import 'theme.dart';
 import 'video_download_dialog.dart';
 import 'downloads/downloads_page.dart';
@@ -26,13 +29,11 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
-  int _currentViewIndex = 0; // 0: Home, 1: Library, 2: Analytics, 3: Search
-  bool _isSidebarCollapsed = true; // start collapsed by default
+  int _currentViewIndex = 0;
 
   @override
   void initState() {
     super.initState();
-    // Register in-app keyboard shortcuts (works on Web + any platform)
     HardwareKeyboard.instance.addHandler(_handleKey);
     WidgetsBinding.instance.addPostFrameCallback((_) => _init());
   }
@@ -49,7 +50,10 @@ class _AppShellState extends State<AppShell> {
     final ctrl  = HardwareKeyboard.instance.isControlPressed;
     final shift = HardwareKeyboard.instance.isShiftPressed;
     final key   = event.logicalKey;
+    final player = context.read<PlayerProvider>();
+    final hasTrack = player.currentTrack != null;
 
+    // ── Existing listen shortcuts (Ctrl+Shift+M/S/V) ──────────────────────
     if (ctrl && shift && key == LogicalKeyboardKey.keyM) {
       _triggerListen('mic');
       return true;
@@ -66,7 +70,11 @@ class _AppShellState extends State<AppShell> {
         if (result != null) {
           if (result is String) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text('Descarga completada con advertencias: $result'), backgroundColor: Colors.orange, duration: const Duration(seconds: 5)),
+              SnackBar(
+                content: Text('Descarga completada con advertencias: $result'),
+                backgroundColor: Colors.orange,
+                duration: const Duration(seconds: 5),
+              ),
             );
           } else if (result == true) {
             ScaffoldMessenger.of(context).showSnackBar(
@@ -78,6 +86,127 @@ class _AppShellState extends State<AppShell> {
         }
       });
       return true;
+    }
+
+    // ── Player shortcuts (only when a track is loaded) ────────────────────
+
+    // Guard: don't fire single-key shortcuts while the user is typing in a field
+    final bool typing = _isTyping();
+
+    // Volume: Ctrl+↑ / Ctrl+↓  (avoids conflicts with sidebar list navigation)
+    if (ctrl && !shift) {
+      if (key == LogicalKeyboardKey.arrowUp && hasTrack) {
+        player.setVolume((player.volume + 5).clamp(0, 100));
+        return true;
+      }
+      if (key == LogicalKeyboardKey.arrowDown && hasTrack) {
+        player.setVolume((player.volume - 5).clamp(0, 100));
+        return true;
+      }
+    }
+
+    if (!ctrl && !shift) {
+      // ← / → : prev / next track (no conflict — sidebar navigates vertically)
+      if (key == LogicalKeyboardKey.arrowLeft && hasTrack) {
+        player.previous();
+        return true;
+      }
+      if (key == LogicalKeyboardKey.arrowRight && hasTrack) {
+        player.next();
+        return true;
+      }
+
+      // Space: play/pause (only if not typing, to allow text-field spaces)
+      if (key == LogicalKeyboardKey.space && hasTrack && !typing) {
+        player.playPause();
+        return true;
+      }
+
+      // Single-letter shortcuts — skip when typing in any text field
+      if (!typing) {
+        if (key == LogicalKeyboardKey.keyM && hasTrack) {
+          player.toggleMute();
+          return true;
+        }
+        if (key == LogicalKeyboardKey.keyS && hasTrack) {
+          player.toggleShuffle();
+          return true;
+        }
+        if (key == LogicalKeyboardKey.keyR && hasTrack) {
+          player.toggleRepeat();
+          return true;
+        }
+        if (key == LogicalKeyboardKey.keyX && hasTrack) {
+          player.stop();
+          return true;
+        }
+        if (key == LogicalKeyboardKey.keyF && player.isVideoMode) {
+          player.toggleFullscreen();
+          return true;
+        }
+        if (key == LogicalKeyboardKey.keyL && hasTrack && !player.isVideoMode) {
+          final track = player.currentTrack!;
+          showDialog(
+            context: context,
+            builder: (_) => LyricsView(
+              title: track.title,
+              artist: track.artist,
+              filename: track.filename,
+            ),
+          );
+          return true;
+        }
+      }
+
+      if (key == LogicalKeyboardKey.escape) {
+        if (player.isFullscreen) {
+          player.setFullscreen(false);
+          return true;
+        }
+        if (player.isVideoMode) {
+          player.setVideoMode(false);
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  /// Returns true when focus is inside an editable text widget, so single-key
+  /// shortcuts don't interfere with typing in the search bar or other fields.
+  ///
+  /// We walk up the focus scope from the primary focus node and check whether
+  /// any ancestor widget in the element tree is an [EditableText].  This covers
+  /// cases where the focused node's own context points to a wrapper widget
+  /// (e.g. TextField, SearchBar) whose child is the actual EditableText.
+  bool _isTyping() {
+    final focus = FocusManager.instance.primaryFocus;
+    if (focus == null) return false;
+
+    // Walk up the focus-node ancestors checking each context
+    FocusNode? node = focus;
+    while (node != null) {
+      final ctx = node.context;
+      if (ctx != null) {
+        // Check if this element or any ancestor up to the nearest route is an
+        // EditableText — visitAncestorElements stops when the callback returns false.
+        bool found = false;
+        ctx.visitAncestorElements((element) {
+          if (element.widget is EditableText) {
+            found = true;
+            return false; // stop
+          }
+          return true; // keep walking
+        });
+        if (found) return true;
+        // Also check the widget at this node itself
+        if (ctx.widget is EditableText) return true;
+      }
+      // Move to the parent focus node
+      node = node.parent;
+      // Stop at the root scope to avoid infinite loops
+      if (node == FocusManager.instance.rootScope) break;
     }
     return false;
   }
@@ -107,11 +236,15 @@ class _AppShellState extends State<AppShell> {
 
   @override
   Widget build(BuildContext context) {
-    final isMobile = MediaQuery.of(context).size.width < 600;
+    final player       = context.watch<PlayerProvider>();
+    final isSidebarOpen = player.isSidebarVisible;
+    final isVideoMode  = player.isVideoMode;
+    final isMobile     = MediaQuery.of(context).size.width < 600;
+
     Widget currentView;
     switch (_currentViewIndex) {
       case 0:
-        currentView = HomeView(onNavigate: (index) => setState(() => _currentViewIndex = index));
+        currentView = HomeView(onNavigate: (i) => setState(() => _currentViewIndex = i));
         break;
       case 1:
         currentView = const LibraryPage();
@@ -120,69 +253,95 @@ class _AppShellState extends State<AppShell> {
         currentView = const AnalyticsView();
         break;
       case 3:
-        currentView = SearchView(onNavigate: (index) => setState(() => _currentViewIndex = index));
+        currentView = SearchView(onNavigate: (i) => setState(() => _currentViewIndex = i));
         break;
       case 4:
         currentView = const DownloadsPage();
         break;
       default:
-        currentView = HomeView(onNavigate: (index) => setState(() => _currentViewIndex = index));
+        currentView = HomeView(onNavigate: (i) => setState(() => _currentViewIndex = i));
     }
 
     return Stack(
       children: [
         Scaffold(
           backgroundColor: context.colors.bg,
-          appBar: isMobile ? AppBar(
-            backgroundColor: context.colors.bg,
-            elevation: 0,
-            iconTheme: IconThemeData(color: context.colors.textPrimary),
-            title: Text(AppLocalizations.of(context)!.appTitle, style: TextStyle(color: context.colors.textPrimary)),
-          ) : null,
-          drawer: isMobile ? Drawer(
-            child: SidebarWidget(
-              currentIndex: _currentViewIndex,
-              isCollapsed: false,
-              onToggle: () => Navigator.pop(context),
-              onNavigate: (index) {
-                setState(() => _currentViewIndex = index);
-                Navigator.pop(context);
-              },
-            ),
-          ) : null,
+          appBar: isMobile
+              ? AppBar(
+                  backgroundColor: context.colors.bg,
+                  elevation: 0,
+                  iconTheme: IconThemeData(color: context.colors.textPrimary),
+                  title: Text(
+                    AppLocalizations.of(context)!.appTitle,
+                    style: TextStyle(color: context.colors.textPrimary),
+                  ),
+                )
+              : null,
+          drawer: isMobile
+              ? Drawer(
+                  child: SidebarWidget(
+                    currentIndex: _currentViewIndex,
+                    isCollapsed: false,
+                    onToggle: () => Navigator.pop(context),
+                    onNavigate: (index) {
+                      setState(() => _currentViewIndex = index);
+                      Navigator.pop(context);
+                    },
+                  ),
+                )
+              : null,
           body: Column(
             children: [
               Expanded(
                 child: Stack(
                   children: [
-                    // Main content
+                    // 1. Main content (offset for collapsed sidebar icon strip)
                     Positioned.fill(
-                      left: isMobile ? 0 : 64, // Keep space for collapsed sidebar
+                      left: isMobile ? 0 : (isVideoMode ? 0 : 64),
                       child: currentView,
                     ),
-                    // Invisible barrier to close sidebar when tapping outside
-                    if (!isMobile && !_isSidebarCollapsed)
-                      Positioned.fill(
-                        left: 64, // Cover only the content area, not the collapsed sidebar area
-                        child: GestureDetector(
-                          behavior: HitTestBehavior.opaque,
-                          onTap: () => setState(() => _isSidebarCollapsed = true),
-                          child: Container(
-                            color: Colors.black.withOpacity(0.3), // Optional: Add a slight dimming effect
-                          ),
-                        ),
-                      ),
-                    // Sidebar
-                    if (!isMobile)
+
+                    // 2. Collapsed sidebar icon strip (normal mode only)
+                    if (!isMobile && !isVideoMode && !isSidebarOpen)
                       Positioned(
-                        left: 0,
-                        top: 0,
-                        bottom: 0,
+                        left: 0, top: 0, bottom: 0,
                         child: SidebarWidget(
                           currentIndex: _currentViewIndex,
-                          isCollapsed: _isSidebarCollapsed,
-                          onToggle: () => setState(() => _isSidebarCollapsed = !_isSidebarCollapsed),
-                          onNavigate: (index) => setState(() => _currentViewIndex = index),
+                          isCollapsed: true,
+                          onToggle: () => player.toggleSidebar(),
+                          onNavigate: (index) =>
+                              setState(() => _currentViewIndex = index),
+                        ),
+                      ),
+
+                    // 3. Netflix-style Video Overlay (full width, under sidebar)
+                    if (isVideoMode)
+                      const Positioned.fill(
+                        child: VideoOverlay(),
+                      ),
+
+                    // 4. Dim barrier (full-width, renders BELOW the sidebar)
+                    if (!isMobile && isSidebarOpen)
+                      Positioned.fill(
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.translucent,
+                          onTap: () => player.setSidebarVisible(false),
+                          child: Container(
+                            color: Colors.black.withOpacity(
+                                isVideoMode ? 0.55 : 0.30)),
+                        ),
+                      ),
+
+                    // 5. Expanded sidebar — renders on TOP of the dim overlay
+                    if (!isMobile && isSidebarOpen)
+                      Positioned(
+                        left: 0, top: 0, bottom: 0,
+                        child: SidebarWidget(
+                          currentIndex: _currentViewIndex,
+                          isCollapsed: false,
+                          onToggle: () => player.toggleSidebar(),
+                          onNavigate: (index) =>
+                              setState(() => _currentViewIndex = index),
                         ),
                       ),
                   ],
@@ -197,5 +356,3 @@ class _AppShellState extends State<AppShell> {
     );
   }
 }
-
-

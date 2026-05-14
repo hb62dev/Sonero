@@ -30,6 +30,24 @@ class ApiClient {
     return jsonDecode(res.body)['job_id'] as String;
   }
 
+  Future<String> uploadAudioForListen({
+    required String filePath,
+    bool autoDownload = true,
+    String? playlist,
+  }) async {
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/api/v1/listen/upload'));
+    request.fields['auto_download'] = autoDownload.toString();
+    if (playlist != null) {
+      request.fields['playlist'] = playlist;
+    }
+    request.files.add(await http.MultipartFile.fromPath('file', filePath));
+    
+    final streamedResponse = await request.send();
+    final res = await http.Response.fromStream(streamedResponse);
+    _check(res);
+    return jsonDecode(res.body)['job_id'] as String;
+  }
+
   Future<Map<String, dynamic>> getJobStatus(String jobId) async {
     final res = await http.get(Uri.parse('$baseUrl/api/v1/listen/jobs/$jobId'));
     _check(res);
@@ -170,6 +188,23 @@ class ApiClient {
       },
     );
     final res = await http.get(uri);
+    _check(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> saveLyrics({
+    required String filename,
+    required String title,
+    String artist = '',
+  }) async {
+    final uri = Uri.parse('$baseUrl/api/v1/metadata/lyrics/save').replace(
+      queryParameters: {
+        'filename': filename,
+        'title': title,
+        'artist': artist,
+      },
+    );
+    final res = await http.post(uri);
     _check(res);
     return jsonDecode(res.body) as Map<String, dynamic>;
   }

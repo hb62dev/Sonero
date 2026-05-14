@@ -4,7 +4,6 @@ import 'package:media_kit/media_kit.dart';
 import '../../providers/player_provider.dart';
 import '../theme.dart';
 import '../widgets/hover_scale.dart';
-import 'video_player_view.dart';
 import 'lyrics_view.dart';
 
 class MiniPlayer extends StatelessWidget {
@@ -13,10 +12,129 @@ class MiniPlayer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final player = context.watch<PlayerProvider>();
-    final track = player.currentTrack;
+    final track  = player.currentTrack;
 
     if (track == null) return const SizedBox.shrink();
+    if (player.isVideoMode) return const SizedBox.shrink(); // hidden in video mode
 
+    // ── Shared: sidebar toggle button ──────────────────────────────────────
+    final sidebarToggle = HoverScale(
+      scale: 1.15,
+      child: IconButton(
+        icon: Icon(
+          player.isSidebarVisible
+              ? Icons.menu_open_rounded
+              : Icons.menu_rounded,
+          color: context.colors.textSecondary,
+          size: 22,
+        ),
+        tooltip: player.isSidebarVisible ? 'Ocultar panel' : 'Mostrar panel',
+        onPressed: player.toggleSidebar,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+      ),
+    );
+
+    // ── VIDEO MODE: simplified bar — controls are in the overlay ──────────
+    if (player.isVideoMode) {
+      return Container(
+        height: 72,
+        decoration: BoxDecoration(
+          color: context.colors.surfaceAlt,
+          border: Border(top: BorderSide(color: context.colors.border)),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 20),
+        child: Row(
+          children: [
+            // Sidebar toggle
+            sidebarToggle,
+            const SizedBox(width: 12),
+
+            // Album art thumbnail
+            Container(
+              width: 44,
+              height: 44,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(6),
+                color: context.colors.surface,
+                image: track.coverUrl != null
+                    ? DecorationImage(
+                        image: NetworkImage(track.coverUrl!),
+                        fit: BoxFit.cover,
+                      )
+                    : null,
+              ),
+              child: track.coverUrl == null
+                  ? Icon(Icons.videocam_rounded,
+                      color: context.colors.textSecondary, size: 20)
+                  : null,
+            ),
+            const SizedBox(width: 12),
+
+            // Title + artist
+            Expanded(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    track.title.isNotEmpty ? track.title : track.filename,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: context.colors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                  if (track.artist.isNotEmpty)
+                    Text(
+                      track.artist,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: context.colors.textSecondary,
+                        fontSize: 11,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+
+            // "Reproduciendo en video" label
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.play_circle_outline_rounded,
+                      color: Theme.of(context).colorScheme.primary, size: 16),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Reproduciendo en video',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Close (stop)
+            IconButton(
+              icon: Icon(Icons.close_rounded,
+                  color: context.colors.textSecondary, size: 20),
+              tooltip: 'Detener',
+              onPressed: player.stop,
+            ),
+          ],
+        ),
+      );
+    }
+
+    // ── NORMAL MODE: full player controls ─────────────────────────────────
     return Container(
       height: 96,
       decoration: BoxDecoration(
@@ -26,11 +144,13 @@ class MiniPlayer extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Row(
         children: [
-          // Track Info
+          // ── Left: Sidebar toggle + Track info ──────────────────────────
           Expanded(
             flex: 1,
             child: Row(
               children: [
+                sidebarToggle,
+                const SizedBox(width: 8),
                 Container(
                   width: 56,
                   height: 56,
@@ -45,7 +165,8 @@ class MiniPlayer extends StatelessWidget {
                         : null,
                   ),
                   child: track.coverUrl == null
-                      ? Icon(Icons.music_note, color: context.colors.textSecondary)
+                      ? Icon(Icons.music_note,
+                          color: context.colors.textSecondary)
                       : null,
                 ),
                 const SizedBox(width: 16),
@@ -81,7 +202,7 @@ class MiniPlayer extends StatelessWidget {
             ),
           ),
 
-          // Controls
+          // ── Center: Playback controls + seek bar ────────────────────────
           Expanded(
             flex: 2,
             child: Column(
@@ -98,25 +219,30 @@ class MiniPlayer extends StatelessWidget {
                             scale: 1.15,
                             child: IconButton(
                               icon: Icon(
-                                Icons.shuffle_rounded, 
-                                color: player.isShuffle ? Theme.of(context).colorScheme.primary : context.colors.textSecondary, 
-                                size: 20
+                                Icons.shuffle_rounded,
+                                color: player.isShuffle
+                                    ? Theme.of(context).colorScheme.primary
+                                    : context.colors.textSecondary,
+                                size: 20,
                               ),
                               tooltip: 'Aleatorio',
                               onPressed: player.toggleShuffle,
                               padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                              constraints: const BoxConstraints(
+                                  minWidth: 36, minHeight: 36),
                             ),
                           ),
                           const SizedBox(width: 4),
                           HoverScale(
                             scale: 1.15,
                             child: IconButton(
-                              icon: Icon(Icons.skip_previous_rounded, color: context.colors.textPrimary, size: 26),
+                              icon: Icon(Icons.skip_previous_rounded,
+                                  color: context.colors.textPrimary, size: 26),
                               tooltip: 'Anterior',
                               onPressed: player.previous,
                               padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                              constraints: const BoxConstraints(
+                                  minWidth: 36, minHeight: 36),
                             ),
                           ),
                         ],
@@ -127,13 +253,16 @@ class MiniPlayer extends StatelessWidget {
                       scale: 1.15,
                       child: IconButton(
                         icon: Icon(
-                          player.isPlaying ? Icons.pause_circle_filled_rounded : Icons.play_circle_filled_rounded,
+                          player.isPlaying
+                              ? Icons.pause_circle_filled_rounded
+                              : Icons.play_circle_filled_rounded,
                           color: Theme.of(context).colorScheme.primary,
                           size: 40,
                         ),
                         onPressed: player.playPause,
                         padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                        constraints:
+                            const BoxConstraints(minWidth: 44, minHeight: 44),
                       ),
                     ),
                     const SizedBox(width: 4),
@@ -144,11 +273,13 @@ class MiniPlayer extends StatelessWidget {
                           HoverScale(
                             scale: 1.15,
                             child: IconButton(
-                              icon: Icon(Icons.skip_next_rounded, color: context.colors.textPrimary, size: 26),
+                              icon: Icon(Icons.skip_next_rounded,
+                                  color: context.colors.textPrimary, size: 26),
                               tooltip: 'Siguiente',
                               onPressed: player.next,
                               padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                              constraints: const BoxConstraints(
+                                  minWidth: 36, minHeight: 36),
                             ),
                           ),
                           const SizedBox(width: 4),
@@ -156,14 +287,19 @@ class MiniPlayer extends StatelessWidget {
                             scale: 1.15,
                             child: IconButton(
                               icon: Icon(
-                                player.repeatMode == PlaylistMode.single ? Icons.repeat_one_rounded : Icons.repeat_rounded, 
-                                color: player.repeatMode != PlaylistMode.none ? Theme.of(context).colorScheme.primary : context.colors.textSecondary, 
-                                size: 20
+                                player.repeatMode == PlaylistMode.single
+                                    ? Icons.repeat_one_rounded
+                                    : Icons.repeat_rounded,
+                                color: player.repeatMode != PlaylistMode.none
+                                    ? Theme.of(context).colorScheme.primary
+                                    : context.colors.textSecondary,
+                                size: 20,
                               ),
                               tooltip: 'Repetir',
                               onPressed: player.toggleRepeat,
                               padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                              constraints: const BoxConstraints(
+                                  minWidth: 36, minHeight: 36),
                             ),
                           ),
                           if (player.isVideo) ...[
@@ -171,13 +307,14 @@ class MiniPlayer extends StatelessWidget {
                             HoverScale(
                               scale: 1.15,
                               child: IconButton(
-                                icon: Icon(Icons.fullscreen_rounded, color: context.colors.textSecondary, size: 22),
+                                icon: Icon(Icons.fullscreen_rounded,
+                                    color: context.colors.textSecondary,
+                                    size: 22),
                                 tooltip: 'Mostrar Video',
-                                onPressed: () {
-                                  _showVideoDialog(context);
-                                },
+                                onPressed: () => player.setVideoMode(true),
                                 padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                                constraints: const BoxConstraints(
+                                    minWidth: 36, minHeight: 36),
                               ),
                             ),
                           ],
@@ -185,13 +322,15 @@ class MiniPlayer extends StatelessWidget {
                           HoverScale(
                             scale: 1.15,
                             child: IconButton(
-                              icon: Icon(Icons.lyrics_outlined, color: context.colors.textSecondary, size: 22),
+                              icon: Icon(Icons.lyrics_outlined,
+                                  color: context.colors.textSecondary,
+                                  size: 22),
                               tooltip: 'Ver Letras',
-                              onPressed: () {
-                                _showLyricsDialog(context, track.title, track.artist);
-                              },
+                              onPressed: () => _showLyricsDialog(
+                                  context, track.title, track.artist, track.filename),
                               padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
+                              constraints: const BoxConstraints(
+                                  minWidth: 36, minHeight: 36),
                             ),
                           ),
                         ],
@@ -203,39 +342,45 @@ class MiniPlayer extends StatelessWidget {
                   children: [
                     Text(
                       _formatDuration(player.position),
-                      style: TextStyle(color: context.colors.textSecondary, fontSize: 11),
+                      style: TextStyle(
+                          color: context.colors.textSecondary, fontSize: 11),
                     ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: SliderTheme(
                         data: SliderThemeData(
                           trackHeight: 4,
-                          thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                          overlayShape: const RoundSliderOverlayShape(overlayRadius: 14),
-                          activeTrackColor: Theme.of(context).colorScheme.primary,
+                          thumbShape:
+                              const RoundSliderThumbShape(enabledThumbRadius: 6),
+                          overlayShape: const RoundSliderOverlayShape(
+                              overlayRadius: 14),
+                          activeTrackColor:
+                              Theme.of(context).colorScheme.primary,
                           inactiveTrackColor: context.colors.border,
                           thumbColor: context.colors.textPrimary,
                         ),
                         child: Slider(
-                          value: player.position.inMilliseconds.toDouble().clamp(
-                            0.0,
-                            player.duration.inMilliseconds > 0
-                                ? player.duration.inMilliseconds.toDouble()
-                                : 100.0,
-                          ),
+                          value: player.position.inMilliseconds
+                              .toDouble()
+                              .clamp(
+                                0.0,
+                                player.duration.inMilliseconds > 0
+                                    ? player.duration.inMilliseconds.toDouble()
+                                    : 100.0,
+                              ),
                           max: player.duration.inMilliseconds > 0
                               ? player.duration.inMilliseconds.toDouble()
                               : 100.0,
-                          onChanged: (val) {
-                            player.seek(Duration(milliseconds: val.toInt()));
-                          },
+                          onChanged: (val) =>
+                              player.seek(Duration(milliseconds: val.toInt())),
                         ),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Text(
                       _formatDuration(player.duration),
-                      style: TextStyle(color: context.colors.textSecondary, fontSize: 11),
+                      style: TextStyle(
+                          color: context.colors.textSecondary, fontSize: 11),
                     ),
                   ],
                 ),
@@ -243,19 +388,21 @@ class MiniPlayer extends StatelessWidget {
             ),
           ),
 
-          // Volume & Actions
+          // ── Right: Volume + close ───────────────────────────────────────
           Expanded(
             flex: 1,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                Icon(Icons.volume_up_rounded, color: context.colors.textSecondary, size: 20),
+                Icon(Icons.volume_up_rounded,
+                    color: context.colors.textSecondary, size: 20),
                 SizedBox(
                   width: 100,
                   child: SliderTheme(
                     data: SliderThemeData(
                       trackHeight: 4,
-                      thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+                      thumbShape:
+                          const RoundSliderThumbShape(enabledThumbRadius: 6),
                       activeTrackColor: context.colors.textSecondary,
                       inactiveTrackColor: context.colors.border,
                       thumbColor: context.colors.textPrimary,
@@ -263,14 +410,13 @@ class MiniPlayer extends StatelessWidget {
                     child: Slider(
                       value: player.volume.toDouble().clamp(0.0, 100.0),
                       max: 100,
-                      onChanged: (val) {
-                        player.setVolume(val);
-                      },
+                      onChanged: (val) => player.setVolume(val),
                     ),
                   ),
                 ),
                 IconButton(
-                  icon: Icon(Icons.close_rounded, color: context.colors.textSecondary, size: 20),
+                  icon: Icon(Icons.close_rounded,
+                      color: context.colors.textSecondary, size: 20),
                   onPressed: player.stop,
                 ),
               ],
@@ -282,23 +428,15 @@ class MiniPlayer extends StatelessWidget {
   }
 
   String _formatDuration(Duration d) {
-    String twoDigits(int n) => n.toString().padLeft(2, '0');
-    final minutes = twoDigits(d.inMinutes.remainder(60));
-    final seconds = twoDigits(d.inSeconds.remainder(60));
-    return '$minutes:$seconds';
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(d.inMinutes.remainder(60))}:${two(d.inSeconds.remainder(60))}';
   }
 
-  void _showVideoDialog(BuildContext context) {
+  void _showLyricsDialog(
+      BuildContext context, String title, String artist, String filename) {
     showDialog(
       context: context,
-      builder: (_) => const VideoPlayerView(),
-    );
-  }
-
-  void _showLyricsDialog(BuildContext context, String title, String artist) {
-    showDialog(
-      context: context,
-      builder: (_) => LyricsView(title: title, artist: artist),
+      builder: (_) => LyricsView(title: title, artist: artist, filename: filename),
     );
   }
 }

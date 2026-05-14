@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path/path.dart' as p;
 import '../core/api_client.dart';
 
 class SettingsProvider extends ChangeNotifier {
@@ -28,6 +29,8 @@ class SettingsProvider extends ChangeNotifier {
   String get apiUrl => _apiUrl;
   String get musicFolder => _musicFolder;
   String get videoFolder => _videoFolder;
+  String get lyricsFolder =>
+      _musicFolder.isNotEmpty ? p.join(_musicFolder, 'lyrics') : '';
   int? get deviceIndex => _deviceIndex;
   int get listenDuration => _listenDuration;
   bool get isLoaded => _isLoaded;
