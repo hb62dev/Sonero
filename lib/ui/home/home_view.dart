@@ -65,7 +65,7 @@ class HomeView extends StatelessWidget {
           Text(
             title,
             style: TextStyle(
-              fontSize: 48,
+              fontSize: MediaQuery.of(context).size.width < 600 ? 32 : 48,
               fontWeight: FontWeight.bold,
               color: context.colors.textPrimary,
             ),
@@ -84,8 +84,10 @@ class HomeView extends StatelessWidget {
               ),
             ),
           const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: 16,
+            runSpacing: 16,
             children: [
               ElevatedButton.icon(
                 onPressed: () async {
@@ -112,7 +114,6 @@ class HomeView extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                 ),
               ),
-              const SizedBox(width: 16),
               OutlinedButton.icon(
                 onPressed: () {},
                 icon: Icon(Icons.info_outline, color: context.colors.textPrimary),
@@ -148,7 +149,7 @@ class HomeView extends StatelessWidget {
         CarouselSlider(
           options: CarouselOptions(
             height: 200,
-            viewportFraction: 0.2,
+            viewportFraction: MediaQuery.of(context).size.width < 600 ? 0.7 : 0.2,
             enableInfiniteScroll: false,
             padEnds: false,
             disableCenter: true,

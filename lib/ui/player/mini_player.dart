@@ -13,6 +13,7 @@ class MiniPlayer extends StatelessWidget {
   Widget build(BuildContext context) {
     final player = context.watch<PlayerProvider>();
     final track  = player.currentTrack;
+    final isMobile = MediaQuery.of(context).size.width < 600;
 
     if (track == null) return const SizedBox.shrink();
     if (player.isVideoMode) return const SizedBox.shrink(); // hidden in video mode
@@ -146,14 +147,16 @@ class MiniPlayer extends StatelessWidget {
         children: [
           // ── Left: Sidebar toggle + Track info ──────────────────────────
           Expanded(
-            flex: 1,
+            flex: isMobile ? 3 : 1,
             child: Row(
               children: [
-                sidebarToggle,
-                const SizedBox(width: 8),
+                if (!isMobile) ...[
+                  sidebarToggle,
+                  const SizedBox(width: 8),
+                ],
                 Container(
-                  width: 56,
-                  height: 56,
+                  width: isMobile ? 48 : 56,
+                  height: isMobile ? 48 : 56,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(8),
                     color: context.colors.surface,
@@ -204,7 +207,7 @@ class MiniPlayer extends StatelessWidget {
 
           // ── Center: Playback controls + seek bar ────────────────────────
           Expanded(
-            flex: 2,
+            flex: isMobile ? 4 : 2,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -215,7 +218,8 @@ class MiniPlayer extends StatelessWidget {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          HoverScale(
+                          if (!isMobile) ...[
+                            HoverScale(
                             scale: 1.15,
                             child: IconButton(
                               icon: Icon(
@@ -245,6 +249,7 @@ class MiniPlayer extends StatelessWidget {
                                   minWidth: 36, minHeight: 36),
                             ),
                           ),
+                          ],
                         ],
                       ),
                     ),
@@ -283,56 +288,58 @@ class MiniPlayer extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 4),
-                          HoverScale(
-                            scale: 1.15,
-                            child: IconButton(
-                              icon: Icon(
-                                player.repeatMode == PlaylistMode.single
-                                    ? Icons.repeat_one_rounded
-                                    : Icons.repeat_rounded,
-                                color: player.repeatMode != PlaylistMode.none
-                                    ? Theme.of(context).colorScheme.primary
-                                    : context.colors.textSecondary,
-                                size: 20,
+                          if (!isMobile) ...[
+                            HoverScale(
+                              scale: 1.15,
+                              child: IconButton(
+                                icon: Icon(
+                                  player.repeatMode == PlaylistMode.single
+                                      ? Icons.repeat_one_rounded
+                                      : Icons.repeat_rounded,
+                                  color: player.repeatMode != PlaylistMode.none
+                                      ? Theme.of(context).colorScheme.primary
+                                      : context.colors.textSecondary,
+                                  size: 20,
+                                ),
+                                tooltip: 'Repetir',
+                                onPressed: player.toggleRepeat,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(
+                                    minWidth: 36, minHeight: 36),
                               ),
-                              tooltip: 'Repetir',
-                              onPressed: player.toggleRepeat,
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(
-                                  minWidth: 36, minHeight: 36),
                             ),
-                          ),
-                          if (player.isVideo) ...[
+                            if (player.isVideo) ...[
+                              const SizedBox(width: 8),
+                              HoverScale(
+                                scale: 1.15,
+                                child: IconButton(
+                                  icon: Icon(Icons.fullscreen_rounded,
+                                      color: context.colors.textSecondary,
+                                      size: 22),
+                                  tooltip: 'Mostrar Video',
+                                  onPressed: () => player.setVideoMode(true),
+                                  padding: EdgeInsets.zero,
+                                  constraints: const BoxConstraints(
+                                      minWidth: 36, minHeight: 36),
+                                ),
+                              ),
+                            ],
                             const SizedBox(width: 8),
                             HoverScale(
                               scale: 1.15,
                               child: IconButton(
-                                icon: Icon(Icons.fullscreen_rounded,
+                                icon: Icon(Icons.lyrics_outlined,
                                     color: context.colors.textSecondary,
                                     size: 22),
-                                tooltip: 'Mostrar Video',
-                                onPressed: () => player.setVideoMode(true),
+                                tooltip: 'Ver Letras',
+                                onPressed: () => _showLyricsDialog(
+                                    context, track.title, track.artist, track.filename),
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(
                                     minWidth: 36, minHeight: 36),
                               ),
                             ),
                           ],
-                          const SizedBox(width: 8),
-                          HoverScale(
-                            scale: 1.15,
-                            child: IconButton(
-                              icon: Icon(Icons.lyrics_outlined,
-                                  color: context.colors.textSecondary,
-                                  size: 22),
-                              tooltip: 'Ver Letras',
-                              onPressed: () => _showLyricsDialog(
-                                  context, track.title, track.artist, track.filename),
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(
-                                  minWidth: 36, minHeight: 36),
-                            ),
-                          ),
                         ],
                       ),
                     ),
@@ -389,12 +396,13 @@ class MiniPlayer extends StatelessWidget {
           ),
 
           // ── Right: Volume + close ───────────────────────────────────────
-          Expanded(
-            flex: 1,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Icon(Icons.volume_up_rounded,
+          if (!isMobile)
+            Expanded(
+              flex: 1,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Icon(Icons.volume_up_rounded,
                     color: context.colors.textSecondary, size: 20),
                 SizedBox(
                   width: 100,

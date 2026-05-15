@@ -55,8 +55,8 @@ class Track {
       );
 
   static String _titleFromFilename(String filename) {
-    // "Ariis - GOZALO.mp3" → "Ariis - GOZALO"
-    return filename.replaceAll(RegExp(r'\.mp3$', caseSensitive: false), '');
+    final nameOnly = filename.split('/').last;
+    return nameOnly.replaceAll(RegExp(r'\.mp3$', caseSensitive: false), '');
   }
 
   Track copyWith({String? playlist}) => Track(

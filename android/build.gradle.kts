@@ -1,7 +1,11 @@
 allprojects {
     repositories {
-        google()
-        mavenCentral()
+        maven {
+            url = uri("https://dl.google.com/dl/android/maven2/")
+        }
+        maven {
+            url = uri("https://repo.maven.apache.org/maven2/")
+        }
     }
 }
 

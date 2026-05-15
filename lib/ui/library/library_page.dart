@@ -172,94 +172,111 @@ class _PageHeader extends StatelessWidget {
       2 => '${tracks.length} video${tracks.length == 1 ? '' : 's'}',
       _ => '${tracks.length} canción${tracks.length == 1 ? '' : 'es'}',
     };
+    
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
+    final headerText = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          playlist.name,
+          style: TextStyle(
+            fontSize: 22,
+            fontWeight: FontWeight.w700,
+            color: context.colors.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          label,
+          style: TextStyle(
+            color: context.colors.textSecondary,
+            fontSize: 13,
+          ),
+        ),
+      ],
+    );
+
+    final actions = Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        // AutoFill Button (uses allTracks, not filtered)
+        if (allTracks.isNotEmpty && !isMobile)
+          _AutoFillButton(tracks: allTracks, settings: settings),
+        // Export CSV button (only for playlists, not library root)
+        if (!playlist.isLibrary && allTracks.isNotEmpty && !isMobile)
+          _ExportButton(playlist: playlist, tracks: allTracks, settings: settings),
+        // Sort button
+        PopupMenuButton<SortOption>(
+          icon: const Icon(Icons.sort_rounded),
+          color: context.colors.surfaceAlt,
+          tooltip: 'Ordenar',
+          initialValue: context.read<LibraryProvider>().sortOption,
+          onSelected: (option) {
+            context.read<LibraryProvider>().setSortOption(option);
+          },
+          itemBuilder: (ctx) => [
+            const PopupMenuItem(
+              value: SortOption.dateAdded,
+              child: Text('Más recientes'),
+            ),
+            const PopupMenuItem(
+              value: SortOption.titleAsc,
+              child: Text('Título (A-Z)'),
+            ),
+            const PopupMenuItem(
+              value: SortOption.titleDesc,
+              child: Text('Título (Z-A)'),
+            ),
+            const PopupMenuItem(
+              value: SortOption.artistAsc,
+              child: Text('Artista (A-Z)'),
+            ),
+            const PopupMenuItem(
+              value: SortOption.artistDesc,
+              child: Text('Artista (Z-A)'),
+            ),
+          ],
+        ),
+        // View Toggle Button
+        IconButton(
+          icon: Icon(isListView ? Icons.grid_view_rounded : Icons.list_rounded),
+          color: context.colors.textSecondary,
+          tooltip: isListView ? 'Vista de Cuadrícula' : 'Vista de Lista',
+          onPressed: onToggleView,
+        ),
+        // Refresh button
+        IconButton(
+          icon: const Icon(Icons.refresh_rounded),
+          color: context.colors.textSecondary,
+          tooltip: 'Actualizar',
+          onPressed: () {
+            context.read<LibraryProvider>().loadTracks(settings.api);
+          },
+        ),
+      ],
+    );
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
-      child: Row(
-        children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                playlist.name,
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w700,
-                  color: context.colors.textPrimary,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                label,
-                style: TextStyle(
-                  color: context.colors.textSecondary,
-                  fontSize: 13,
-                ),
-              ),
-            ],
-          ),
-          const Spacer(),
-          // AutoFill Button (uses allTracks, not filtered)
-          if (allTracks.isNotEmpty)
-            _AutoFillButton(tracks: allTracks, settings: settings),
-          if (allTracks.isNotEmpty && !playlist.isLibrary)
-            const SizedBox(width: 8),
-          // Export CSV button (only for playlists, not library root)
-          if (!playlist.isLibrary && allTracks.isNotEmpty)
-            _ExportButton(playlist: playlist, tracks: allTracks, settings: settings),
-          const SizedBox(width: 8),
-          // Sort button
-          PopupMenuButton<SortOption>(
-            icon: const Icon(Icons.sort_rounded),
-            color: context.colors.surfaceAlt,
-            tooltip: 'Ordenar',
-            initialValue: context.read<LibraryProvider>().sortOption,
-            onSelected: (option) {
-              context.read<LibraryProvider>().setSortOption(option);
-            },
-            itemBuilder: (ctx) => [
-              const PopupMenuItem(
-                value: SortOption.dateAdded,
-                child: Text('Más recientes'),
-              ),
-              const PopupMenuItem(
-                value: SortOption.titleAsc,
-                child: Text('Título (A-Z)'),
-              ),
-              const PopupMenuItem(
-                value: SortOption.titleDesc,
-                child: Text('Título (Z-A)'),
-              ),
-              const PopupMenuItem(
-                value: SortOption.artistAsc,
-                child: Text('Artista (A-Z)'),
-              ),
-              const PopupMenuItem(
-                value: SortOption.artistDesc,
-                child: Text('Artista (Z-A)'),
-              ),
-            ],
-          ),
-          const SizedBox(width: 8),
-          // View Toggle Button
-          IconButton(
-            icon: Icon(isListView ? Icons.grid_view_rounded : Icons.list_rounded),
-            color: context.colors.textSecondary,
-            tooltip: isListView ? 'Vista de Cuadrícula' : 'Vista de Lista',
-            onPressed: onToggleView,
-          ),
-          const SizedBox(width: 8),
-          // Refresh button
-          IconButton(
-            icon: const Icon(Icons.refresh_rounded),
-            color: context.colors.textSecondary,
-            tooltip: 'Actualizar',
-            onPressed: () {
-              context.read<LibraryProvider>().loadTracks(settings.api);
-            },
-          ),
-        ],
-      ),
+      child: isMobile
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                headerText,
+                const SizedBox(height: 12),
+                actions,
+              ],
+            )
+          : Row(
+              children: [
+                headerText,
+                const Spacer(),
+                actions,
+              ],
+            ),
     );
   }
 }
@@ -406,6 +423,7 @@ class _TrackListRowState extends State<_TrackListRow> {
   @override
   Widget build(BuildContext context) {
     final track = widget.track;
+    final isMobile = MediaQuery.of(context).size.width < 600;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -488,26 +506,28 @@ class _TrackListRowState extends State<_TrackListRow> {
                   ],
                 ),
               ),
-              // Album
-              Expanded(
-                flex: 2,
-                child: Text(
-                  track.album,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: context.colors.textSecondary, fontSize: 13),
+              if (!isMobile) ...[
+                // Album
+                Expanded(
+                  flex: 2,
+                  child: Text(
+                    track.album,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: context.colors.textSecondary, fontSize: 13),
+                  ),
                 ),
-              ),
-              // Year
-              SizedBox(
-                width: 60,
-                child: Text(
-                  track.year,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: context.colors.textSecondary, fontSize: 13),
+                // Year
+                SizedBox(
+                  width: 60,
+                  child: Text(
+                    track.year,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(color: context.colors.textSecondary, fontSize: 13),
+                  ),
                 ),
-              ),
+              ],
               // Options Menu Button
               IconButton(
                 icon: const Icon(Icons.more_horiz),

@@ -30,7 +30,7 @@ void main() async {
   }
 
   if (!kIsWeb && Platform.isAndroid) {
-    await BackgroundListenService.initialize();
+    // await BackgroundListenService.initialize();
   }
 
   // Desktop-only setup (window manager + hotkeys)

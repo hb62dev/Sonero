@@ -20,6 +20,7 @@ import 'video_download_dialog.dart';
 import 'downloads/downloads_page.dart';
 import 'search/search_view.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'setup_modal.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -230,6 +231,16 @@ class _AppShellState extends State<AppShell> {
   Future<void> _init() async {
     final settings = context.read<SettingsProvider>();
     final library  = context.read<LibraryProvider>();
+    
+    if (!settings.hasMusicFolder) {
+      // Show setup modal. Since it is non-dismissible, we wait for it to close.
+      await showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (_) => const SetupModal(),
+      );
+    }
+    
     await library.loadPlaylists(settings.api);
     await library.loadTracks(settings.api);
   }
