@@ -18,6 +18,7 @@ import 'ui/theme.dart';
 import 'ui/video_download_dialog.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:flutter_background_service/flutter_background_service.dart';
 
 class ShazamApp extends StatefulWidget {
   const ShazamApp({super.key});
@@ -76,6 +77,20 @@ class _ShazamAppState extends State<ShazamApp> with TrayListener, WindowListener
           await windowManager.focus();
         },
       );
+    }
+
+    // Initialize background service on mobile (Android/iOS) when app is in foreground
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        try {
+          final isRunning = await FlutterBackgroundService().isRunning();
+          if (!isRunning) {
+            await FlutterBackgroundService().startService();
+          }
+        } catch (e) {
+          debugPrint('Error starting background service: $e');
+        }
+      });
     }
 
     setState(() => _initialized = true);
@@ -217,6 +232,64 @@ class _ShazamAppState extends State<ShazamApp> with TrayListener, WindowListener
               Locale('en'),
               Locale('ja'),
             ],
+            // ── Global mobile density ───────────────────────────────────────
+            // Aplica a TODAS las rutas (push, dialog, etc.), no solo AppShell
+            builder: (context, child) {
+              final isMobile = MediaQuery.of(context).size.width < 600;
+              if (!isMobile) return child!;
+
+              return MediaQuery(
+                data: MediaQuery.of(context).copyWith(
+                  textScaler: const TextScaler.linear(0.82),
+                ),
+                child: Theme(
+                  data: Theme.of(context).copyWith(
+                    elevatedButtonTheme: ElevatedButtonThemeData(
+                      style: ElevatedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
+                        textStyle: const TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w600),
+                        minimumSize: const Size(0, 36),
+                      ),
+                    ),
+                    outlinedButtonTheme: OutlinedButtonThemeData(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 14, vertical: 10),
+                        textStyle: const TextStyle(fontSize: 13),
+                        minimumSize: const Size(0, 36),
+                      ),
+                    ),
+                    textButtonTheme: TextButtonThemeData(
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        textStyle: const TextStyle(fontSize: 12),
+                        minimumSize: const Size(0, 30),
+                      ),
+                    ),
+                    inputDecorationTheme:
+                        Theme.of(context).inputDecorationTheme.copyWith(
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      isDense: true,
+                    ),
+                    listTileTheme:
+                        Theme.of(context).listTileTheme.copyWith(
+                      dense: true,
+                      minVerticalPadding: 4,
+                      contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 0),
+                    ),
+                    appBarTheme: Theme.of(context).appBarTheme.copyWith(
+                      toolbarHeight: 48,
+                    ),
+                  ),
+                  child: child!,
+                ),
+              );
+            },
             home: const AppShell(),
           );
         }

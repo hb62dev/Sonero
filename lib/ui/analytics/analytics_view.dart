@@ -6,6 +6,8 @@ class AnalyticsView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     return Scaffold(
       backgroundColor: context.colors.bg,
       appBar: AppBar(
@@ -13,32 +15,38 @@ class AnalyticsView extends StatelessWidget {
         elevation: 0,
         title: const Text('Analíticas de Consumo', style: TextStyle(fontWeight: FontWeight.bold)),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
+      body: SingleChildScrollView(
+        padding: EdgeInsets.all(isMobile ? 16.0 : 24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               'Tus Hábitos',
-              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: context.colors.textPrimary),
+              style: TextStyle(
+                fontSize: isMobile ? 20 : 24,
+                fontWeight: FontWeight.bold,
+                color: context.colors.textPrimary,
+              ),
             ),
-            const SizedBox(height: 24),
-            Row(
-              children: [
-                _buildStatCard(context, 'Horas de reproducción', '12.5 h', Icons.timer),
-                const SizedBox(width: 16),
-                _buildStatCard(context, 'Videos Completados', '34', Icons.check_circle_outline),
-                const SizedBox(width: 16),
-                _buildStatCard(context, 'Música Escuchada', '128', Icons.music_note),
-              ],
-            ),
+            const SizedBox(height: 16),
+
+            // ── Stat cards: Row en desktop, Grid 2-col en mobile ──────────
+            isMobile
+                ? _buildMobileStatsGrid(context)
+                : _buildDesktopStatsRow(context),
+
             const SizedBox(height: 32),
             Text(
               'Historial Reciente (Benrio)',
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: context.colors.textPrimary),
+              style: TextStyle(
+                fontSize: isMobile ? 16 : 20,
+                fontWeight: FontWeight.bold,
+                color: context.colors.textPrimary,
+              ),
             ),
             const SizedBox(height: 16),
-            Expanded(
+            SizedBox(
+              height: 200,
               child: Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -60,31 +68,93 @@ class AnalyticsView extends StatelessWidget {
     );
   }
 
-  Widget _buildStatCard(BuildContext context, String title, String value, IconData icon) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: context.colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+  // ── Mobile: grid de 2 columnas (2 arriba + 1 centrada abajo) ─────────────
+  Widget _buildMobileStatsGrid(BuildContext context) {
+    final stats = [
+      _StatData('Horas de reproducción', '12.5 h', Icons.timer),
+      _StatData('Videos Completados',    '34',     Icons.check_circle_outline),
+      _StatData('Música Escuchada',      '128',    Icons.music_note),
+    ];
+
+    return Column(
+      children: [
+        // Fila 1: 2 tarjetas
+        Row(
           children: [
-            Icon(icon, color: Theme.of(context).colorScheme.primary),
-            const SizedBox(height: 12),
-            Text(
-              value,
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: context.colors.textPrimary),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              title,
-              style: TextStyle(fontSize: 14, color: context.colors.textSecondary),
-            ),
+            Expanded(child: _buildStatCard(context, stats[0], mobile: true)),
+            const SizedBox(width: 12),
+            Expanded(child: _buildStatCard(context, stats[1], mobile: true)),
           ],
         ),
+        const SizedBox(height: 12),
+        // Fila 2: 1 tarjeta centrada (ancho 50%)
+        Row(
+          children: [
+            Expanded(child: _buildStatCard(context, stats[2], mobile: true)),
+            const SizedBox(width: 12),
+            const Expanded(child: SizedBox()),
+          ],
+        ),
+      ],
+    );
+  }
+
+  // ── Desktop: row original de 3 tarjetas ───────────────────────────────────
+  Widget _buildDesktopStatsRow(BuildContext context) {
+    final stats = [
+      _StatData('Horas de reproducción', '12.5 h', Icons.timer),
+      _StatData('Videos Completados',    '34',     Icons.check_circle_outline),
+      _StatData('Música Escuchada',      '128',    Icons.music_note),
+    ];
+
+    return Row(
+      children: [
+        Expanded(child: _buildStatCard(context, stats[0])),
+        const SizedBox(width: 16),
+        Expanded(child: _buildStatCard(context, stats[1])),
+        const SizedBox(width: 16),
+        Expanded(child: _buildStatCard(context, stats[2])),
+      ],
+    );
+  }
+
+  Widget _buildStatCard(BuildContext context, _StatData data, {bool mobile = false}) {
+    return Container(
+      padding: EdgeInsets.all(mobile ? 14 : 20),
+      decoration: BoxDecoration(
+        color: context.colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(data.icon, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(height: 10),
+          Text(
+            data.value,
+            style: TextStyle(
+              fontSize: mobile ? 22 : 28,
+              fontWeight: FontWeight.bold,
+              color: context.colors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            data.title,
+            style: TextStyle(
+              fontSize: mobile ? 12 : 14,
+              color: context.colors.textSecondary,
+            ),
+          ),
+        ],
       ),
     );
   }
+}
+
+class _StatData {
+  final String title;
+  final String value;
+  final IconData icon;
+  const _StatData(this.title, this.value, this.icon);
 }

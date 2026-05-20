@@ -46,8 +46,11 @@ class HomeView extends StatelessWidget {
 
   Widget _buildHeroBanner(BuildContext context, Track? mainTrack) {
     final title = mainTrack?.title.isNotEmpty == true ? mainTrack!.title : AppLocalizations.of(context)!.welcomeHome;
+    final isMobile = MediaQuery.of(context).size.width < 600;
+    final heroBannerHeight = isMobile ? 260.0 : 400.0;
+
     return Container(
-      height: 400,
+      height: heroBannerHeight,
       width: double.infinity,
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -62,32 +65,39 @@ class HomeView extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          Text(
-            title,
-            style: TextStyle(
-              fontSize: MediaQuery.of(context).size.width < 600 ? 32 : 48,
-              fontWeight: FontWeight.bold,
-              color: context.colors.textPrimary,
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: isMobile ? 20 : 40),
+            child: Text(
+              title,
+              style: TextStyle(
+                fontSize: isMobile ? 26 : 48,
+                fontWeight: FontWeight.bold,
+                color: context.colors.textPrimary,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
             ),
-            textAlign: TextAlign.center,
           ),
           if (mainTrack != null && mainTrack.artist.isNotEmpty)
             Padding(
-              padding: const EdgeInsets.only(top: 8.0),
+              padding: EdgeInsets.only(top: 6.0, left: isMobile ? 20 : 40, right: isMobile ? 20 : 40),
               child: Text(
                 mainTrack.artist,
                 style: TextStyle(
-                  fontSize: 24,
+                  fontSize: isMobile ? 16 : 24,
                   color: context.colors.textSecondary,
                 ),
                 textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
               ),
             ),
-          const SizedBox(height: 20),
+          SizedBox(height: isMobile ? 16 : 20),
           Wrap(
             alignment: WrapAlignment.center,
-            spacing: 16,
-            runSpacing: 16,
+            spacing: 12,
+            runSpacing: 12,
             children: [
               ElevatedButton.icon(
                 onPressed: () async {
@@ -111,7 +121,10 @@ class HomeView extends StatelessWidget {
                 label: Text(AppLocalizations.of(context)!.play, style: TextStyle(color: context.colors.surface, fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: context.colors.textPrimary,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isMobile ? 20 : 24,
+                    vertical: isMobile ? 10 : 12,
+                  ),
                 ),
               ),
               OutlinedButton.icon(
@@ -120,27 +133,31 @@ class HomeView extends StatelessWidget {
                 label: Text(AppLocalizations.of(context)!.moreInfo, style: TextStyle(color: context.colors.textPrimary)),
                 style: OutlinedButton.styleFrom(
                   side: BorderSide(color: context.colors.textPrimary),
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: isMobile ? 20 : 24,
+                    vertical: isMobile ? 10 : 12,
+                  ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 40),
+          SizedBox(height: isMobile ? 24 : 40),
         ],
       ),
     );
   }
 
   Widget _buildCarouselRow(BuildContext context, String title, List<Track> items) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 24, vertical: isMobile ? 12 : 16),
           child: Text(
             title,
             style: TextStyle(
-              fontSize: 20,
+              fontSize: isMobile ? 16 : 20,
               fontWeight: FontWeight.bold,
               color: context.colors.textPrimary,
             ),
@@ -148,8 +165,8 @@ class HomeView extends StatelessWidget {
         ),
         CarouselSlider(
           options: CarouselOptions(
-            height: 200,
-            viewportFraction: MediaQuery.of(context).size.width < 600 ? 0.7 : 0.2,
+            height: isMobile ? 160 : 200,
+            viewportFraction: isMobile ? 0.72 : 0.2,
             enableInfiniteScroll: false,
             padEnds: false,
             disableCenter: true,
@@ -240,26 +257,27 @@ class HomeView extends StatelessWidget {
 
   Widget _buildPlaylistsRow(BuildContext context, String title, List<Playlist> playlists) {
     if (playlists.isEmpty) return const SizedBox.shrink();
-    
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+          padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 24, vertical: isMobile ? 12 : 16),
           child: Text(
             title,
             style: TextStyle(
-              fontSize: 20,
+              fontSize: isMobile ? 16 : 20,
               fontWeight: FontWeight.bold,
               color: context.colors.textPrimary,
             ),
           ),
         ),
         SizedBox(
-          height: 150,
+          height: isMobile ? 120 : 150,
           child: ListView.builder(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: EdgeInsets.symmetric(horizontal: isMobile ? 12 : 16),
             itemCount: playlists.length,
             itemBuilder: (context, index) {
               final pl = playlists[index];

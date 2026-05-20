@@ -11,33 +11,58 @@ import 'download_options_dialog.dart';
 
 class SearchView extends StatefulWidget {
   final Function(int)? onNavigate;
-  const SearchView({super.key, this.onNavigate});
+  final TextEditingController? searchController;
+  const SearchView({super.key, this.onNavigate, this.searchController});
 
   @override
   State<SearchView> createState() => _SearchViewState();
 }
 
-class _SearchViewState extends State<SearchView> {
-  final TextEditingController _searchController = TextEditingController();
+class _SearchViewState extends State<SearchView> with SingleTickerProviderStateMixin {
+  late final TextEditingController _searchController;
   String _query = '';
   Timer? _debounce;
-  
+  late TabController _mobileTabController;
+
   bool _isSearchingOnline = false;
   List<dynamic> _onlineResults = [];
   String? _onlineError;
 
   @override
+  void initState() {
+    super.initState();
+    _searchController = widget.searchController ?? TextEditingController();
+    _query = _searchController.text;
+    _searchController.addListener(_onControllerChanged);
+    _mobileTabController = TabController(length: 2, vsync: this);
+    if (_query.trim().isNotEmpty) {
+      _searchYouTube(_query.trim());
+    }
+  }
+
+  @override
   void dispose() {
-    _searchController.dispose();
+    _searchController.removeListener(_onControllerChanged);
+    if (widget.searchController == null) {
+      _searchController.dispose();
+    }
     _debounce?.cancel();
+    _mobileTabController.dispose();
     super.dispose();
+  }
+
+  void _onControllerChanged() {
+    final newQuery = _searchController.text;
+    if (newQuery != _query) {
+      _onSearchChanged(newQuery);
+    }
   }
 
   void _onSearchChanged(String query) {
     setState(() => _query = query);
     
     if (_debounce?.isActive ?? false) _debounce!.cancel();
-    _debounce = Timer(const Duration(milliseconds: 1000), () {
+    _debounce = Timer(const Duration(milliseconds: 600), () {
       if (_query.trim().isNotEmpty) {
         _searchYouTube(_query.trim());
       } else {
@@ -98,7 +123,8 @@ class _SearchViewState extends State<SearchView> {
     final library = context.watch<LibraryProvider>();
     final localResults = _getFilteredLocalTracks(library.tracks);
     final localPlaylists = _getFilteredPlaylists(library.playlists);
-    
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     // Split online results into normal videos and shorts
     final normalVideos = _onlineResults.where((r) => r['is_short'] != true).toList();
     final shortVideos = _onlineResults.where((r) => r['is_short'] == true).toList();
@@ -106,27 +132,58 @@ class _SearchViewState extends State<SearchView> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ── Header / Search Bar ───────────────────────────────────────────
-        Padding(
-          padding: const EdgeInsets.fromLTRB(32, 32, 32, 16),
-          child: TextField(
-            controller: _searchController,
-            onChanged: _onSearchChanged,
-            style: TextStyle(fontSize: 24, color: context.colors.textPrimary, fontWeight: FontWeight.bold),
-            decoration: InputDecoration(
-              hintText: 'Buscar canciones, artistas, o YouTube...',
-              hintStyle: TextStyle(color: context.colors.textSecondary.withOpacity(0.5)),
-              prefixIcon: Icon(Icons.search_rounded, size: 32, color: context.colors.textSecondary),
-              filled: true,
-              fillColor: context.colors.surfaceAlt,
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(16),
-                borderSide: BorderSide.none,
+        // ── Header / Search Bar (Desktop only) ─────────────────────────────
+        if (!isMobile)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(32, 32, 32, 16),
+            child: TextField(
+              controller: _searchController,
+              onChanged: _onSearchChanged,
+              style: TextStyle(
+                fontSize: 24,
+                color: context.colors.textPrimary,
+                fontWeight: FontWeight.bold,
               ),
-              contentPadding: const EdgeInsets.symmetric(vertical: 20),
+              decoration: InputDecoration(
+                hintText: 'Buscar canciones, artistas, o YouTube...',
+                hintStyle: TextStyle(color: context.colors.textSecondary.withOpacity(0.5)),
+                prefixIcon: Icon(Icons.search_rounded, size: 32, color: context.colors.textSecondary),
+                filled: true,
+                fillColor: context.colors.surfaceAlt,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(16),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 20),
+              ),
             ),
           ),
-        ),
+
+        // ── Mobile: TabBar para alternar entre Local y YouTube ────────────
+        if (isMobile && _query.trim().isNotEmpty)
+          TabBar(
+            controller: _mobileTabController,
+            indicatorColor: Theme.of(context).colorScheme.primary,
+            labelColor: Theme.of(context).colorScheme.primary,
+            unselectedLabelColor: context.colors.textSecondary,
+            labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+            tabs: [
+              Tab(
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.library_music_rounded, size: 16),
+                  const SizedBox(width: 6),
+                  Text('Local (${localResults.length + localPlaylists.length})'),
+                ]),
+              ),
+              Tab(
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  const Icon(Icons.play_circle_outline_rounded, size: 16),
+                  const SizedBox(width: 6),
+                  const Text('YouTube'),
+                ]),
+              ),
+            ],
+          ),
 
         Divider(height: 1, color: context.colors.border),
 
@@ -134,27 +191,48 @@ class _SearchViewState extends State<SearchView> {
         Expanded(
           child: _query.trim().isEmpty
               ? _EmptySearchState()
-              : Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Local Results
-                    Expanded(
-                      flex: 1,
-                      child: _LocalResultsColumn(tracks: localResults, playlists: localPlaylists, onNavigate: widget.onNavigate),
+              : isMobile
+                  // Mobile: TabBarView con una columna a la vez
+                  ? TabBarView(
+                      controller: _mobileTabController,
+                      children: [
+                        _LocalResultsColumn(
+                          tracks: localResults,
+                          playlists: localPlaylists,
+                          onNavigate: widget.onNavigate,
+                        ),
+                        _YouTubeResultsColumn(
+                          isLoading: _isSearchingOnline,
+                          error: _onlineError,
+                          normalVideos: normalVideos,
+                          shortVideos: shortVideos,
+                        ),
+                      ],
+                    )
+                  // Desktop: dos columnas side-by-side
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          flex: 1,
+                          child: _LocalResultsColumn(
+                            tracks: localResults,
+                            playlists: localPlaylists,
+                            onNavigate: widget.onNavigate,
+                          ),
+                        ),
+                        Container(width: 1, color: context.colors.border),
+                        Expanded(
+                          flex: 1,
+                          child: _YouTubeResultsColumn(
+                            isLoading: _isSearchingOnline,
+                            error: _onlineError,
+                            normalVideos: normalVideos,
+                            shortVideos: shortVideos,
+                          ),
+                        ),
+                      ],
                     ),
-                    Container(width: 1, color: context.colors.border),
-                    // YouTube Results
-                    Expanded(
-                      flex: 1,
-                      child: _YouTubeResultsColumn(
-                        isLoading: _isSearchingOnline,
-                        error: _onlineError,
-                        normalVideos: normalVideos,
-                        shortVideos: shortVideos,
-                      ),
-                    ),
-                  ],
-                ),
         ),
       ],
     );

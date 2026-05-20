@@ -42,10 +42,32 @@ class _DownloadOptionsDialogState extends State<DownloadOptionsDialog> {
       final info = await api.getVideoInfo(widget.videoUrl);
       if (mounted) {
         setState(() {
-          _formats = info['formats'] as List<dynamic>;
-          if (_formats != null && _formats!.isNotEmpty) {
-            final audioFormat = _formats!.cast<Map<String, dynamic>>().firstWhere((f) => f['is_audio_only'] == true, orElse: () => _formats!.first);
-            _selectedFormatId = audioFormat['format_id'];
+          final rawFormats = info['formats'] as List<dynamic>? ?? [];
+          
+          // Filter video formats to strictly MP4 files
+          final mp4VideoFormats = rawFormats.where((f) {
+            final isAudio = f['is_audio_only'] == true;
+            final ext = (f['ext'] as String? ?? '').toLowerCase();
+            return !isAudio && ext == 'mp4';
+          }).toList();
+
+          _formats = [];
+          
+          // Add exactly one single MP3 option at 320kbps
+          _formats!.add({
+            'format_id': 'bestaudio/best',
+            'resolution': '320kbps',
+            'ext': 'mp3',
+            'filesize_mb': null,
+            'is_audio_only': true,
+          });
+          
+          // Add the mp4 video formats
+          _formats!.addAll(mp4VideoFormats);
+
+          if (_formats!.isNotEmpty) {
+            // Default select the audio option
+            _selectedFormatId = 'bestaudio/best';
           }
           _isLoadingFormats = false;
         });
@@ -162,7 +184,10 @@ class _DownloadOptionsDialogState extends State<DownloadOptionsDialog> {
                 items: _formats!.map((f) {
                   final isAudio = f['is_audio_only'] == true;
                   final sizeStr = f['filesize_mb'] != null ? " - ${f['filesize_mb']} MB" : "";
-                  final label = isAudio ? 'Audio (MP3)$sizeStr' : 'Video (${f['resolution']})$sizeStr';
+                  final res = f['resolution'] as String? ?? '';
+                  final label = isAudio 
+                      ? 'Audio (MP3) - ${res.contains('kbps') ? res : '320kbps'}$sizeStr' 
+                      : 'Video ($res)$sizeStr';
                   return DropdownMenuItem<String>(
                     value: f['format_id'] as String,
                     child: Text(label),

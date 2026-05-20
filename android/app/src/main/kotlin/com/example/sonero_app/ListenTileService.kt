@@ -22,13 +22,21 @@ class ListenTileService : TileService() {
         tile.state = Tile.STATE_ACTIVE
         tile.updateTile()
 
-        // Start the Flutter Background Service
+        // Set preference flag to notify Dart
+        val prefs = getSharedPreferences("FlutterSharedPreferences", android.content.Context.MODE_PRIVATE)
+        prefs.edit().putBoolean("flutter.started_from_tile", true).apply()
+
+        // Stop then restart Flutter Background Service to force onStart to run
         val intent = Intent(this, BackgroundService::class.java)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            startForegroundService(intent)
-        } else {
-            startService(intent)
-        }
+        stopService(intent)
+
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent)
+            } else {
+                startService(intent)
+            }
+        }, 300)
 
         // Collapse the quick settings panel
         val closeIntent = Intent(Intent.ACTION_CLOSE_SYSTEM_DIALOGS)

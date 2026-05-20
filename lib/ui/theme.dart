@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../providers/settings_provider.dart';
@@ -246,5 +248,12 @@ class AppTheme {
 
 extension ThemeContext on BuildContext {
   SoneroColors get colors => Theme.of(this).extension<SoneroColors>()!;
+
+  bool get isMobile {
+    if (kIsWeb) {
+      return MediaQuery.of(this).size.width < 600;
+    }
+    return Platform.isAndroid || Platform.isIOS || MediaQuery.of(this).size.width < 600;
+  }
 }
 

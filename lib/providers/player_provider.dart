@@ -5,6 +5,8 @@ import 'package:media_kit/media_kit.dart' hide Track;
 import 'package:media_kit_video/media_kit_video.dart';
 import '../models/track.dart';
 import 'settings_provider.dart';
+import 'package:flutter/foundation.dart';
+import '../services/audio_handler.dart';
 
 class PlayerProvider extends ChangeNotifier {
   late final Player player;
@@ -98,6 +100,14 @@ class PlayerProvider extends ChangeNotifier {
     player = Player();
     videoController = VideoController(player);
 
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      try {
+        SoneroAudioHandler.instance.setPlayer(player);
+      } catch (e) {
+        debugPrint('Could not set player on AudioHandler: $e');
+      }
+    }
+
     player.stream.playing.listen((playing) {
       _isPlaying = playing;
       notifyListeners();
@@ -110,6 +120,11 @@ class PlayerProvider extends ChangeNotifier {
 
     player.stream.duration.listen((dur) {
       _duration = dur;
+      if (!kIsWeb && (Platform.isAndroid || Platform.isIOS) && _currentTrack != null) {
+        try {
+          SoneroAudioHandler.instance.updateTrackMetadata(_currentTrack!, dur);
+        } catch (_) {}
+      }
       notifyListeners();
     });
 
@@ -131,6 +146,12 @@ class PlayerProvider extends ChangeNotifier {
         if (!_isVideo) _isVideoMode = false; // auto-close overlay for audio
         _position = Duration.zero;
         _duration = Duration.zero;
+
+        if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+          try {
+            SoneroAudioHandler.instance.updateTrackMetadata(_currentTrack!, Duration.zero);
+          } catch (_) {}
+        }
         notifyListeners();
       }
     });

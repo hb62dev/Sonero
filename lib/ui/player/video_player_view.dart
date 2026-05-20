@@ -1,10 +1,13 @@
 import 'dart:async';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:media_kit/media_kit.dart' hide Track;
 import 'package:media_kit_video/media_kit_video.dart';
 import 'package:window_manager/window_manager.dart';
 import '../../providers/player_provider.dart';
+import '../theme.dart';
 
 class VideoOverlay extends StatefulWidget {
   const VideoOverlay({super.key});
@@ -20,6 +23,8 @@ class _VideoOverlayState extends State<VideoOverlay>
   late AnimationController _fadeController;
   late Animation<double> _fadeAnimation;
 
+  bool get _isDesktop => !kIsWeb && (Platform.isWindows || Platform.isLinux || Platform.isMacOS);
+
   @override
   void initState() {
     super.initState();
@@ -32,12 +37,13 @@ class _VideoOverlayState extends State<VideoOverlay>
       parent: _fadeController,
       curve: Curves.easeInOut,
     );
-    // Sync initial fullscreen state from window
-    windowManager.isFullScreen().then((val) {
-      if (mounted) {
-        context.read<PlayerProvider>().setFullscreen(val);
-      }
-    });
+    if (_isDesktop) {
+      windowManager.isFullScreen().then((val) {
+        if (mounted) {
+          context.read<PlayerProvider>().setFullscreen(val);
+        }
+      });
+    }
     _resetHideTimer();
   }
 
@@ -45,10 +51,11 @@ class _VideoOverlayState extends State<VideoOverlay>
   void dispose() {
     _hideTimer?.cancel();
     _fadeController.dispose();
-    // Restore window when overlay is closed
     final player = context.read<PlayerProvider>();
     if (player.isFullscreen) {
-      windowManager.setFullScreen(false);
+      if (_isDesktop) {
+        windowManager.setFullScreen(false);
+      }
       player.setFullscreen(false);
     }
     super.dispose();
@@ -70,16 +77,19 @@ class _VideoOverlayState extends State<VideoOverlay>
 
   Future<void> _toggleFullscreen(PlayerProvider player) async {
     final next = !player.isFullscreen;
-    await windowManager.setFullScreen(next);
+    if (_isDesktop) {
+      await windowManager.setFullScreen(next);
+    }
     player.setFullscreen(next);
     _resetHideTimer();
   }
 
   void _exitVideoMode(BuildContext context) {
     final player = context.read<PlayerProvider>();
-    // Restore window if fullscreen before closing
     if (player.isFullscreen) {
-      windowManager.setFullScreen(false);
+      if (_isDesktop) {
+        windowManager.setFullScreen(false);
+      }
       player.setFullscreen(false);
     }
     player.pause();        // pause playback when closing video
@@ -99,12 +109,13 @@ class _VideoOverlayState extends State<VideoOverlay>
     final player = context.watch<PlayerProvider>();
     final track  = player.currentTrack;
 
-    // Sync window fullscreen state when provider changes (e.g., from keyboard)
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       if (!mounted) return;
-      final windowFs = await windowManager.isFullScreen();
-      if (windowFs != player.isFullscreen) {
-        windowManager.setFullScreen(player.isFullscreen);
+      if (_isDesktop) {
+        final windowFs = await windowManager.isFullScreen();
+        if (windowFs != player.isFullscreen) {
+          windowManager.setFullScreen(player.isFullscreen);
+        }
       }
     });
 
@@ -212,8 +223,11 @@ class _TopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final topPadding = MediaQuery.of(context).padding.top;
+    final isMobile = context.isMobile;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      padding: EdgeInsets.fromLTRB(16, 16 + topPadding, 16, 16),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
@@ -223,14 +237,15 @@ class _TopBar extends StatelessWidget {
       ),
       child: Row(
         children: [
-          // Sidebar toggle
-          _GlassButton(
-            icon: isSidebarVisible ? Icons.menu_open_rounded : Icons.menu_rounded,
-            onTap: onToggleSidebar,
-            tooltip: isSidebarVisible ? 'Ocultar panel' : 'Mostrar panel',
-            size: 20,
-          ),
-          const SizedBox(width: 12),
+          if (!isMobile) ...[
+            _GlassButton(
+              icon: isSidebarVisible ? Icons.menu_open_rounded : Icons.menu_rounded,
+              onTap: onToggleSidebar,
+              tooltip: isSidebarVisible ? 'Ocultar panel' : 'Mostrar panel',
+              size: 20,
+            ),
+            const SizedBox(width: 12),
+          ],
 
           // Title + artist
           Expanded(
@@ -267,16 +282,17 @@ class _TopBar extends StatelessWidget {
           ),
           const SizedBox(width: 12),
 
-          // Fullscreen toggle
-          _GlassButton(
-            icon: isFullscreen
-                ? Icons.fullscreen_exit_rounded
-                : Icons.fullscreen_rounded,
-            onTap: onToggleFullscreen,
-            tooltip: isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa',
-            size: 22,
-          ),
-          const SizedBox(width: 8),
+          if (!isMobile) ...[
+            _GlassButton(
+              icon: isFullscreen
+                  ? Icons.fullscreen_exit_rounded
+                  : Icons.fullscreen_rounded,
+              onTap: onToggleFullscreen,
+              tooltip: isFullscreen ? 'Salir de pantalla completa' : 'Pantalla completa',
+              size: 22,
+            ),
+            const SizedBox(width: 8),
+          ],
 
           // Close video mode
           _GlassButton(
@@ -317,9 +333,11 @@ class _BottomControlsState extends State<_BottomControls> {
     final dur = player.duration.inMilliseconds > 0
         ? player.duration.inMilliseconds.toDouble()
         : 100.0;
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+    final isMobile = context.isMobile;
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + bottomPadding),
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.bottomCenter,
@@ -393,42 +411,44 @@ class _BottomControlsState extends State<_BottomControls> {
 
               const Spacer(),
 
-              // Volume
-              _GlassButton(
-                icon: player.volume == 0
-                    ? Icons.volume_off_rounded
-                    : player.volume < 50
-                        ? Icons.volume_down_rounded
-                        : Icons.volume_up_rounded,
-                onTap: () => setState(() => _volumeExpanded = !_volumeExpanded),
-                size: 20,
-              ),
-              AnimatedContainer(
-                duration: const Duration(milliseconds: 200),
-                width: _volumeExpanded ? 100 : 0,
-                clipBehavior: Clip.hardEdge,
-                decoration: const BoxDecoration(),
-                child: _volumeExpanded
-                    ? SliderTheme(
-                        data: SliderThemeData(
-                          trackHeight: 3,
-                          thumbShape: const RoundSliderThumbShape(
-                              enabledThumbRadius: 6),
-                          activeTrackColor: Colors.white,
-                          inactiveTrackColor: Colors.white30,
-                          thumbColor: Colors.white,
-                        ),
-                        child: Slider(
-                          value: player.volume.clamp(0.0, 100.0),
-                          max: 100,
-                          onChanged: (val) {
-                            widget.onInteract();
-                            player.setVolume(val);
-                          },
-                        ),
-                      )
-                    : const SizedBox.shrink(),
-              ),
+              // Volume (hidden on mobile)
+              if (!isMobile) ...[
+                _GlassButton(
+                  icon: player.volume == 0
+                      ? Icons.volume_off_rounded
+                      : player.volume < 50
+                          ? Icons.volume_down_rounded
+                          : Icons.volume_up_rounded,
+                  onTap: () => setState(() => _volumeExpanded = !_volumeExpanded),
+                  size: 20,
+                ),
+                AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
+                  width: _volumeExpanded ? 100 : 0,
+                  clipBehavior: Clip.hardEdge,
+                  decoration: const BoxDecoration(),
+                  child: _volumeExpanded
+                      ? SliderTheme(
+                          data: SliderThemeData(
+                            trackHeight: 3,
+                            thumbShape: const RoundSliderThumbShape(
+                                enabledThumbRadius: 6),
+                            activeTrackColor: Colors.white,
+                            inactiveTrackColor: Colors.white30,
+                            thumbColor: Colors.white,
+                          ),
+                          child: Slider(
+                            value: player.volume.clamp(0.0, 100.0),
+                            max: 100,
+                            onChanged: (val) {
+                              widget.onInteract();
+                              player.setVolume(val);
+                            },
+                          ),
+                        )
+                      : const SizedBox.shrink(),
+                ),
+              ],
 
               // Repeat
               const SizedBox(width: 4),

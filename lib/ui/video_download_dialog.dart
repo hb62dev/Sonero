@@ -40,11 +40,31 @@ class _VideoDownloadDialogState extends State<VideoDownloadDialog> {
     try {
       final api = context.read<SettingsProvider>().api;
       final info = await api.getVideoInfo(url);
+      
+      final rawFormats = info['formats'] as List<dynamic>? ?? [];
+      final mp4VideoFormats = rawFormats.where((f) {
+        final isAudio = f['is_audio_only'] == true;
+        final ext = (f['ext'] as String? ?? '').toLowerCase();
+        return !isAudio && ext == 'mp4';
+      }).toList();
+
+      final filteredFormats = <Map<String, dynamic>>[];
+      filteredFormats.add({
+        'format_id': 'bestaudio/best',
+        'resolution': '320kbps',
+        'ext': 'mp3',
+        'filesize_mb': null,
+        'is_audio_only': true,
+      });
+      filteredFormats.addAll(mp4VideoFormats.cast<Map<String, dynamic>>());
+
       setState(() {
-        _videoInfo = info;
-        final formats = info['formats'] as List;
-        if (formats.isNotEmpty) {
-          _selectedFormatId = formats.first['format_id'];
+        _videoInfo = {
+          ...info,
+          'formats': filteredFormats,
+        };
+        if (filteredFormats.isNotEmpty) {
+          _selectedFormatId = 'bestaudio/best';
         }
       });
     } catch (e) {
@@ -71,7 +91,17 @@ class _VideoDownloadDialogState extends State<VideoDownloadDialog> {
 
     try {
       final api = context.read<SettingsProvider>().api;
-      final jobId = await api.downloadVideo(url, _selectedFormatId!);
+      String jobId;
+
+      final isAudioSelected = _selectedFormatId == 'bestaudio/best';
+      if (isAudioSelected) {
+        jobId = await api.downloadMp3Direct(
+          url: url,
+          title: _videoInfo!['title'] ?? 'Audio',
+        );
+      } else {
+        jobId = await api.downloadVideo(url, _selectedFormatId!);
+      }
       
       Timer.periodic(const Duration(milliseconds: 500), (timer) async {
         try {
