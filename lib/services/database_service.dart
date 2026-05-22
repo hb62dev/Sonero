@@ -28,7 +28,24 @@ class DatabaseService {
       databaseFactory = databaseFactoryFfi;
     }
 
-    return await openDatabase(path, version: 1, onCreate: _createDB);
+    return await openDatabase(
+      path,
+      version: 2,
+      onCreate: _createDB,
+      onUpgrade: _upgradeDB,
+    );
+  }
+
+  Future _upgradeDB(Database db, int oldVersion, int newVersion) async {
+    if (oldVersion < 2) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS logs (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          timestamp TEXT,
+          message TEXT
+        )
+      ''');
+    }
   }
 
   Future _createDB(Database db, int version) async {
@@ -67,6 +84,14 @@ class DatabaseService {
         added_at TEXT,
         FOREIGN KEY (playlist_id) REFERENCES playlists (id) ON DELETE CASCADE,
         FOREIGN KEY (media_id) REFERENCES media (id) ON DELETE CASCADE
+      )
+    ''');
+
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        timestamp TEXT,
+        message TEXT
       )
     ''');
   }
@@ -351,6 +376,26 @@ class DatabaseService {
     } catch (e) {
       print("[DatabaseService] Error cleaning up missing files: $e");
     }
+  }
+
+  // --- Diagnostic Logs ---
+
+  Future<int> insertLog(String timestamp, String message) async {
+    final db = await instance.database;
+    return await db.insert('logs', {
+      'timestamp': timestamp,
+      'message': message,
+    });
+  }
+
+  Future<List<Map<String, dynamic>>> getLogs() async {
+    final db = await instance.database;
+    return await db.query('logs', orderBy: 'id DESC', limit: 200);
+  }
+
+  Future<int> clearLogs() async {
+    final db = await instance.database;
+    return await db.delete('logs');
   }
 
   Future close() async {

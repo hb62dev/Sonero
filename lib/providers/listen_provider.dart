@@ -132,7 +132,7 @@ class ListenProvider extends ChangeNotifier {
         'genre': track.genre,
         'year': track.year,
         'filename': dbFilename,
-        'format': 'm4a',
+        'format': 'mp3',
         'cover_url': track.coverUrl,
         'shazam_url': track.shazamUrl,
       });

@@ -6,7 +6,6 @@ import 'package:flutter/services.dart';
 import 'package:hotkey_manager/hotkey_manager.dart';
 import 'package:provider/provider.dart';
 import '../../core/hotkey_service.dart';
-import '../../providers/listen_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../theme.dart';
 import '../../services/log_service.dart';
@@ -22,6 +21,11 @@ class SettingsPage extends StatefulWidget {
 class _SettingsPageState extends State<SettingsPage> {
   late final TextEditingController _apiUrlCtrl;
   late final TextEditingController _durationCtrl;
+  late final TextEditingController _geminiKeyCtrl;
+  late final TextEditingController _auddTokenCtrl;
+  late final TextEditingController _rapidApiKeyCtrl;
+  late final TextEditingController _rapidApiHostCtrl;
+  late final TextEditingController _shazamProxyUrlCtrl;
 
   @override
   void initState() {
@@ -29,12 +33,22 @@ class _SettingsPageState extends State<SettingsPage> {
     final settings = context.read<SettingsProvider>();
     _apiUrlCtrl = TextEditingController(text: settings.apiUrl);
     _durationCtrl = TextEditingController(text: settings.listenDuration.toString());
+    _geminiKeyCtrl = TextEditingController(text: settings.geminiApiKey);
+    _auddTokenCtrl = TextEditingController(text: settings.auddApiToken);
+    _rapidApiKeyCtrl = TextEditingController(text: settings.rapidApiKey);
+    _rapidApiHostCtrl = TextEditingController(text: settings.rapidApiHost);
+    _shazamProxyUrlCtrl = TextEditingController(text: settings.shazamProxyUrl);
   }
 
   @override
   void dispose() {
     _apiUrlCtrl.dispose();
     _durationCtrl.dispose();
+    _geminiKeyCtrl.dispose();
+    _auddTokenCtrl.dispose();
+    _rapidApiKeyCtrl.dispose();
+    _rapidApiHostCtrl.dispose();
+    _shazamProxyUrlCtrl.dispose();
     super.dispose();
   }
 
@@ -347,6 +361,150 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
 
           const SizedBox(height: 24),
+
+          // ── Servicio de Reconocimiento ─────────────────────────────────
+          _Section(
+            title: 'Reconocimiento de Música',
+            icon: Icons.music_note_rounded,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Proveedor', style: TextStyle(color: context.colors.textPrimary)),
+                  DropdownButton<String>(
+                    value: settings.recognitionService,
+                    dropdownColor: context.colors.surfaceAlt,
+                    underline: const SizedBox(),
+                    items: const [
+                      DropdownMenuItem(value: 'gemini', child: Text('Google Gemini (Flash)')),
+                      DropdownMenuItem(value: 'audd', child: Text('AudD API')),
+                      DropdownMenuItem(value: 'rapidapi', child: Text('RapidAPI Shazam')),
+                      DropdownMenuItem(value: 'shazam_proxy', child: Text('Shazam (Servidor Proxy)')),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) {
+                        settings.setRecognitionService(val);
+                      }
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (settings.recognitionService == 'gemini') ...[
+                TextField(
+                  controller: _geminiKeyCtrl,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Gemini API Key',
+                    hintText: 'AIzaSy...',
+                    prefixIcon: Icon(Icons.key, size: 18),
+                  ),
+                  style: const TextStyle(fontSize: 13),
+                  onSubmitted: (v) => settings.setGeminiApiKey(v.trim()),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton(
+                  onPressed: () {
+                    settings.setGeminiApiKey(_geminiKeyCtrl.text.trim());
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('API Key de Gemini guardada'),
+                      duration: Duration(seconds: 2),
+                    ));
+                  },
+                  child: const Text('Guardar API Key'),
+                ),
+              ] else if (settings.recognitionService == 'audd') ...[
+                TextField(
+                  controller: _auddTokenCtrl,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'AudD API Token',
+                    hintText: 'Tu token de AudD',
+                    prefixIcon: Icon(Icons.key, size: 18),
+                  ),
+                  style: const TextStyle(fontSize: 13),
+                  onSubmitted: (v) => settings.setAudDApiToken(v.trim()),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton(
+                  onPressed: () {
+                    settings.setAudDApiToken(_auddTokenCtrl.text.trim());
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('Token de AudD guardado'),
+                      duration: Duration(seconds: 2),
+                    ));
+                  },
+                  child: const Text('Guardar Token'),
+                ),
+              ] else if (settings.recognitionService == 'rapidapi') ...[
+                TextField(
+                  controller: _rapidApiKeyCtrl,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'RapidAPI Key',
+                    hintText: 'Tu clave x-rapidapi-key',
+                    prefixIcon: Icon(Icons.key, size: 18),
+                  ),
+                  style: const TextStyle(fontSize: 13),
+                  onSubmitted: (v) => settings.setRapidApiKey(v.trim()),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _rapidApiHostCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'RapidAPI Host',
+                    hintText: 'shazam-song-recognizer.p.rapidapi.com',
+                    prefixIcon: Icon(Icons.dns, size: 18),
+                  ),
+                  style: const TextStyle(fontSize: 13),
+                  onSubmitted: (v) => settings.setRapidApiHost(v.trim()),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton(
+                  onPressed: () {
+                    settings.setRapidApiKey(_rapidApiKeyCtrl.text.trim());
+                    settings.setRapidApiHost(_rapidApiHostCtrl.text.trim());
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('Credenciales de RapidAPI guardadas'),
+                      duration: Duration(seconds: 2),
+                    ));
+                  },
+                  child: const Text('Guardar Credenciales'),
+                ),
+              ] else if (settings.recognitionService == 'shazam_proxy') ...[
+                TextField(
+                  controller: _shazamProxyUrlCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'URL del Servidor Proxy',
+                    hintText: 'https://mi-espacio.hf.space o http://192.168.1.50:8000',
+                    prefixIcon: Icon(Icons.link, size: 18),
+                  ),
+                  style: const TextStyle(fontSize: 13),
+                  onSubmitted: (v) => settings.setShazamProxyUrl(v.trim()),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Este modo envía el audio grabado a un servidor proxy que ejecuta shazamio. '
+                  'Puedes usar tu backend local de Sonero o crear tu propio servidor gratuito '
+                  'en Hugging Face Spaces (instrucciones y archivos en sonero-api/deploy_huggingface/).',
+                  style: TextStyle(fontSize: 12, color: context.colors.textSecondary),
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton(
+                  onPressed: () {
+                    settings.setShazamProxyUrl(_shazamProxyUrlCtrl.text.trim());
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('URL del Proxy de Shazam guardada'),
+                      duration: Duration(seconds: 2),
+                    ));
+                  },
+                  child: const Text('Guardar URL del Proxy'),
+                ),
+              ],
+            ],
+          ),
+
+          const SizedBox(height: 24),
           // ── Backend API URL ────────────────────────────────────────────
           _Section(
             title: AppLocalizations.of(context)!.apiConnection,
@@ -585,78 +743,114 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  void _showLogsDialog(BuildContext context) {
+  void _showLogsDialog(BuildContext pageContext) {
     showDialog(
-      context: context,
+      context: pageContext,
       builder: (context) {
         return StatefulBuilder(
           builder: (context, setState) {
-            final logs = LogService.getLogs();
-            return AlertDialog(
-              backgroundColor: context.colors.surfaceAlt,
-              title: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Logs de Diagnóstico'),
-                  Row(
+            return FutureBuilder<List<String>>(
+              future: LogService.getLogs(),
+              builder: (context, snapshot) {
+                final logs = snapshot.data ?? [];
+                final isLoading = snapshot.connectionState == ConnectionState.waiting;
+                return AlertDialog(
+                  backgroundColor: context.colors.surfaceAlt,
+                  title: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      IconButton(
-                        icon: const Icon(Icons.refresh_rounded),
-                        tooltip: 'Actualizar',
-                        onPressed: () => setState(() {}),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete_outline_rounded),
-                        tooltip: 'Limpiar',
-                        onPressed: () {
-                          LogService.clear();
-                          setState(() {});
-                        },
+                      const Text('Logs de Diagnóstico'),
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.copy_rounded),
+                            tooltip: 'Copiar logs',
+                            onPressed: () async {
+                              if (logs.isNotEmpty) {
+                                await Clipboard.setData(ClipboardData(text: logs.join('\n')));
+                                if (pageContext.mounted) {
+                                  ScaffoldMessenger.of(pageContext).showSnackBar(
+                                    SnackBar(
+                                      content: const Text('Logs copiados al portapapeles'),
+                                      backgroundColor: pageContext.colors.success,
+                                      duration: const Duration(seconds: 2),
+                                    ),
+                                  );
+                                }
+                              } else {
+                                if (pageContext.mounted) {
+                                  ScaffoldMessenger.of(pageContext).showSnackBar(
+                                    SnackBar(
+                                      content: const Text('No hay logs para copiar'),
+                                      backgroundColor: pageContext.colors.error,
+                                      duration: const Duration(seconds: 2),
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.refresh_rounded),
+                            tooltip: 'Actualizar',
+                            onPressed: () => setState(() {}),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline_rounded),
+                            tooltip: 'Limpiar',
+                            onPressed: () async {
+                              await LogService.clear();
+                              setState(() {});
+                            },
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
-              ),
-              content: SizedBox(
-                width: double.maxFinite,
-                height: 400,
-                child: logs.isEmpty
-                    ? Center(
-                        child: Text(
-                          'No hay logs registrados aún.',
-                          style: TextStyle(color: context.colors.textSecondary),
-                        ),
-                      )
-                    : Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: context.colors.bg,
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: context.colors.border),
-                        ),
-                        child: ListView.builder(
-                          itemCount: logs.length,
-                          itemBuilder: (context, index) {
-                            return Padding(
-                              padding: const EdgeInsets.symmetric(vertical: 2.0),
-                              child: Text(
-                                logs[index],
-                                style: const TextStyle(
-                                  fontFamily: 'monospace',
-                                  fontSize: 11,
+                  content: SizedBox(
+                    width: double.maxFinite,
+                    height: 400,
+                    child: isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : logs.isEmpty
+                            ? Center(
+                                child: Text(
+                                  'No hay logs registrados aún.',
+                                  style: TextStyle(color: context.colors.textSecondary),
+                                ),
+                              )
+                            : Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: context.colors.bg,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: context.colors.border),
+                                ),
+                                child: ListView.builder(
+                                  itemCount: logs.length,
+                                  itemBuilder: (context, index) {
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 2.0),
+                                      child: Text(
+                                        logs[index],
+                                        style: const TextStyle(
+                                          fontFamily: 'monospace',
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    );
+                                  },
                                 ),
                               ),
-                            );
-                          },
-                        ),
-                      ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cerrar'),
-                ),
-              ],
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cerrar'),
+                    ),
+                  ],
+                );
+              },
             );
           },
         );

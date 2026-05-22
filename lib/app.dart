@@ -19,6 +19,7 @@ import 'ui/video_download_dialog.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class ShazamApp extends StatefulWidget {
   const ShazamApp({super.key});
@@ -83,9 +84,28 @@ class _ShazamAppState extends State<ShazamApp> with TrayListener, WindowListener
     if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         try {
-          final isRunning = await FlutterBackgroundService().isRunning();
-          if (!isRunning) {
-            await FlutterBackgroundService().startService();
+          final micGranted = await Permission.microphone.isGranted;
+          final notificationGranted = await Permission.notification.isGranted;
+
+          if (!micGranted || !notificationGranted) {
+            final statuses = await [
+              Permission.microphone,
+              Permission.notification,
+            ].request();
+
+            if (statuses[Permission.microphone]?.isGranted == true) {
+              final isRunning = await FlutterBackgroundService().isRunning();
+              if (!isRunning) {
+                await FlutterBackgroundService().startService();
+              }
+            } else {
+              debugPrint('[ShazamApp] Microphone permission denied. Background service not started.');
+            }
+          } else {
+            final isRunning = await FlutterBackgroundService().isRunning();
+            if (!isRunning) {
+              await FlutterBackgroundService().startService();
+            }
           }
         } catch (e) {
           debugPrint('Error starting background service: $e');

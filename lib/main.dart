@@ -21,7 +21,8 @@ void main() async {
         config: const AudioServiceConfig(
           androidNotificationChannelId: 'com.example.sonero.channel.audio',
           androidNotificationChannelName: 'Reproductor Sonero',
-          androidNotificationOngoing: true,
+          androidNotificationOngoing: false,
+          androidStopForegroundOnPause: false,
           androidShowNotificationBadge: true,
         ),
       );

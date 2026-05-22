@@ -1,10 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math' as math;
-import 'dart:typed_data';
 import 'package:dio/dio.dart';
-import 'package:fftea/fftea.dart';
-import 'package:uuid/uuid.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'log_service.dart';
 
 class TrackInfo {
   final String title;
@@ -63,223 +61,548 @@ class TrackInfo {
 
     return TrackInfo(
       title: track['title'] ?? 'Unknown',
-      artist: track['subtitle'] ?? 'Unknown',
-      album: album,
-      coverUrl: coverUrl,
-      genre: genre,
-      year: year,
-      shazamUrl: track['url'],
-      trackKey: track['key'],
+      artist: track['subtitle'] ?? track['artist'] ?? 'Unknown',
+      album: album ?? track['album'],
+      coverUrl: coverUrl ?? track['coverUrl'] ?? track['cover_url'],
+      genre: genre ?? track['genre'],
+      year: year ?? track['year'],
+      shazamUrl: track['url'] ?? track['shazamUrl'] ?? track['shazam_url'],
+      trackKey: track['key'] ?? track['trackKey'] ?? track['track_key'],
+    );
+  }
+
+  TrackInfo copyWith({
+    String? title,
+    String? artist,
+    String? album,
+    String? coverUrl,
+    String? genre,
+    String? year,
+    String? shazamUrl,
+    String? trackKey,
+  }) {
+    return TrackInfo(
+      title: title ?? this.title,
+      artist: artist ?? this.artist,
+      album: album ?? this.album,
+      coverUrl: coverUrl ?? this.coverUrl,
+      genre: genre ?? this.genre,
+      year: year ?? this.year,
+      shazamUrl: shazamUrl ?? this.shazamUrl,
+      trackKey: trackKey ?? this.trackKey,
     );
   }
 }
 
 class RecognizerService {
-  static const String _shazamEndpoint = "https://amp.shazam.com/discovery/v5/en/GB/android/-/tag";
-
-  static final Map<String, String> _headers = {
-    "X-Shazam-Platform": "ANDROID",
-    "X-Shazam-AppVersion": "9.25.0",
-    "Accept": "*/*",
-    "Accept-Language": "en",
-    "Accept-Encoding": "gzip, deflate",
-    "User-Agent": "Shazam/3685 CFNetwork/1197 Darwin/20.0.0",
-    "Content-Type": "application/json",
-  };
-
   /// Main recognition method
   static Future<TrackInfo?> recognize(String audioPath) async {
     try {
-      final samplesData = await _readWavSamples(audioPath);
-      final samples = samplesData.samples;
-      final sampleRate = samplesData.sampleRate;
+      LogService.log('Cargando configuraciones de reconocimiento...');
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.reload();
+      final service = prefs.getString('recognition_service') ?? 'gemini';
 
-      final resampled = _resampleTo16k(samples, sampleRate);
-      final signature = _computeSignature(resampled, 16000);
+      LogService.log('Servicio seleccionado: $service');
 
-      if (signature == null) return null;
+      TrackInfo? track;
 
-      final data = await _callShazamApi(signature);
-      if (data != null && data.containsKey('track')) {
-        return TrackInfo.fromJson(data['track']);
+      if (service == 'gemini') {
+        final apiKey = prefs.getString('gemini_api_key') ?? '';
+        if (apiKey.isEmpty) {
+          LogService.log('Error: API Key de Gemini vacía. Configúrala en Ajustes.');
+          return null;
+        }
+        track = await _recognizeWithGemini(audioPath, apiKey);
+      } else if (service == 'audd') {
+        final apiToken = prefs.getString('audd_api_token') ?? '';
+        if (apiToken.isEmpty) {
+          LogService.log('Error: API Token de AudD vacío. Configúrala en Ajustes.');
+          return null;
+        }
+        track = await _recognizeWithAudD(audioPath, apiToken);
+      } else if (service == 'rapidapi') {
+        final apiKey = prefs.getString('rapidapi_key') ?? '';
+        final apiHost = prefs.getString('rapidapi_host') ?? 'shazam-song-recognizer.p.rapidapi.com';
+        if (apiKey.isEmpty) {
+          LogService.log('Error: API Key de RapidAPI vacía. Configúrala en Ajustes.');
+          return null;
+        }
+        track = await _recognizeWithRapidAPI(audioPath, apiKey, apiHost);
+      } else if (service == 'shazam_proxy') {
+        final proxyUrl = prefs.getString('shazam_proxy_url') ?? '';
+        if (proxyUrl.isEmpty) {
+          LogService.log('Error: URL del Servidor Proxy de Shazam vacía. Configúrala en Ajustes.');
+          return null;
+        }
+        track = await _recognizeWithShazamProxy(audioPath, proxyUrl);
+      } else {
+        LogService.log('Error: Servicio de reconocimiento desconocido: $service');
+        return null;
+      }
+
+      if (track != null) {
+        // Fallback: search iTunes for artwork if coverUrl is missing
+        if (track.coverUrl == null || track.coverUrl!.isEmpty) {
+          LogService.log('Carátula ausente en la respuesta. Buscando en iTunes Search API...');
+          final itunesCover = await _fetchiTunesArtwork(track.title, track.artist);
+          if (itunesCover != null) {
+            LogService.log('Carátula encontrada en iTunes: $itunesCover');
+            track = track.copyWith(coverUrl: itunesCover);
+          } else {
+            LogService.log('No se encontró carátula en iTunes.');
+          }
+        }
+        return track;
       }
     } catch (e) {
-      print("[RecognizerService] Error: $e");
+      LogService.log('Error en RecognizerService.recognize: $e');
     }
     return null;
   }
 
-  static Future<Map<String, dynamic>?> _callShazamApi(Map<String, dynamic> signature) async {
-    final uuid = const Uuid();
-    final url = "$_shazamEndpoint/${uuid.v4().toUpperCase()}/${uuid.v4().toUpperCase()}"
-        "?sync=true&webv3=true&sampling=true&connected=&shazamapiversion=v3"
-        "&sharehub=true&video=v3";
-
-    final payload = {
-      "timezone": "America/Caracas",
-      "signature": {
-        "uri": signature["uri"],
-        "samplems": (signature["samples"] / 16000 * 1000).toInt(),
-      },
-      "timestamp": signature["timestamp"],
-      "context": {},
-      "geolocation": {},
-    };
-
+  static Future<TrackInfo?> _recognizeWithGemini(String audioPath, String apiKey) async {
+    LogService.log('Preparando audio para Gemini...');
     try {
+      final file = File(audioPath);
+      if (!await file.exists()) {
+        LogService.log('Error: El archivo de audio no existe en $audioPath');
+        return null;
+      }
+
+      final bytes = await file.readAsBytes();
+      final base64Audio = base64Encode(bytes);
+      LogService.log('Audio codificado en Base64 (${(bytes.length / 1024).toStringAsFixed(1)} KB)');
+
       final dio = Dio();
+      final modelsToTry = [
+        'gemini-2.5-flash',
+        'gemini-2.0-flash',
+        'gemini-1.5-flash',
+      ];
+
+      for (var modelName in modelsToTry) {
+        LogService.log('Intentando reconocimiento con modelo: $modelName...');
+        
+        final requestDataBeta = {
+          "contents": [
+            {
+              "parts": [
+                {
+                  "inlineData": {
+                    "mimeType": "audio/wav",
+                    "data": base64Audio
+                  }
+                },
+                {
+                  "text": "You are a professional music recognition engine like Shazam. "
+                      "Identify the song playing in the provided audio recording. "
+                      "The audio is recorded from a device's microphone, so it might contain background noise, voice hum, reverb, or low volume. "
+                      "Ignore any background noise or speech, focus entirely on the music, rhythm, melody, and lyrics. "
+                      "Even if the audio is short or noisy, try your absolute best to recognize the song and return your best guess. "
+                      "Only return empty strings for 'title' and 'artist' if the recording is completely silent or only contains noise/speech without any background music."
+                }
+              ]
+            }
+          ],
+          "generationConfig": {
+            "responseMimeType": "application/json",
+            "responseSchema": {
+              "type": "OBJECT",
+              "properties": {
+                "title": {"type": "STRING", "description": "The song title. Empty string if not recognized."},
+                "artist": {"type": "STRING", "description": "The artist name. Empty string if not recognized."},
+                "album": {"type": "STRING", "description": "The album name if available."},
+                "genre": {"type": "STRING", "description": "The primary genre if available."},
+                "year": {"type": "STRING", "description": "The release year (4 digits) if available."}
+              },
+              "required": ["title", "artist"]
+            }
+          }
+        };
+
+        try {
+          final urlBeta = 'https://generativelanguage.googleapis.com/v1beta/models/$modelName:generateContent?key=$apiKey';
+          LogService.log('Enviando solicitud a $modelName (v1beta)...');
+          final response = await dio.post(
+            urlBeta,
+            data: requestDataBeta,
+            options: Options(
+              headers: {"Content-Type": "application/json"},
+              sendTimeout: const Duration(seconds: 30),
+              receiveTimeout: const Duration(seconds: 30),
+            ),
+          );
+
+          if (response.statusCode == 200) {
+            LogService.log('Respuesta de Gemini ($modelName v1beta) recibida exitosamente.');
+            final track = _parseGeminiResponse(response.data);
+            if (track != null) return track;
+          }
+        } catch (e) {
+          if (e is DioException) {
+            final statusCode = e.response?.statusCode;
+            final errBody = e.response?.data;
+            
+            if (statusCode == 404) {
+              LogService.log('Modelo $modelName no encontrado (404) en v1beta. Probando siguiente...');
+              continue;
+            }
+            
+            LogService.log('Fallo con $modelName en v1beta (Status $statusCode): $errBody. Reintentando con endpoint v1 (estable) sin esquema...');
+            
+            final requestDataV1 = {
+              "contents": [
+                {
+                  "parts": [
+                    {
+                      "inlineData": {
+                        "mimeType": "audio/wav",
+                        "data": base64Audio
+                      }
+                    },
+                    {
+                      "text": "You are a professional music recognition engine like Shazam. "
+                          "Identify the song playing in the provided audio recording. "
+                          "The audio is recorded from a device's microphone, so it might contain background noise, voice hum, reverb, or low volume. "
+                          "Ignore any background noise or speech, focus entirely on the music, rhythm, melody, and lyrics. "
+                          "Even if the audio is short or noisy, try your absolute best to recognize the song and return your best guess. "
+                          "Return ONLY a JSON object containing the song information. "
+                          "The JSON object must have exactly these keys: "
+                          "\"title\": (string, empty if not recognized), "
+                          "\"artist\": (string, empty if not recognized), "
+                          "\"album\": (string or null), "
+                          "\"genre\": (string or null), "
+                          "\"year\": (string or null, 4-digit release year). "
+                          "Do not include any markdown wrappers, code block backticks (like ```json), explanations, or extra text. Just return the raw JSON object."
+                    }
+                  ]
+                }
+              ],
+              "generationConfig": {
+                "temperature": 0.0
+              }
+            };
+
+            try {
+              final urlV1 = 'https://generativelanguage.googleapis.com/v1/models/$modelName:generateContent?key=$apiKey';
+              final responseV1 = await dio.post(
+                urlV1,
+                data: requestDataV1,
+                options: Options(
+                  headers: {"Content-Type": "application/json"},
+                  sendTimeout: const Duration(seconds: 30),
+                  receiveTimeout: const Duration(seconds: 30),
+                ),
+              );
+
+              if (responseV1.statusCode == 200) {
+                LogService.log('Respuesta de Gemini ($modelName v1) recibida exitosamente.');
+                final track = _parseGeminiResponse(responseV1.data);
+                if (track != null) return track;
+              }
+            } catch (e2) {
+              if (e2 is DioException && e2.response?.statusCode == 404) {
+                LogService.log('Modelo $modelName tampoco encontrado en v1 (404). Probando siguiente...');
+                continue;
+              }
+              LogService.log('Error llamando a Gemini API ($modelName v1): $e2');
+            }
+          } else {
+            LogService.log('Error llamando a Gemini API ($modelName): $e');
+          }
+        }
+      }
+    } catch (e) {
+      LogService.log('Error general en _recognizeWithGemini: $e');
+    }
+    return null;
+  }
+
+  static TrackInfo? _parseGeminiResponse(dynamic data) {
+    try {
+      final candidates = data['candidates'] as List<dynamic>?;
+      if (candidates != null && candidates.isNotEmpty) {
+        final content = candidates.first['content'] as Map<String, dynamic>?;
+        if (content != null) {
+          final parts = content['parts'] as List<dynamic>?;
+          if (parts != null && parts.isNotEmpty) {
+            final text = parts.first['text'] as String?;
+            if (text != null && text.trim().isNotEmpty) {
+              LogService.log('Respuesta texto de Gemini: ${text.trim()}');
+              
+              var cleanedText = text.trim();
+              if (cleanedText.startsWith('```')) {
+                cleanedText = cleanedText
+                    .replaceAll(RegExp(r'^```json\s*'), '')
+                    .replaceAll(RegExp(r'^```\s*'), '')
+                    .replaceAll(RegExp(r'\s*```$'), '')
+                    .trim();
+              }
+              
+              final parsedJson = jsonDecode(cleanedText) as Map<String, dynamic>;
+              final title = parsedJson['title']?.toString().trim() ?? '';
+              final artist = parsedJson['artist']?.toString().trim() ?? '';
+
+              if (title.isNotEmpty && artist.isNotEmpty) {
+                return TrackInfo(
+                  title: title,
+                  artist: artist,
+                  album: parsedJson['album']?.toString().trim(),
+                  genre: parsedJson['genre']?.toString().trim(),
+                  year: parsedJson['year']?.toString().trim(),
+                );
+              } else {
+                LogService.log('Gemini no pudo identificar la canción de forma definitiva (título o artista vacíos en JSON).');
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      LogService.log('Error al parsear la respuesta JSON de Gemini: $e');
+    }
+    return null;
+  }
+
+  static Future<TrackInfo?> _recognizeWithAudD(String audioPath, String apiToken) async {
+    LogService.log('Enviando audio a AudD API...');
+    try {
+      final file = File(audioPath);
+      if (!await file.exists()) {
+        LogService.log('Error: El archivo de audio no existe en $audioPath');
+        return null;
+      }
+
+      final dio = Dio();
+      final formData = FormData.fromMap({
+        'api_token': apiToken,
+        'file': await MultipartFile.fromFile(audioPath, filename: 'audio.wav'),
+        'return': 'apple_music,spotify',
+      });
+
+      final response = await dio.post(
+        'https://api.audd.io/',
+        data: formData,
+        options: Options(
+          sendTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 30),
+        ),
+      );
+
+      if (response.statusCode == 200) {
+        final data = response.data;
+        if (data['status'] == 'success') {
+          final result = data['result'];
+          if (result != null) {
+            final title = result['title']?.toString() ?? 'Unknown';
+            final artist = result['artist']?.toString() ?? 'Unknown';
+            final album = result['album']?.toString();
+            final releaseDate = result['release_date']?.toString();
+            
+            String? year;
+            if (releaseDate != null && releaseDate.length >= 4) {
+              year = releaseDate.substring(0, 4);
+            }
+
+            String? coverUrl;
+            if (result['spotify'] != null && result['spotify']['album'] != null) {
+              final images = result['spotify']['album']['images'] as List<dynamic>?;
+              if (images != null && images.isNotEmpty) {
+                coverUrl = images.first['url']?.toString();
+              }
+            }
+
+            LogService.log('AudD reconoció la canción: $title - $artist');
+            return TrackInfo(
+              title: title,
+              artist: artist,
+              album: album,
+              coverUrl: coverUrl,
+              year: year,
+            );
+          } else {
+            LogService.log('AudD no encontró coincidencias para este audio.');
+          }
+        } else {
+          final errorMsg = data['error']?['error_message'] ?? 'Error desconocido';
+          LogService.log('AudD API reportó error: $errorMsg');
+        }
+      } else {
+        LogService.log('Error de API AudD: Status ${response.statusCode}');
+      }
+    } catch (e) {
+      LogService.log('Error llamando a AudD API: $e');
+    }
+    return null;
+  }
+
+  static Future<TrackInfo?> _recognizeWithRapidAPI(String audioPath, String apiKey, String apiHost) async {
+    LogService.log('Enviando audio a RapidAPI ($apiHost)...');
+    try {
+      final file = File(audioPath);
+      if (!await file.exists()) {
+        LogService.log('Error: El archivo de audio no existe en $audioPath');
+        return null;
+      }
+
+      final dio = Dio();
+      final headers = {
+        'x-rapidapi-key': apiKey,
+        'x-rapidapi-host': apiHost,
+      };
+
+      final formData = FormData.fromMap({
+        'file': await MultipartFile.fromFile(audioPath, filename: 'audio.wav'),
+        'upload': await MultipartFile.fromFile(audioPath, filename: 'audio.wav'),
+      });
+
+      final endpoint = apiHost.contains('shazam.p.rapidapi.com') 
+          ? 'https://$apiHost/songs/v2/detect' 
+          : 'https://$apiHost/recognize';
+
+      LogService.log('Llamando endpoint: $endpoint');
+
+      final response = await dio.post(
+        endpoint,
+        data: formData,
+        options: Options(
+          headers: headers,
+          sendTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 30),
+        ),
+      );
+
+      if (response.statusCode == 200) {
+        final data = response.data;
+        LogService.log('Respuesta RapidAPI recibida.');
+        
+        Map<String, dynamic>? trackData;
+        if (data is Map<String, dynamic>) {
+          if (data.containsKey('track')) {
+            trackData = data['track'] as Map<String, dynamic>?;
+          } else if (data.containsKey('matches') && (data['matches'] as List).isNotEmpty) {
+            trackData = data;
+          } else {
+            trackData = data;
+          }
+        }
+
+        if (trackData != null) {
+          final title = trackData['title'] ?? 'Unknown';
+          final artist = trackData['subtitle'] ?? trackData['artist'] ?? 'Unknown';
+          
+          String? coverUrl;
+          final images = trackData['images'] as Map<String, dynamic>?;
+          if (images != null) {
+            coverUrl = images['coverarthq'] ?? images['coverart'];
+          }
+
+          LogService.log('RapidAPI reconoció la canción: $title - $artist');
+          return TrackInfo(
+            title: title,
+            artist: artist,
+            coverUrl: coverUrl,
+          );
+        } else {
+          LogService.log('RapidAPI no devolvió información de pista válida.');
+        }
+      } else {
+        LogService.log('Error de API RapidAPI: Status ${response.statusCode}');
+      }
+    } catch (e) {
+      LogService.log('Error llamando a RapidAPI: $e');
+    }
+    return null;
+  }
+
+  static Future<TrackInfo?> _recognizeWithShazamProxy(String audioPath, String proxyUrl) async {
+    LogService.log('Enviando audio a Shazam Proxy ($proxyUrl)...');
+    try {
+      final file = File(audioPath);
+      if (!await file.exists()) {
+        LogService.log('Error: El archivo de audio no existe en $audioPath');
+        return null;
+      }
+
+      final dio = Dio();
+      final formData = FormData.fromMap({
+        'file': await MultipartFile.fromFile(audioPath, filename: 'audio.wav'),
+      });
+
+      var url = proxyUrl.trim();
+      if (!url.endsWith('/recognize')) {
+        if (url.endsWith('/')) {
+          url = '${url}recognize';
+        } else {
+          url = '$url/recognize';
+        }
+      }
+
+      LogService.log('Llamando endpoint de reconocimiento: $url');
+
       final response = await dio.post(
         url,
-        data: payload,
-        options: Options(headers: _headers, sendTimeout: const Duration(seconds: 30)),
+        data: formData,
+        options: Options(
+          sendTimeout: const Duration(seconds: 30),
+          receiveTimeout: const Duration(seconds: 30),
+        ),
       );
-      return response.data;
-    } catch (e) {
-      print("[RecognizerService] API error: $e");
-      return null;
-    }
-  }
 
-  static Map<String, dynamic>? _computeSignature(List<double> samples, int sampleRate) {
-    const int fftSize = 2048;
-    const int hop = 512;
-    
-    List<Map<String, dynamic>> peaks = [];
-    final fft = FFT(fftSize);
-
-    for (int start = 0; start <= samples.length - fftSize; start += hop) {
-      List<double> frame = samples.sublist(start, start + fftSize);
-      
-      // Apply Hann window
-      for (int i = 0; i < fftSize; i++) {
-        frame[i] = frame[i] * (0.5 - 0.5 * math.cos(2 * math.pi * i / (fftSize - 1)));
-      }
-
-      // Compute FFT
-      final complexArray = fft.realFft(frame);
-      final maxBin = fftSize ~/ 4; // up to 4000 Hz approx
-
-      int peakBin = -1;
-      double maxMag = -1;
-
-      for (int k = 0; k < maxBin; k++) {
-        final re = complexArray[k].x;
-        final im = complexArray[k].y;
-        final mag = math.sqrt(re * re + im * im);
-        
-        if (mag > maxMag) {
-          maxMag = mag;
-          peakBin = k;
+      if (response.statusCode == 200) {
+        final data = response.data;
+        LogService.log('Respuesta de Shazam Proxy recibida exitosamente.');
+        if (data != null && data is Map<String, dynamic>) {
+          return TrackInfo.fromJson(data);
+        } else {
+          LogService.log('Error: La respuesta del proxy no es un JSON estructurado de track.');
         }
-      }
-
-      if (peakBin != -1) {
-        final peakFreq = peakBin * sampleRate / fftSize;
-        if (peakFreq > 100) {
-          peaks.add({
-            'time': start ~/ hop,
-            'bin': peakBin,
-            'mag': maxMag,
-          });
-        }
-      }
-    }
-
-    if (peaks.isEmpty) return null;
-
-    // Take top 50 peaks to build signature
-    final sigData = peaks.take(50).map((p) => "${p['time']}:${p['bin']}").join('|');
-    final uri = "data:audio/vnd.shazam.sig;base64,$sigData";
-
-    return {
-      "uri": uri,
-      "samples": samples.length,
-      "timestamp": DateTime.now().millisecondsSinceEpoch,
-    };
-  }
-
-  static Future<_WavData> _readWavSamples(String path) async {
-    final file = File(path);
-    final bytes = await file.readAsBytes();
-    final byteData = ByteData.view(bytes.buffer);
-
-    // Simplistic WAV parsing
-    int offset = 12; // skip RIFF header
-    int sampleRate = 44100;
-    int numChannels = 1;
-    int bitsPerSample = 16;
-    Uint8List rawData = Uint8List(0);
-
-    while (offset < bytes.length) {
-      final chunkId = String.fromCharCodes(bytes.sublist(offset, offset + 4));
-      final chunkSize = byteData.getUint32(offset + 4, Endian.little);
-      offset += 8;
-
-      if (chunkId == "fmt ") {
-        numChannels = byteData.getUint16(offset + 2, Endian.little);
-        sampleRate = byteData.getUint32(offset + 4, Endian.little);
-        bitsPerSample = byteData.getUint16(offset + 14, Endian.little);
-        offset += chunkSize;
-      } else if (chunkId == "data") {
-        rawData = bytes.sublist(offset, offset + chunkSize);
-        break;
       } else {
-        offset += chunkSize;
+        LogService.log('Error de Shazam Proxy: Status ${response.statusCode}');
       }
+    } catch (e) {
+      LogService.log('Error llamando a Shazam Proxy: $e');
     }
-
-    List<double> samples = [];
-    final rawDataView = ByteData.view(rawData.buffer);
-
-    if (bitsPerSample == 16) {
-      int count = rawData.length ~/ 2;
-      for (int i = 0; i < count; i++) {
-        samples.add(rawDataView.getInt16(i * 2, Endian.little) / 32768.0);
-      }
-    } else {
-      // 8-bit or unhandled
-      for (int i = 0; i < rawData.length; i++) {
-        samples.add(rawData[i] / 128.0 - 1.0);
-      }
-    }
-
-    if (numChannels == 2) {
-      List<double> mono = [];
-      for (int i = 0; i < samples.length - 1; i += 2) {
-        mono.add((samples[i] + samples[i + 1]) / 2);
-      }
-      samples = mono;
-    }
-
-    return _WavData(samples, sampleRate);
+    return null;
   }
 
-  static List<double> _resampleTo16k(List<double> samples, int srcRate) {
-    const int targetRate = 16000;
-    if (srcRate == targetRate) return samples;
+  static Future<String?> _fetchiTunesArtwork(String title, String artist) async {
+    try {
+      final dio = Dio();
+      final term = '$title $artist';
+      final url = 'https://itunes.apple.com/search?term=${Uri.encodeComponent(term)}&media=music&limit=1';
+      
+      final response = await dio.get(
+        url,
+        options: Options(
+          sendTimeout: const Duration(seconds: 10),
+          receiveTimeout: const Duration(seconds: 10),
+        ),
+      );
 
-    final ratio = srcRate / targetRate;
-    final int outLen = (samples.length / ratio).floor();
-    List<double> out = List.filled(outLen, 0.0);
+      if (response.statusCode == 200) {
+        final data = response.data;
+        Map<String, dynamic> jsonMap;
+        if (data is String) {
+          jsonMap = jsonDecode(data);
+        } else {
+          jsonMap = data;
+        }
 
-    for (int i = 0; i < outLen; i++) {
-      final double srcPos = i * ratio;
-      final int idx = srcPos.floor();
-      final double frac = srcPos - idx;
-
-      if (idx + 1 < samples.length) {
-        out[i] = samples[idx] * (1 - frac) + samples[idx + 1] * frac;
-      } else if (idx < samples.length) {
-        out[i] = samples[idx];
+        final results = jsonMap['results'] as List<dynamic>?;
+        if (results != null && results.isNotEmpty) {
+          final result = results.first as Map<String, dynamic>;
+          final artwork100 = result['artworkUrl100'] as String?;
+          if (artwork100 != null) {
+            final artwork500 = artwork100.replaceAll('100x100bb', '500x500bb');
+            return artwork500;
+          }
+        }
       }
+    } catch (e) {
+      LogService.log('Error buscando carátula en iTunes: $e');
     }
-
-    return out;
+    return null;
   }
-}
-
-class _WavData {
-  final List<double> samples;
-  final int sampleRate;
-  _WavData(this.samples, this.sampleRate);
 }

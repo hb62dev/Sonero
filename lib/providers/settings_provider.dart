@@ -17,12 +17,18 @@ class SettingsProvider extends ChangeNotifier {
   static const _keySidebarColor = 'sidebar_color';
   static const _keyLocale = 'locale';
   static const _keyLyricsOffset = 'lyrics_offset';
+  static const _keyRecognitionService = 'recognition_service';
+  static const _keyGeminiApiKey = 'gemini_api_key';
+  static const _keyAudDApiToken = 'audd_api_token';
+  static const _keyRapidApiKey = 'rapidapi_key';
+  static const _keyRapidApiHost = 'rapidapi_host';
+  static const _keyShazamProxyUrl = 'shazam_proxy_url';
 
   String _apiUrl = 'http://127.0.0.1:8000';
   String _musicFolder = '';
   String _videoFolder = '';
   int? _deviceIndex;
-  int _listenDuration = 10;
+  int _listenDuration = 15;
   bool _isLoaded = false;
 
   ThemeMode _themeMode = ThemeMode.dark;
@@ -30,6 +36,13 @@ class SettingsProvider extends ChangeNotifier {
   Color? _sidebarColor;
   String _locale = 'es';
   int _lyricsOffset = 0;
+
+  String _recognitionService = 'gemini';
+  String _geminiApiKey = '';
+  String _auddApiToken = '';
+  String _rapidApiKey = '';
+  String _rapidApiHost = 'shazam-song-recognizer.p.rapidapi.com';
+  String _shazamProxyUrl = '';
 
   String _defaultMusicFolder = '';
   String _defaultVideoFolder = '';
@@ -52,11 +65,19 @@ class SettingsProvider extends ChangeNotifier {
   String get locale => _locale;
   int get lyricsOffset => _lyricsOffset;
 
+  String get recognitionService => _recognitionService;
+  String get geminiApiKey => _geminiApiKey;
+  String get auddApiToken => _auddApiToken;
+  String get rapidApiKey => _rapidApiKey;
+  String get rapidApiHost => _rapidApiHost;
+  String get shazamProxyUrl => _shazamProxyUrl;
+
   late ApiClient _api;
   ApiClient get api => _api;
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
     _apiUrl = prefs.getString(_keyApiUrl) ?? 'http://127.0.0.1:8000';
     if (_apiUrl.contains('localhost')) {
       _apiUrl = _apiUrl.replaceAll('localhost', '127.0.0.1');
@@ -65,8 +86,14 @@ class SettingsProvider extends ChangeNotifier {
     _musicFolder = prefs.getString(_keyMusicFolder) ?? '';
     _videoFolder = prefs.getString(_keyVideoFolder) ?? '';
     _deviceIndex = prefs.getInt(_keyDeviceIndex);
-    _listenDuration = prefs.getInt(_keyListenDuration) ?? 10;
+    _listenDuration = prefs.getInt(_keyListenDuration) ?? 15;
     _lyricsOffset = prefs.getInt(_keyLyricsOffset) ?? 0;
+    _recognitionService = prefs.getString(_keyRecognitionService) ?? 'gemini';
+    _geminiApiKey = prefs.getString(_keyGeminiApiKey) ?? '';
+    _auddApiToken = prefs.getString(_keyAudDApiToken) ?? '';
+    _rapidApiKey = prefs.getString(_keyRapidApiKey) ?? '';
+    _rapidApiHost = prefs.getString(_keyRapidApiHost) ?? 'shazam-song-recognizer.p.rapidapi.com';
+    _shazamProxyUrl = prefs.getString(_keyShazamProxyUrl) ?? '';
 
     final themeModeStr = prefs.getString(_keyThemeMode);
     if (themeModeStr == 'light') _themeMode = ThemeMode.light;
@@ -264,6 +291,48 @@ class SettingsProvider extends ChangeNotifier {
     _lyricsOffset = ms;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_keyLyricsOffset, ms);
+    notifyListeners();
+  }
+
+  Future<void> setRecognitionService(String service) async {
+    _recognitionService = service;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyRecognitionService, service);
+    notifyListeners();
+  }
+
+  Future<void> setGeminiApiKey(String key) async {
+    _geminiApiKey = key;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyGeminiApiKey, key);
+    notifyListeners();
+  }
+
+  Future<void> setAudDApiToken(String token) async {
+    _auddApiToken = token;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyAudDApiToken, token);
+    notifyListeners();
+  }
+
+  Future<void> setRapidApiKey(String key) async {
+    _rapidApiKey = key;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyRapidApiKey, key);
+    notifyListeners();
+  }
+
+  Future<void> setRapidApiHost(String host) async {
+    _rapidApiHost = host;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyRapidApiHost, host);
+    notifyListeners();
+  }
+
+  Future<void> setShazamProxyUrl(String url) async {
+    _shazamProxyUrl = url;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyShazamProxyUrl, url);
     notifyListeners();
   }
 }

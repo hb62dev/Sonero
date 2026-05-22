@@ -242,7 +242,7 @@ class NativeDownloadManager {
 
       final safeTitle = title.replaceAll(RegExp(r'[\\/:*?"<>|]'), '');
       final safeArtist = artist.replaceAll(RegExp(r'[\\/:*?"<>|]'), '');
-      final filename = safeArtist.isNotEmpty ? "$safeArtist - $safeTitle.m4a" : "$safeTitle.m4a";
+      final filename = safeArtist.isNotEmpty ? "$safeArtist - $safeTitle.mp3" : "$safeTitle.mp3";
       final filePath = p.join(targetDir.path, filename);
       LogService.log('[_runMp3Download] Target file path: $filePath');
 
@@ -317,7 +317,7 @@ class NativeDownloadManager {
         'title': title,
         'artist': artist,
         'filename': relativeFilename,
-        'format': 'm4a',
+        'format': 'mp3',
         'cover_url': video.thumbnails.mediumResUrl.isNotEmpty ? video.thumbnails.mediumResUrl : null,
       });
 

@@ -14,6 +14,9 @@ class SoneroAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     _player!.stream.playing.listen((_) => _updateState());
     _player!.stream.position.listen((_) => _updateState());
     _player!.stream.duration.listen((_) => _updateState());
+    _player!.stream.buffering.listen((_) => _updateState());
+    _player!.stream.completed.listen((_) => _updateState());
+    _player!.stream.playlist.listen((_) => _updateState());
   }
 
   void updateTrackMetadata(Track track, Duration duration) {
@@ -34,6 +37,24 @@ class SoneroAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler
     
     final playing = _player!.state.playing;
     final position = _player!.state.position;
+    final buffering = _player!.state.buffering;
+    final completed = _player!.state.completed;
+    
+    final hasMedia = _player!.state.playlist.index != -1 && 
+                     _player!.state.playlist.medias.isNotEmpty;
+
+    AudioProcessingState processingState = AudioProcessingState.idle;
+    if (!hasMedia) {
+      processingState = AudioProcessingState.idle;
+    } else if (completed) {
+      processingState = AudioProcessingState.completed;
+    } else if (buffering) {
+      processingState = AudioProcessingState.buffering;
+    } else if (_player!.state.duration == Duration.zero) {
+      processingState = AudioProcessingState.loading;
+    } else {
+      processingState = AudioProcessingState.ready;
+    }
     
     playbackState.add(PlaybackState(
       controls: [
@@ -44,9 +65,16 @@ class SoneroAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       ],
       systemActions: const {
         MediaAction.seek,
+        MediaAction.play,
+        MediaAction.pause,
+        MediaAction.skipToNext,
+        MediaAction.skipToPrevious,
+        MediaAction.stop,
+        MediaAction.playPause,
       },
       androidCompactActionIndices: const [0, 1, 3],
       playing: playing,
+      processingState: processingState,
       updatePosition: position,
       bufferedPosition: position,
       speed: 1.0,
@@ -83,5 +111,10 @@ class SoneroAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler
   @override
   Future<void> skipToPrevious() async {
     await _player?.previous();
+  }
+
+  @override
+  Future<void> onTaskRemoved() async {
+    await stop();
   }
 }
