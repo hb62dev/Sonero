@@ -1,5 +1,131 @@
 # Sonero App 🎵
 
+[English](#english) | [Español](#español)
+
+---
+
+<a name="english"></a>
+# Sonero App (English)
+
+> [!IMPORTANT]
+> **Direct Compiled Binaries Download**
+> 
+> *   🚀 **[Download Sonero Windows Installer (Full Installer)](file:///c:/Users/hbriceno/Desktop/sonero/sonero-app/installers/sonero_installer.exe)** (Contains the Flutter player + the Python audio and recognition engine).
+> *   📱 **[Download Sonero Android App (.APK)](file:///c:/Users/hbriceno/Desktop/sonero/sonero-app/build/app/outputs/flutter-apk/app-release.apk)** (Lightweight client to sync and play music).
+> *   *Note: If you are cloning the repository, the binaries will be generated in these folders after running the compilation commands described below.*
+
+---
+
+Sonero is an intelligent music player designed to optimize your focus, productivity, and emotional state based on the telemetry of your listening habits. It uses artificial intelligence (Gemini API), tempo analysis (BPM), and affective state transitions (Iso-Principle) to adapt the music to your cognitive needs.
+
+---
+
+## ⚙️ System Architecture (Windows vs. Android)
+
+Sonero has a hybrid architecture to efficiently support desktop and mobile platforms:
+
+```mermaid
+graph TD
+    subgraph Windows ["Windows Client (Full Stack)"]
+        FlutterWin["Flutter Windows UI"]
+        PyBackend["Local Python Backend - sonero_backend.exe"]
+        SQLiteWin[("Local SQLite Database")]
+        
+        FlutterWin -->|HTTP Requests localhost| PyBackend
+        PyBackend -->|Read / Write| SQLiteWin
+    end
+
+    subgraph Android ["Android Client (Client Only)"]
+        FlutterAndroid["Flutter Android UI"]
+    end
+
+    subgraph Cloud ["Cloud / VPS Server (Optional)"]
+        CloudBackend["Cloud Python Backend / VPS"]
+        SQLiteCloud[("Cloud SQLite Database")]
+        
+        CloudBackend -->|Read / Write| SQLiteCloud
+    end
+
+    FlutterAndroid -->|HTTP Requests - Configurable URL| CloudBackend
+    
+    %% API External integrations
+    PyBackend -->|Shazam API| ShazamAPI["Audio Recognition"]
+    PyBackend -->|Gemini API| GeminiAPI["Reports & Natural Context"]
+    CloudBackend -->|Shazam API| ShazamAPI
+    CloudBackend -->|Gemini API| GeminiAPI
+```
+
+*   **Windows (Local Full Stack)**: When starting the Windows application, Flutter automatically launches a local subprocess with the Python backend (`sonero_backend.exe` at `http://127.0.0.1:8000`). All heavy tasks (microphone/system recording, Shazam audio recognition, downloads with `yt-dlp`, and SQLite storage) are resolved on your own machine.
+*   **Android (Lightweight Client)**: Android does not run Python locally. Instead, the Android app connects remotely to the Python backend (hosted on your own server, VPS, or your local PC on the same Wi-Fi network). You can configure the backend address in **Settings > API Connection** within the mobile app.
+
+---
+
+## ✨ Key Features
+
+*   🧠 **Focus Score (EF)**: Calculates your concentration level in each session based on the rate of songs listened to without interruption combined with the music's instrumentalness.
+*   📈 **Weekly AI Report**: Gemini analyzes your most listened tracks, distractor tracks (early skips), performance by time of day (Morning, Afternoon, Evening/Night), and music genres to write a personalized psychological productivity report.
+*   🌊 **Emotional Iso-Principle**: If you are stressed or frustrated, the algorithm generates a 5-song transition queue that gradually decreases energy by 10% per track and increases affective valence to safely bring you to a state of calm.
+*   🔄 **Real Google Sync**: Log in securely and synchronize your history and statistics between your Windows PC and your Android device via your Google account.
+
+---
+
+## 🔒 Google Cloud Configuration (OAuth 2.0)
+
+To use account synchronization in your local build or fork:
+1. Create a project in the [Google Cloud Console](https://console.cloud.google.com/).
+2. Configure the OAuth Consent Screen.
+3. Create **OAuth Client ID** credentials for a **Desktop Application**.
+4. Copy your **Client ID** and **Client Secret**.
+5. Open the Sonero app, navigate to **Settings > Google Cloud Integration** and enter your credentials.
+
+---
+
+## 🛠️ Build Instructions (Developers)
+
+### 🧹 Project Cleanup
+If you want to clear Python cache files (`__pycache__`), PyInstaller spec files, and clean Flutter temporary files, double-click or run the script in the root:
+```bash
+.\build_clean.bat
+```
+
+### 1. Full Compilation (Windows Installer)
+You can compile and package the Python backend together with the Flutter client into a single final Windows `.exe` installer by running:
+```bash
+.\build_all.bat
+```
+*   *Requirements: Install [Inno Setup 6](https://jrsoftware.org/isinfo.php) in the default path (`C:\Program Files (x86)\Inno Setup 6\ISCC.exe`) to package the final installer.*
+*   The installer will be generated at: `sonero-app\installers\sonero_installer.exe`
+
+### 2. Compile Python Backend Separately
+If you only want to compile the backend executable `sonero_backend.exe` using the virtual environment's Python version:
+```bash
+cd sonero-api
+.\build_exe.bat
+```
+The executable will be generated at: `sonero-api\dist\sonero_backend\sonero_backend.exe`.
+
+### 3. Compile Android Version (.APK)
+To compile the Android mobile application:
+1. Ensure you have the Android SDK installed.
+2. Enter the frontend folder and compile:
+   ```bash
+   cd sonero-app
+   flutter build apk --release
+   ```
+The file will be generated at: `sonero-app\build\app\outputs\flutter-apk\app-release.apk`.
+
+### ⚡ Embed OAuth Credentials in Official Build
+To generate an official version ready for end-users without requiring them to configure their own Google Client ID/Secret, compile with `--dart-define` parameters:
+```bash
+cd sonero-app
+flutter build windows --release --dart-define=DEFAULT_GOOGLE_CLIENT_ID_WINDOWS=YOUR_CLIENT_ID --dart-define=DEFAULT_GOOGLE_CLIENT_SECRET_WINDOWS=YOUR_CLIENT_SECRET
+```
+
+---
+
+<a name="español"></a>
+# Sonero App (Español)
+
 > [!IMPORTANT]
 > **Descarga Directa de Binarios Compilados**
 > 
@@ -19,22 +145,22 @@ Sonero tiene una arquitectura híbrida para dar soporte a plataformas de escrito
 
 ```mermaid
 graph TD
-    subgraph Windows [Cliente Windows (Full Stack)]
-        FlutterWin[Flutter Windows UI]
-        PyBackend[Backend Python local - sonero_backend.exe]
-        SQLiteWin[(Base de datos SQLite local)]
+    subgraph Windows ["Cliente Windows (Full Stack)"]
+        FlutterWin["Flutter Windows UI"]
+        PyBackend["Backend Python local - sonero_backend.exe"]
+        SQLiteWin[("Base de datos SQLite local")]
         
         FlutterWin -->|Peticiones HTTP localhost| PyBackend
         PyBackend -->|Lee / Escribe| SQLiteWin
     end
 
-    subgraph Android [Cliente Android (Client Only)]
-        FlutterAndroid[Flutter Android UI]
+    subgraph Android ["Cliente Android (Client Only)"]
+        FlutterAndroid["Flutter Android UI"]
     end
 
-    subgraph Cloud [Servidor / Nube (Opcional)]
-        CloudBackend[Backend Python en la Nube / VPS]
-        SQLiteCloud[(Base de datos SQLite en Nube)]
+    subgraph Cloud ["Servidor / Nube (Opcional)"]
+        CloudBackend["Backend Python en la Nube / VPS"]
+        SQLiteCloud[("Base de datos SQLite en Nube")]
         
         CloudBackend -->|Lee / Escribe| SQLiteCloud
     end
@@ -42,8 +168,8 @@ graph TD
     FlutterAndroid -->|Peticiones HTTP - URL Configurable| CloudBackend
     
     %% API External integrations
-    PyBackend -->|Shazam API| ShazamAPI[Reconocimiento de Audio]
-    PyBackend -->|Gemini API| GeminiAPI[Reportes & Contexto Natural]
+    PyBackend -->|Shazam API| ShazamAPI["Reconocimiento de Audio"]
+    PyBackend -->|Gemini API| GeminiAPI["Reportes & Contexto Natural"]
     CloudBackend -->|Shazam API| ShazamAPI
     CloudBackend -->|Gemini API| GeminiAPI
 ```
