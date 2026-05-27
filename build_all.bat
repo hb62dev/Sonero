@@ -17,6 +17,7 @@ cd ..
 
 echo [2/4] Compilando Frontend Flutter (Windows)...
 cd sonero-app
+set CMAKE_TLS_VERIFY=0
 call flutter build windows --release
 if %errorlevel% neq 0 (
   echo Error compilando Flutter.
