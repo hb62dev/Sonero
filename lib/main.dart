@@ -10,6 +10,9 @@ import 'package:audio_service/audio_service.dart';
 import 'services/audio_handler.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+/// Handle to the Python backend process so we can kill it on exit.
+Process? _backendProcess;
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
@@ -62,7 +65,10 @@ void main() async {
     };
   }
 
-  // Database initialization logic could go here if needed
+  // Start the Python backend as a subprocess (Windows only, production builds)
+  if (!kIsWeb && Platform.isWindows) {
+    await _startBackend();
+  }
 
   // Desktop-only setup (window manager + hotkeys)
   if (!kIsWeb && Platform.isWindows) {
@@ -82,5 +88,45 @@ void main() async {
   }
 
   runApp(const ShazamApp());
+}
+
+/// Launches `sonero_backend.exe` next to the Flutter executable.
+/// The process runs hidden (no console window) and is killed when the app exits.
+Future<void> _startBackend() async {
+  try {
+    final exeDir = File(Platform.resolvedExecutable).parent.path;
+    final backendPath = '$exeDir${Platform.pathSeparator}sonero_backend${Platform.pathSeparator}sonero_backend.exe';
+
+    if (!File(backendPath).existsSync()) {
+      debugPrint('Backend not found at $backendPath — skipping (dev mode).');
+      return;
+    }
+
+    debugPrint('Starting backend: $backendPath');
+    _backendProcess = await Process.start(
+      backendPath,
+      [],
+      workingDirectory: '$exeDir${Platform.pathSeparator}sonero_backend',
+      mode: ProcessStartMode.detached,
+      environment: {
+        'HOST': '127.0.0.1',
+        'PORT': '8000',
+      },
+    );
+    debugPrint('Backend started (PID: ${_backendProcess!.pid})');
+
+    // Ensure cleanup on app exit
+    ProcessSignal.sigint.watch().listen((_) => _killBackend());
+  } catch (e) {
+    debugPrint('Failed to start backend: $e');
+  }
+}
+
+void _killBackend() {
+  if (_backendProcess != null) {
+    debugPrint('Killing backend (PID: ${_backendProcess!.pid})');
+    _backendProcess!.kill();
+    _backendProcess = null;
+  }
 }
 
