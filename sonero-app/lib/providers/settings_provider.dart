@@ -44,6 +44,10 @@ class SettingsProvider extends ChangeNotifier {
   bool _isLoggedIn = false;
   String _googleClientId = '';
   String _googleClientSecret = '';
+  String? _googleAccessToken;
+  bool _isSyncing = false;
+  String? _syncError;
+  DateTime? _lastSyncTime;
 
   String get apiUrl => _apiUrl;
   String get musicFolder => _musicFolder;
@@ -67,6 +71,10 @@ class SettingsProvider extends ChangeNotifier {
   bool get isLoggedIn => _isLoggedIn;
   String get googleClientId => _googleClientId;
   String get googleClientSecret => _googleClientSecret;
+  String? get googleAccessToken => _googleAccessToken;
+  bool get isSyncing => _isSyncing;
+  String? get syncError => _syncError;
+  DateTime? get lastSyncTime => _lastSyncTime;
 
   bool get hasGoogleCredentials {
     final id = _googleClientId.isNotEmpty 
@@ -112,6 +120,11 @@ class SettingsProvider extends ChangeNotifier {
     _currentUserName = prefs.getString(_keyUserName);
     _currentUserEmail = prefs.getString(_keyUserEmail);
     _isLoggedIn = prefs.getBool(_keyIsLoggedIn) ?? false;
+    _googleAccessToken = prefs.getString('google_access_token');
+    final lastSyncMs = prefs.getInt('last_sync_time');
+    if (lastSyncMs != null) {
+      _lastSyncTime = DateTime.fromMillisecondsSinceEpoch(lastSyncMs);
+    }
 
     _api = ApiClient(baseUrl: _apiUrl);
     
@@ -262,7 +275,12 @@ class SettingsProvider extends ChangeNotifier {
       try {
         final googleSignIn = GoogleSignIn(
           clientId: _googleClientId.isNotEmpty ? _googleClientId : null,
-          scopes: ['email', 'profile', 'openid'],
+          scopes: [
+            'email',
+            'profile',
+            'openid',
+            'https://www.googleapis.com/auth/drive.appdata',
+          ],
         );
         final account = await googleSignIn.signIn();
         if (account == null) {
@@ -273,6 +291,13 @@ class SettingsProvider extends ChangeNotifier {
         if (idToken == null) {
           throw Exception('No se pudo obtener el ID Token de Google.');
         }
+        
+        _googleAccessToken = auth.accessToken;
+        final prefs = await SharedPreferences.getInstance();
+        if (_googleAccessToken != null) {
+          await prefs.setString('google_access_token', _googleAccessToken!);
+        }
+        
         await _authenticateWithBackend(idToken);
       } catch (e) {
         throw Exception('Error en Google Sign-In (Android): $e');
@@ -302,7 +327,7 @@ class SettingsProvider extends ChangeNotifier {
           'client_id': clientId,
           'redirect_uri': redirectUri,
           'response_type': 'code',
-          'scope': 'openid email profile',
+          'scope': 'openid email profile https://www.googleapis.com/auth/drive.appdata',
         });
 
         // Launch system browser
@@ -391,6 +416,12 @@ class SettingsProvider extends ChangeNotifier {
           throw Exception('El servidor de Google no devolvió id_token en la respuesta.');
         }
 
+        _googleAccessToken = tokenData['access_token'] as String?;
+        final prefs = await SharedPreferences.getInstance();
+        if (_googleAccessToken != null) {
+          await prefs.setString('google_access_token', _googleAccessToken!);
+        }
+
         await _authenticateWithBackend(idToken);
       } catch (e) {
         if (server != null) {
@@ -424,12 +455,127 @@ class SettingsProvider extends ChangeNotifier {
     _currentUserName = null;
     _currentUserEmail = null;
     _isLoggedIn = false;
+    _googleAccessToken = null;
+    _syncError = null;
+    _lastSyncTime = null;
     
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyUserId, '1');
     await prefs.remove(_keyUserName);
     await prefs.remove(_keyUserEmail);
     await prefs.setBool(_keyIsLoggedIn, false);
+    await prefs.remove('google_access_token');
+    await prefs.remove('last_sync_time');
     notifyListeners();
+  }
+
+  Future<void> syncWithGoogleDrive() async {
+    if (_googleAccessToken == null) {
+      _syncError = "No se ha iniciado sesión con Google.";
+      notifyListeners();
+      return;
+    }
+
+    _isSyncing = true;
+    _syncError = null;
+    notifyListeners();
+
+    try {
+      // 1. Search for existing file in appDataFolder
+      final searchUri = Uri.https('www.googleapis.com', '/drive/v3/files', {
+        'spaces': 'appDataFolder',
+        'q': "name = 'sonero_sync.json'",
+        'fields': 'files(id, name)',
+      });
+
+      final searchRes = await http.get(searchUri, headers: {
+        'Authorization': 'Bearer $_googleAccessToken',
+      });
+
+      if (searchRes.statusCode != 200) {
+        throw Exception('Error al buscar archivo en Drive: ${searchRes.body}');
+      }
+
+      final searchData = jsonDecode(searchRes.body);
+      final files = searchData['files'] as List?;
+      String? fileId;
+      if (files != null && files.isNotEmpty) {
+        fileId = files[0]['id'] as String?;
+      }
+
+      // 2. If it exists, download and merge it locally
+      if (fileId != null) {
+        final downloadUri = Uri.parse('https://www.googleapis.com/drive/v3/files/$fileId?alt=media');
+        final downloadRes = await http.get(downloadUri, headers: {
+          'Authorization': 'Bearer $_googleAccessToken',
+        });
+
+        if (downloadRes.statusCode == 200) {
+          final syncPayload = jsonDecode(downloadRes.body) as Map<String, dynamic>;
+          // Send to local backend for merging
+          await _api.importSyncData(syncPayload);
+        } else {
+          throw Exception('Error al descargar archivo de Drive: ${downloadRes.body}');
+        }
+      }
+
+      // 3. Export the latest merged database state from backend
+      final localData = await _api.exportSyncData(_currentUserId);
+
+      // 4. Upload updated database JSON back to Google Drive
+      if (fileId == null) {
+        // Create new file via multipart upload
+        final boundary = 'sonero_sync_boundary';
+        final uploadHeaders = {
+          'Authorization': 'Bearer $_googleAccessToken',
+          'Content-Type': 'multipart/related; boundary=$boundary',
+        };
+
+        final body = '--$boundary\r\n'
+            'Content-Type: application/json; charset=UTF-8\r\n\r\n'
+            '${jsonEncode({"name": "sonero_sync.json", "parents": ["appDataFolder"]})}\r\n'
+            '--$boundary\r\n'
+            'Content-Type: application/json; charset=UTF-8\r\n\r\n'
+            '${jsonEncode(localData)}\r\n'
+            '--$boundary--';
+
+        final createRes = await http.post(
+          Uri.parse('https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart'),
+          headers: uploadHeaders,
+          body: body,
+        );
+
+        if (createRes.statusCode != 200 && createRes.statusCode != 201) {
+          throw Exception('Error al crear archivo de sincronización: ${createRes.body}');
+        }
+      } else {
+        // Update existing file
+        final updateUri = Uri.parse('https://www.googleapis.com/upload/drive/v3/files/$fileId?uploadType=media');
+        final updateRes = await http.patch(
+          updateUri,
+          headers: {
+            'Authorization': 'Bearer $_googleAccessToken',
+            'Content-Type': 'application/json; charset=UTF-8',
+          },
+          body: jsonEncode(localData),
+        );
+
+        if (updateRes.statusCode != 200) {
+          throw Exception('Error al actualizar archivo en Drive: ${updateRes.body}');
+        }
+      }
+
+      _lastSyncTime = DateTime.now();
+      _syncError = null;
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('last_sync_time', _lastSyncTime!.millisecondsSinceEpoch);
+
+    } catch (e) {
+      _syncError = e.toString();
+    } finally {
+      _isSyncing = false;
+      notifyListeners();
+    }
   }
 }

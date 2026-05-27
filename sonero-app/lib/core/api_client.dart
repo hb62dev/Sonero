@@ -435,6 +435,23 @@ class ApiClient {
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
+  // ── Sync Endpoints ─────────────────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> exportSyncData(String userId) async {
+    final res = await http.get(Uri.parse('$baseUrl/api/v1/sync/export?user_id=$userId'));
+    _check(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<void> importSyncData(Map<String, dynamic> data) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/api/v1/sync/import'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode(data),
+    );
+    _check(res);
+  }
+
   void _check(http.Response res) {
     if (res.statusCode < 200 || res.statusCode >= 300) {
       final body = jsonDecode(res.body);

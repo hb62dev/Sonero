@@ -322,6 +322,93 @@ class _SettingsPageState extends State<SettingsPage> {
 
           const SizedBox(height: 24),
 
+          // ── Google Drive Sync ───────────────────────────────────────────
+          if (settings.isLoggedIn) ...[
+            _Section(
+              title: 'Sincronización con Google Drive',
+              icon: Icons.sync,
+              children: [
+                Text(
+                  'Guarda y recupera tus estadísticas, historial y configuración de forma segura en tu Google Drive personal (AppData Folder). Es totalmente privado y sin servidores intermediarios.',
+                  style: TextStyle(color: context.colors.textSecondary, fontSize: 12),
+                ),
+                const SizedBox(height: 16),
+                if (settings.lastSyncTime != null) ...[
+                  Row(
+                    children: [
+                      Icon(Icons.access_time, size: 14, color: context.colors.textSecondary),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Última sincronización: ${settings.lastSyncTime!.toLocal().toString().split('.').first}',
+                        style: TextStyle(color: context.colors.textSecondary, fontSize: 12),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                if (settings.syncError != null) ...[
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: context.colors.error.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: context.colors.error.withValues(alpha: 0.3)),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.error_outline, color: context.colors.error, size: 16),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Error: ${settings.syncError}',
+                            style: TextStyle(color: context.colors.error, fontSize: 12),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
+                Row(
+                  children: [
+                    ElevatedButton.icon(
+                      icon: settings.isSyncing
+                          ? const SizedBox(
+                              width: 14,
+                              height: 14,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                valueColor: AlwaysStoppedAnimation(Colors.white),
+                              ),
+                            )
+                          : const Icon(Icons.cloud_upload_outlined, size: 16),
+                      label: Text(settings.isSyncing ? 'Sincronizando...' : 'Sincronizar ahora'),
+                      onPressed: settings.isSyncing
+                          ? null
+                          : () async {
+                              await settings.syncWithGoogleDrive();
+                              if (context.mounted) {
+                                if (settings.syncError == null) {
+                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                    content: const Text('¡Sincronización completada con éxito!'),
+                                    backgroundColor: context.colors.success,
+                                  ));
+                                } else {
+                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                    content: Text('Error al sincronizar: ${settings.syncError}'),
+                                    backgroundColor: context.colors.error,
+                                  ));
+                                }
+                              }
+                            },
+                    ),
+                  ],
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+          ],
+
           // ── Appearance ──────────────────────────────────────────────────
           _Section(
             title: AppLocalizations.of(context)!.appearance,

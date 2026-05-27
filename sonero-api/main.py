@@ -24,7 +24,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
-from routers import listen, batch, downloads, devices, playlists, metadata, analytics, search, settings as settings_router, smart_music, auth
+from routers import listen, batch, downloads, devices, playlists, metadata, analytics, search, settings as settings_router, smart_music, auth, sync
 from init_db import init_db
 
 
@@ -81,6 +81,7 @@ app.include_router(settings_router.router, prefix="/api/v1", tags=["⚙️ Setti
 app.include_router(search.router,       prefix="/api/v1", tags=["🔍 Search"])
 app.include_router(smart_music.router, prefix="/api/v1", tags=["🧠 Smart Music"])
 app.include_router(auth.router, prefix="/api/v1", tags=["🔒 Authentication"])
+app.include_router(sync.router, prefix="/api/v1", tags=["🔄 Sync"])
 
 
 # ── Health ────────────────────────────────────────────────────────────────────

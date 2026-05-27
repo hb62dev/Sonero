@@ -65,18 +65,21 @@ graph TD
 *   🧠 **Focus Score (EF)**: Calculates your concentration level in each session based on the rate of songs listened to without interruption combined with the music's instrumentalness.
 *   📈 **Weekly AI Report**: Gemini analyzes your most listened tracks, distractor tracks (early skips), performance by time of day (Morning, Afternoon, Evening/Night), and music genres to write a personalized psychological productivity report.
 *   🌊 **Emotional Iso-Principle**: If you are stressed or frustrated, the algorithm generates a 5-song transition queue that gradually decreases energy by 10% per track and increases affective valence to safely bring you to a state of calm.
-*   🔄 **Real Google Sync**: Log in securely and synchronize your history and statistics between your Windows PC and your Android device via your Google account.
+*   🔄 **Real Google Sync & Drive Backup**: Log in securely to synchronize your history, statistics, and playlist configurations across your Windows and Android devices. Data is stored in a private, hidden JSON file (`sonero_sync.json`) within your own Google Drive application folder (`appDataFolder`), keeping your data fully private and serverless with zero host server dependencies.
 
 ---
 
 ## 🔒 Google Cloud Configuration (OAuth 2.0)
 
-To use account synchronization in your local build or fork:
+To use account synchronization and Google Drive backup in your local build or fork:
 1. Create a project in the [Google Cloud Console](https://console.cloud.google.com/).
-2. Configure the OAuth Consent Screen.
-3. Create **OAuth Client ID** credentials for a **Desktop Application**.
-4. Copy your **Client ID** and **Client Secret**.
-5. Open the Sonero app, navigate to **Settings > Google Cloud Integration** and enter your credentials.
+2. Enable the **Google Drive API** in your project (**APIs & Services > Library**).
+3. Configure the **OAuth Consent Screen** and ensure you add the sensitive scope:
+   * `https://www.googleapis.com/auth/drive.appdata` (Allows creating, reading, and deleting its own application data in your Google Drive).
+4. Add the Google emails you will use for testing to the **Test Users** section (this is required for testing apps in "Testing" status before verification).
+5. Create **OAuth Client ID** credentials for a **Desktop Application** (for Windows) and/or an **Android Application** (for Android).
+6. Copy your **Client ID** and **Client Secret**.
+7. Open the Sonero app, navigate to **Settings > Google Cloud Integration** and enter your credentials.
 
 ---
 
@@ -184,18 +187,21 @@ graph TD
 *   🧠 **Focus Score (EF)**: Calcula tu nivel de concentración en cada sesión basándose en la tasa de canciones escuchadas sin interrupciones combinada con la instrumentalidad de la música.
 *   📈 **Reporte Semanal con IA**: Gemini analiza tus canciones más escuchadas, canciones distractoras (skips tempranos), rendimiento por horas (Mañana, Tarde, Noche) y géneros musicales para redactar un informe de productividad psicológica personalizado.
 *   🌊 **Iso-Principio Emocional**: Si estás estresado o frustrado, el algoritmo genera una cola de transición de 5 canciones que disminuye gradualmente la energía en un 10% por pista y aumenta la valencia afectiva para llevarte de forma segura a un estado de calma.
-*   🔄 **Sincronización Real con Google**: Inicia sesión de forma segura y sincroniza tu historial y estadísticas entre tu PC Windows y tu dispositivo Android a través de tu cuenta de Google.
+*   🔄 **Sincronización Real con Google y Respaldo en Drive**: Inicia sesión de forma segura para sincronizar tu historial, estadísticas y configuraciones de playlist entre tus dispositivos Windows y Android. Los datos se almacenan en un archivo JSON privado y oculto (`sonero_sync.json`) dentro de la carpeta de aplicación de tu propio Google Drive (`appDataFolder`), manteniendo tus datos privados y sin depender de servidores intermediarios.
 
 ---
 
 ## 🔒 Configuración de Google Cloud (OAuth 2.0)
 
-Para usar la sincronización de cuenta en tu compilación local o fork:
+Para usar la sincronización de cuenta y respaldo en Google Drive en tu compilación local o fork:
 1. Crea un proyecto en la [Google Cloud Console](https://console.cloud.google.com/).
-2. Configura la Pantalla de Consentimiento OAuth (Consent Screen).
-3. Crea credenciales de **ID de cliente de OAuth** para **Aplicación de escritorio** (Desktop App).
-4. Copia tu **Client ID** y **Client Secret**.
-5. Abre la aplicación Sonero, navega a **Ajustes > Integración con Google Cloud** e introduce tus claves.
+2. Habilita la **Google Drive API** en tu proyecto (**APIs y servicios > Biblioteca**).
+3. Configura la **Pantalla de consentimiento de OAuth** (Consent Screen) y asegúrate de agregar el permiso sensible:
+   * `https://www.googleapis.com/auth/drive.appdata` (Permite crear, leer y borrar sus propios datos de configuración de la aplicación en Google Drive).
+4. Agrega los correos de Google que usarás para pruebas en la sección de **Usuarios de prueba** (Test users).
+5. Crea credenciales de **ID de cliente de OAuth** para **Aplicación de escritorio** (Desktop App, para Windows) y/o **Aplicación de Android** (para Android).
+6. Copia tu **Client ID** y **Client Secret**.
+7. Abre la aplicación Sonero, navega a **Ajustes > Integración con Google Cloud** e introduce tus claves.
 
 ---
 
