@@ -1,0 +1,63 @@
+# ── Python / Backend Ignores ──────────────────────────────────────────
+sonero-api/__pycache__/
+sonero-api/*.py[cod]
+sonero-api/*.pyo
+sonero-api/*.pyd
+sonero-api/.Python
+sonero-api/*.egg-info/
+sonero-api/dist/
+sonero-api/build/
+sonero-api/*.egg
+sonero-api/venv/
+sonero-api/.venv/
+sonero-api/env/
+sonero-api/.env
+sonero-api/tmp/
+sonero-api/*.wav
+sonero-api/downloads/
+sonero-api/build_python_android/
+sonero-api/test_wheels/
+sonero-api/*.spec
+sonero-api/*.exe
+
+# Python debug files
+sonero-api/test_wasapi.py
+sonero-api/test_pipeline.py
+sonero-api/debug_recognition.py
+sonero-api/test_loopback.wav
+sonero-api/test_stereo.wav
+sonero-api/test_mic17.wav
+sonero-api/debug_recording.wav
+
+# Local Database & Logs
+python_error.log
+python_startup.log
+sonero-api/media.db
+sonero-api/python_error.log
+sonero-api/python_startup.log
+
+# ── Flutter / Frontend Ignores ─────────────────────────────────────────
+sonero-app/.dart_tool/
+sonero-app/.flutter-plugins
+sonero-app/.flutter-plugins-dependencies
+sonero-app/.packages
+sonero-app/build/
+sonero-app/*.g.dart
+sonero-app/*.freezed.dart
+sonero-app/windows/runner/Debug/
+sonero-app/windows/runner/Release/
+sonero-app/*.snap
+sonero-app/installers/
+
+# ── IDE & OS Ignores ──────────────────────────────────────────────────
+.idea/
+.vscode/
+*.iml
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.swp
+*.swo
+.DS_Store
+Thumbs.db

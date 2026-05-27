@@ -1,0 +1,40 @@
+{
+  "@@locale": "en",
+  "appTitle": "Sonero",
+  "navHome": "Home",
+  "navLibrary": "Library",
+  "navAnalytics": "Analytics",
+  "navDownload": "Download from YouTube",
+  "downloadComplete": "Download Completed",
+  "librarySection": "LIBRARY",
+  "newPlaylist": "New Playlist",
+  "newPlaylistHint": "Playlist Name",
+  "create": "Create",
+  "cancel": "Cancel",
+  "renamePlaylist": "Rename Playlist",
+  "newPlaylistName": "New Name",
+  "rename": "Rename",
+  "deletePlaylist": "Delete Playlist",
+  "deletePlaylistConfirm": "\"{name}\" will be deleted. The items will remain in your Library.",
+  "@deletePlaylistConfirm": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "delete": "Delete",
+  "settings": "Settings",
+  "welcomeHome": "Welcome to Sonero",
+  "play": "Play",
+  "moreInfo": "More Info",
+  "continueWatching": "Continue Playing",
+  "yourSmartPlaylists": "Smart Playlists",
+  "language": "Language",
+  "languageSpanish": "Spanish",
+  "languageEnglish": "English",
+  "languageJapanese": "Japanese",
+  "appearance": "Appearance",
+  "apiConnection": "API Connection (Local/Remote)",
+  "musicFolder": "Media Folder"
+}

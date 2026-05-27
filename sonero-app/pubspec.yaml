@@ -1,0 +1,66 @@
+name: sonero_app
+description: "Sonero — Tu colector de música personal"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  # HTTP
+  http: ^1.2.0
+
+  # Global hotkeys (configurable) & Window management
+  hotkey_manager: ^0.2.3
+  window_manager: ^0.3.9
+  tray_manager: ^0.2.3
+  local_notifier: ^0.1.6
+
+  # State management
+  provider: ^6.1.2
+
+  # Persistence (settings, hotkey config)
+  shared_preferences: ^2.3.2
+
+  # File/folder picker
+  file_picker: ^11.0.2
+
+  # Path utilities
+  path: ^1.9.0
+
+  # Date formatting
+  intl: ^0.19.0
+
+  # CSV export
+  csv: ^6.0.0
+
+  # UI
+  google_fonts: ^6.2.1
+  flutter_animate: ^4.5.0
+  google_sign_in: ^6.2.1
+  url_launcher: ^6.3.0
+
+  # Icons
+  cupertino_icons: ^1.0.8
+  flutter_colorpicker: ^1.1.0
+  media_kit: ^1.2.6
+  media_kit_video: ^2.0.1
+  media_kit_libs_video: ^1.0.7
+  carousel_slider: ^5.1.2
+  flutter_background_service: ^5.1.0
+  record: ^6.2.0
+  path_provider: ^2.1.5
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  generate: true

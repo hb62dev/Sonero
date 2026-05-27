@@ -1,0 +1,225 @@
+{
+  "@@locale": "es",
+  "appTitle": "Sonero",
+
+  "navHome": "Inicio",
+  "navLibrary": "Biblioteca",
+  "navAnalytics": "Estadísticas",
+  "navDownload": "Descargar de YouTube",
+  "navSearch": "Buscador",
+
+  "downloadComplete": "Descarga Completada",
+  "librarySection": "BIBLIOTECA",
+
+  "newPlaylist": "Nueva Playlist",
+  "newPlaylistHint": "Nombre de la playlist",
+  "create": "Crear",
+  "cancel": "Cancelar",
+  "close": "Cerrar",
+  "save": "Guardar",
+  "confirm": "Confirmar",
+  "change": "Cambiar",
+  "delete": "Eliminar",
+  "retry": "Reintentar",
+  "clear": "Limpiar",
+  "open": "Abrir",
+  "download": "Descargar",
+  "refresh": "Actualizar",
+
+  "renamePlaylist": "Renombrar Playlist",
+  "newPlaylistName": "Nuevo nombre",
+  "rename": "Renombrar",
+  "deletePlaylist": "Eliminar Playlist",
+  "deletePlaylistConfirm": "Se eliminará \"{name}\". El contenido se mantendrá en tu Biblioteca.",
+  "@deletePlaylistConfirm": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+
+  "settings": "Configuración",
+  "welcomeHome": "Bienvenido a Sonero",
+  "play": "Reproducir",
+  "moreInfo": "Más información",
+  "continueWatching": "Seguir Reproduciendo",
+  "yourSmartPlaylists": "Playlists Inteligentes",
+
+  "language": "Idioma",
+  "languageSpanish": "Español",
+  "languageEnglish": "Inglés",
+  "languageJapanese": "Japonés",
+  "appearance": "Apariencia",
+  "apiConnection": "Conexión a la API (Local/Remota)",
+  "musicFolder": "Carpeta de Medios",
+
+  "playerShuffle": "Aleatorio",
+  "playerPrevious": "Anterior",
+  "playerNext": "Siguiente",
+  "playerRepeat": "Repetir",
+  "playerShowVideo": "Mostrar Video",
+  "playerGridView": "Vista de Cuadrícula",
+  "playerListView": "Vista de Lista",
+
+  "trackCount": "{count} canción{count, plural, =1{} other{es}}",
+  "@trackCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+
+  "autoFillMetadata": "Autocompletar Metadatos",
+  "exportCsv": "Exportar CSV",
+  "csvSaved": "CSV guardado: {path}",
+  "@csvSaved": {
+    "placeholders": {
+      "path": { "type": "String" }
+    }
+  },
+
+  "editMetadata": "Editar metadatos",
+  "autoFillMetadataApi": "Autocompletar metadatos (API)",
+  "deleteFile": "Eliminar archivo",
+  "moveTo": "Mover a...",
+  "libraryRoot": "Biblioteca (raíz)",
+  "deleteSong": "Eliminar canción",
+  "deleteSongConfirm": "¿Seguro que quieres eliminar \"{name}\" del disco?",
+  "@deleteSongConfirm": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "fileDeleted": "Archivo eliminado",
+  "movedTo": "Movida a {destination}",
+  "@movedTo": {
+    "placeholders": {
+      "destination": { "type": "String" }
+    }
+  },
+
+  "emptyLibrary": "Tu biblioteca está vacía",
+  "emptyPlaylist": "{name} está vacía",
+  "@emptyPlaylist": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "emptyLibraryHint": "Presiona el atajo de teclado para reconocer una canción",
+
+  "scanningMetadata": "Escaneando Metadatos",
+  "startingScan": "Iniciando escaneo...",
+  "starting": "Iniciando...",
+  "unknownError": "Error desconocido",
+
+  "analyticsTitle": "Analíticas de Consumo",
+  "yourHabits": "Tus Hábitos",
+  "playbackHours": "Horas de reproducción",
+  "videosCompleted": "Videos Completados",
+  "musicListened": "Música Escuchada",
+  "recentHistory": "Historial Reciente (Benrio)",
+  "analyticsPlaceholder": "Aquí se integrarán los datos desde el backend cuando se implemente la conexión con Benrio.",
+
+  "searchHint": "Buscar canciones, artistas, o YouTube...",
+  "typeToSearch": "Escribe para buscar...",
+  "noLocalResults": "No hay resultados locales",
+  "localLibraryCount": "Biblioteca Local ({count})",
+  "@localLibraryCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "noYouTubeResults": "No hay resultados en YouTube",
+
+  "downloadMedia": "Descargar Medio",
+  "format": "Formato:",
+  "formatLoadError": "Error cargando formatos: {error}",
+  "@formatLoadError": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "destinationPlaylist": "Destino (Playlist):",
+
+  "downloadYouTubeVideo": "Descargar Video de YouTube",
+  "fetchInfo": "Obtener Info",
+  "selectFormat": "Seleccionar Formato:",
+
+  "videoFolder": "Carpeta de Video",
+  "notSelected": "No seleccionada",
+  "selectFolder": "Seleccionar carpeta",
+  "selectMusicFolderDialog": "Selecciona la carpeta donde guardar la música",
+  "selectVideoFolderDialog": "Selecciona la carpeta donde guardar los videos",
+
+  "authentication": "Autenticación (Anti-Bot)",
+  "authDescription": "Usa tus cookies de YouTube para evitar bloqueos al descargar.",
+  "syncBenrio": "Sincronizar (Benrio)",
+  "cookiesSynced": "Cookies sincronizadas correctamente.",
+  "loadCookiesFile": "Cargar cookies.txt",
+  "selectCookiesDialog": "Selecciona tu archivo cookies.txt",
+  "fileLoaded": "Archivo cargado correctamente.",
+
+  "themeMode": "Modo de tema",
+  "themeSystem": "Sistema",
+  "themeLight": "Claro",
+  "themeDark": "Oscuro",
+  "primaryColor": "Color principal",
+  "sidebarColor": "Color de barra lateral",
+  "defaultColor": "Por defecto",
+  "selectColor": "Seleccionar color",
+
+  "saveUrl": "Guardar URL",
+  "refetchTest": "Refetch / Probar",
+  "connectionSuccess": "✅ Conexión exitosa al backend.",
+  "connectionFailed": "❌ No se pudo conectar al backend.",
+
+  "listenDuration": "Duración de escucha",
+  "durationSaved": "Duración guardada",
+  "durationRange": "Entre 5 y 60 segundos.",
+  "secondsSuffix": "seg",
+
+  "globalHotkeys": "Atajos de teclado globales",
+  "hotkeysDescription": "Funcionan aunque la ventana esté minimizada.",
+  "hotkeyMic": "🎙️ Escuchar con Micrófono",
+  "hotkeySystem": "🖥️ Escuchar Audio del Sistema",
+  "hotkeyVideo": "📺 Descargar Video (Portapapeles)",
+  "hotkeyShow": "👀 Mostrar Ventana",
+  "hotkeyHide": "👻 Ocultar Ventana",
+  "hotkeySaved": "Atajo guardado",
+  "hotkeyTitleMic": "🎙️ Atajo — Micrófono",
+  "hotkeyTitleSystem": "🖥️ Atajo — Sistema",
+  "hotkeyTitleVideo": "📺 Atajo — Video",
+  "hotkeyTitleShow": "👀 Atajo — Mostrar Ventana",
+  "hotkeyTitleHide": "👻 Atajo — Ocultar Ventana",
+  "hotkeyRecordPrompt": "Presiona la combinación de teclas que quieres usar.",
+
+  "micDevice": "Dispositivo de micrófono",
+  "deviceNumber": "Dispositivo #{index}",
+  "@deviceNumber": {
+    "placeholders": {
+      "index": { "type": "int" }
+    }
+  },
+  "systemDefault": "Default del sistema",
+  "detectDevices": "Detectar dispositivos",
+  "useDefault": "Usar default",
+  "audioDevices": "Dispositivos de audio",
+
+  "editMetadataTitle": "Editar Metadatos",
+  "fieldTitle": "Título",
+  "fieldArtist": "Artista",
+  "fieldAlbum": "Álbum",
+  "fieldYear": "Año",
+  "fieldGenre": "Género",
+  "errorSaving": "Error guardando: {error}",
+  "@errorSaving": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+
+  "errorPrefix": "Error: {error}",
+  "@errorPrefix": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  }
+}
