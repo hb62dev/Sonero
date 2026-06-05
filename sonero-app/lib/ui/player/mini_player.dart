@@ -5,6 +5,7 @@ import '../../providers/player_provider.dart';
 import '../theme.dart';
 import '../widgets/hover_scale.dart';
 import 'lyrics_view.dart';
+import 'mobile_player_sheet.dart';
 
 class MiniPlayer extends StatelessWidget {
   const MiniPlayer({super.key});
@@ -135,28 +136,145 @@ class MiniPlayer extends StatelessWidget {
       );
     }
 
-    // ── NORMAL MODE: full player controls ─────────────────────────────────
+    // ── NORMAL MODE: full player controls ────────────────────────────────────
+    final bottomPadding = MediaQuery.of(context).padding.bottom;
+
+    if (isMobile) {
+      return Container(
+        height: 62 + bottomPadding,
+        decoration: BoxDecoration(
+          color: context.colors.surfaceAlt,
+          border: Border(top: BorderSide(color: context.colors.border)),
+        ),
+        child: Column(
+          children: [
+            SizedBox(
+              height: 2.0,
+              child: LinearProgressIndicator(
+                value: player.duration.inMilliseconds > 0
+                    ? player.position.inMilliseconds / player.duration.inMilliseconds
+                    : 0.0,
+                backgroundColor: context.colors.border,
+                valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
+              ),
+            ),
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.fromLTRB(16, 0, 8, bottomPadding),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onTap: () {
+                          showModalBottomSheet(
+                            context: context,
+                            isScrollControlled: true,
+                            backgroundColor: Colors.transparent,
+                            builder: (_) => const MobileExpandedPlayer(),
+                          );
+                        },
+                        child: Row(
+                          children: [
+                            Hero(
+                              tag: 'mobile_player_cover',
+                              child: Container(
+                                width: 38,
+                                height: 38,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(6),
+                                  color: context.colors.surface,
+                                  image: track.coverUrl != null
+                                      ? DecorationImage(
+                                          image: NetworkImage(track.coverUrl!),
+                                          fit: BoxFit.cover,
+                                        )
+                                      : null,
+                                ),
+                                child: track.coverUrl == null
+                                    ? Icon(Icons.music_note, color: context.colors.textSecondary, size: 18)
+                                    : null,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    track.title.isNotEmpty ? track.title : track.filename,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      color: context.colors.textPrimary,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 13.5,
+                                    ),
+                                  ),
+                                  if (track.artist.isNotEmpty)
+                                    Text(
+                                      track.artist,
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: TextStyle(
+                                        color: context.colors.textSecondary,
+                                        fontSize: 11.5,
+                                      ),
+                                    ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(
+                        player.isPlaying
+                            ? Icons.pause_rounded
+                            : Icons.play_arrow_rounded,
+                        color: Theme.of(context).colorScheme.primary,
+                        size: 26,
+                      ),
+                      onPressed: player.playPause,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.skip_next_rounded, color: context.colors.textPrimary, size: 26),
+                      onPressed: player.next,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return Container(
-      height: 96,
+      height: 96 + bottomPadding,
       decoration: BoxDecoration(
         color: context.colors.surfaceAlt,
         border: Border(top: BorderSide(color: context.colors.border)),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: EdgeInsets.fromLTRB(24, 0, 24, bottomPadding),
       child: Row(
         children: [
           // ── Left: Sidebar toggle + Track info ──────────────────────────
           Expanded(
-            flex: isMobile ? 3 : 1,
+            flex: 1,
             child: Row(
               children: [
-                if (!isMobile) ...[
-                  sidebarToggle,
-                  const SizedBox(width: 8),
-                ],
+                sidebarToggle,
+                const SizedBox(width: 8),
                 Container(
-                  width: isMobile ? 48 : 56,
-                  height: isMobile ? 48 : 56,
+                  width: 56,
+                  height: 56,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(8),
                     color: context.colors.surface,
@@ -207,7 +325,7 @@ class MiniPlayer extends StatelessWidget {
 
           // ── Center: Playback controls + seek bar ────────────────────────
           Expanded(
-            flex: isMobile ? 4 : 2,
+            flex: 2,
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -218,8 +336,7 @@ class MiniPlayer extends StatelessWidget {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.end,
                         children: [
-                          if (!isMobile) ...[
-                            HoverScale(
+                          HoverScale(
                             scale: 1.15,
                             child: IconButton(
                               icon: Icon(
@@ -249,7 +366,6 @@ class MiniPlayer extends StatelessWidget {
                                   minWidth: 36, minHeight: 36),
                             ),
                           ),
-                          ],
                         ],
                       ),
                     ),
@@ -288,58 +404,56 @@ class MiniPlayer extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(width: 4),
-                          if (!isMobile) ...[
-                            HoverScale(
-                              scale: 1.15,
-                              child: IconButton(
-                                icon: Icon(
-                                  player.repeatMode == PlaylistMode.single
-                                      ? Icons.repeat_one_rounded
-                                      : Icons.repeat_rounded,
-                                  color: player.repeatMode != PlaylistMode.none
-                                      ? Theme.of(context).colorScheme.primary
-                                      : context.colors.textSecondary,
-                                  size: 20,
-                                ),
-                                tooltip: 'Repetir',
-                                onPressed: player.toggleRepeat,
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(
-                                    minWidth: 36, minHeight: 36),
+                          HoverScale(
+                            scale: 1.15,
+                            child: IconButton(
+                              icon: Icon(
+                                player.repeatMode == PlaylistMode.single
+                                    ? Icons.repeat_one_rounded
+                                    : Icons.repeat_rounded,
+                                color: player.repeatMode != PlaylistMode.none
+                                    ? Theme.of(context).colorScheme.primary
+                                    : context.colors.textSecondary,
+                                size: 20,
                               ),
+                              tooltip: 'Repetir',
+                              onPressed: player.toggleRepeat,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(
+                                  minWidth: 36, minHeight: 36),
                             ),
-                            if (player.isVideo) ...[
-                              const SizedBox(width: 8),
-                              HoverScale(
-                                scale: 1.15,
-                                child: IconButton(
-                                  icon: Icon(Icons.fullscreen_rounded,
-                                      color: context.colors.textSecondary,
-                                      size: 22),
-                                  tooltip: 'Mostrar Video',
-                                  onPressed: () => player.setVideoMode(true),
-                                  padding: EdgeInsets.zero,
-                                  constraints: const BoxConstraints(
-                                      minWidth: 36, minHeight: 36),
-                                ),
-                              ),
-                            ],
+                          ),
+                          if (player.isVideo) ...[
                             const SizedBox(width: 8),
                             HoverScale(
                               scale: 1.15,
                               child: IconButton(
-                                icon: Icon(Icons.lyrics_outlined,
+                                icon: Icon(Icons.fullscreen_rounded,
                                     color: context.colors.textSecondary,
                                     size: 22),
-                                tooltip: 'Ver Letras',
-                                onPressed: () => _showLyricsDialog(
-                                    context, track.title, track.artist, track.filename),
+                                tooltip: 'Mostrar Video',
+                                onPressed: () => player.setVideoMode(true),
                                 padding: EdgeInsets.zero,
                                 constraints: const BoxConstraints(
                                     minWidth: 36, minHeight: 36),
                               ),
                             ),
                           ],
+                          const SizedBox(width: 8),
+                          HoverScale(
+                            scale: 1.15,
+                            child: IconButton(
+                              icon: Icon(Icons.lyrics_outlined,
+                                  color: context.colors.textSecondary,
+                                  size: 22),
+                              tooltip: 'Ver Letras',
+                              onPressed: () => _showLyricsDialog(
+                                  context, track.title, track.artist, track.filename),
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(
+                                  minWidth: 36, minHeight: 36),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -395,14 +509,13 @@ class MiniPlayer extends StatelessWidget {
             ),
           ),
 
-          // ── Right: Volume + close ───────────────────────────────────────
-          if (!isMobile)
-            Expanded(
-              flex: 1,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Icon(Icons.volume_up_rounded,
+          // ── Right: Volume + close (desktop) ──────
+          Expanded(
+            flex: 1,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Icon(Icons.volume_up_rounded,
                     color: context.colors.textSecondary, size: 20),
                 SizedBox(
                   width: 100,

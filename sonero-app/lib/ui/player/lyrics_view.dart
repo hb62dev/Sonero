@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../providers/player_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../services/lyrics_service.dart';
@@ -48,6 +49,17 @@ class _LyricsViewState extends State<LyricsView> {
   late String _currentTitle;
   late String _currentArtist;
   String? _currentFilename;
+  
+  int _manualOffsetMs = 0;
+
+  bool _isVideoExt(String filename) {
+    final lower = filename.toLowerCase();
+    return lower.endsWith('.mp4') ||
+        lower.endsWith('.mkv') ||
+        lower.endsWith('.avi') ||
+        lower.endsWith('.mov') ||
+        lower.endsWith('.webm');
+  }
 
   @override
   void initState() {
@@ -85,6 +97,15 @@ class _LyricsViewState extends State<LyricsView> {
   // ── Loading strategy: local → online (auto-save) ──────────────────────────
 
   Future<void> _loadLyrics() async {
+    final settings = context.read<SettingsProvider>();
+    int initialOffset = settings.lyricsOffset;
+    if (_currentFilename != null) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        initialOffset = prefs.getInt('lyrics_offset_$_currentFilename') ?? settings.lyricsOffset;
+      } catch (_) {}
+    }
+
     setState(() {
       _isLoading = true;
       _error = null;
@@ -92,14 +113,16 @@ class _LyricsViewState extends State<LyricsView> {
       _plainLyrics = null;
       _source = LyricsSource.none;
       _currentIndex = -1;
+      _manualOffsetMs = initialOffset;
     });
 
     // 1. Try local file first (works without internet)
     if (_currentFilename != null) {
       final settings = context.read<SettingsProvider>();
-      final musicFolder = settings.musicFolder;
-      if (musicFolder.isNotEmpty) {
-        final lrcContent = LyricsService.readLrc(musicFolder, _currentFilename!);
+      final isVideo = _isVideoExt(_currentFilename!);
+      final activeFolder = isVideo ? settings.videoFolder : settings.musicFolder;
+      if (activeFolder.isNotEmpty) {
+        final lrcContent = LyricsService.readLrc(activeFolder, _currentFilename!);
         if (lrcContent != null && lrcContent.trim().isNotEmpty) {
           final parsed = _parseSyncedLyrics(lrcContent);
           if (parsed.isNotEmpty) {
@@ -115,11 +138,11 @@ class _LyricsViewState extends State<LyricsView> {
             _plainLyrics = lrcContent.trim();
             _source = LyricsSource.local;
             _isLoading = false;
-          });
+            });
           return;
         }
 
-        final txtContent = LyricsService.readTxt(musicFolder, _currentFilename!);
+        final txtContent = LyricsService.readTxt(activeFolder, _currentFilename!);
         if (txtContent != null && txtContent.trim().isNotEmpty) {
           setState(() {
             _plainLyrics = txtContent.trim();
@@ -141,7 +164,8 @@ class _LyricsViewState extends State<LyricsView> {
     try {
       final settings    = context.read<SettingsProvider>();
       final api         = settings.api;
-      final musicFolder = settings.musicFolder;
+      final isVideo     = _isVideoExt(_currentFilename ?? '');
+      final activeFolder = isVideo ? settings.videoFolder : settings.musicFolder;
 
       final data = await api.getLyrics(_currentTitle, _currentArtist);
       if (!mounted) return;
@@ -177,12 +201,12 @@ class _LyricsViewState extends State<LyricsView> {
       }
 
       // ── Auto-save to disk ────────────────────────────────────────────────
-      if (_currentFilename != null && musicFolder.isNotEmpty) {
+      if (_currentFilename != null && activeFolder.isNotEmpty) {
         try {
           if (hasSynced) {
-            await LyricsService.saveLrc(musicFolder, _currentFilename!, synced!);
+            await LyricsService.saveLrc(activeFolder, _currentFilename!, synced!);
           } else if (hasPlain) {
-            await LyricsService.saveTxt(musicFolder, _currentFilename!, plain!);
+            await LyricsService.saveTxt(activeFolder, _currentFilename!, plain!);
           }
         } catch (_) {
           // Saving failed silently — lyrics still displayed from memory
@@ -205,6 +229,29 @@ class _LyricsViewState extends State<LyricsView> {
           _isLoading = false;
         });
       }
+    }
+  }
+
+  Future<void> _updateOffset(int newOffset) async {
+    setState(() {
+      _manualOffsetMs = newOffset;
+    });
+    if (_currentFilename != null) {
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setInt('lyrics_offset_$_currentFilename', newOffset);
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _saveAsGlobalDefault() async {
+    final settings = context.read<SettingsProvider>();
+    await settings.setLyricsOffset(_manualOffsetMs);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Guardado como retraso global por defecto'),
+        duration: Duration(seconds: 2),
+      ));
     }
   }
 
@@ -245,8 +292,10 @@ class _LyricsViewState extends State<LyricsView> {
 
   void _scrollToCurrentIndex(int index) {
     if (!_scrollController.hasClients || index < 0) return;
+    final isMobile = context.isMobile;
+    final itemHeight = isMobile ? 44.0 : 54.0;
     final targetOffset =
-        (index * 50.0) - (MediaQuery.of(context).size.height / 3);
+        (index * itemHeight) - (MediaQuery.of(context).size.height / 3);
     _scrollController.animateTo(
       targetOffset.clamp(0.0, _scrollController.position.maxScrollExtent),
       duration: const Duration(milliseconds: 300),
@@ -258,11 +307,12 @@ class _LyricsViewState extends State<LyricsView> {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = context.isMobile;
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.all(24),
+      insetPadding: isMobile ? const EdgeInsets.all(8) : const EdgeInsets.all(24),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(24),
+        borderRadius: BorderRadius.circular(isMobile ? 16 : 24),
         child: BackdropFilter(
           filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
           child: Container(
@@ -271,6 +321,7 @@ class _LyricsViewState extends State<LyricsView> {
               children: [
                 _buildHeader(),
                 if (_source == LyricsSource.local) _buildLocalBadge(),
+                if (_syncedLyrics != null && _syncedLyrics!.isNotEmpty) _buildSyncControls(),
                 Expanded(child: _buildContent()),
               ],
             ),
@@ -280,25 +331,111 @@ class _LyricsViewState extends State<LyricsView> {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildSyncControls() {
+    final isMobile = context.isMobile;
+    final settings = context.watch<SettingsProvider>();
     return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 20, 16, 12),
+      padding: EdgeInsets.symmetric(horizontal: 24, vertical: isMobile ? 2 : 4),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                'Sincronización: ',
+                style: TextStyle(fontSize: isMobile ? 11 : 12, color: context.colors.textSecondary),
+              ),
+              InkWell(
+                onTap: () => _updateOffset(_manualOffsetMs - 100),
+                borderRadius: BorderRadius.circular(4),
+                child: Padding(
+                  padding: const EdgeInsets.all(4.0),
+                  child: Icon(Icons.remove_circle_outline_rounded, size: isMobile ? 14 : 16, color: context.colors.textSecondary),
+                ),
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '${_manualOffsetMs >= 0 ? "+" : ""}${(_manualOffsetMs / 1000.0).toStringAsFixed(2)}s',
+                style: TextStyle(
+                  fontSize: isMobile ? 11 : 12, 
+                  fontWeight: FontWeight.bold,
+                  color: _manualOffsetMs == 0 ? context.colors.textSecondary : Theme.of(context).colorScheme.primary,
+                ),
+              ),
+              const SizedBox(width: 4),
+              InkWell(
+                onTap: () => _updateOffset(_manualOffsetMs + 100),
+                borderRadius: BorderRadius.circular(4),
+                child: Padding(
+                  padding: const EdgeInsets.all(4.0),
+                  child: Icon(Icons.add_circle_outline_rounded, size: isMobile ? 14 : 16, color: context.colors.textSecondary),
+                ),
+              ),
+              if (_manualOffsetMs != settings.lyricsOffset) ...[
+                const SizedBox(width: 8),
+                InkWell(
+                  onTap: () => _updateOffset(settings.lyricsOffset),
+                  child: Text(
+                    'Restablecer',
+                    style: TextStyle(
+                      fontSize: isMobile ? 10 : 11, 
+                      color: Theme.of(context).colorScheme.primary, 
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '(-) Adelantar letra | Atrasar letra (+)',
+            style: TextStyle(
+              fontSize: isMobile ? 9 : 10,
+              color: context.colors.textSecondary.withValues(alpha: 0.7),
+            ),
+          ),
+          if (_manualOffsetMs != settings.lyricsOffset) ...[
+            const SizedBox(height: 4),
+            InkWell(
+              onTap: _saveAsGlobalDefault,
+              child: Text(
+                'Definir como predeterminado global',
+                style: TextStyle(
+                  fontSize: isMobile ? 10 : 11,
+                  color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.8),
+                  fontWeight: FontWeight.w600,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    final isMobile = context.isMobile;
+    return Padding(
+      padding: EdgeInsets.fromLTRB(isMobile ? 16 : 24, isMobile ? 12 : 20, 16, 12),
       child: Row(
         children: [
           Container(
-            width: 44,
-            height: 44,
+            width: isMobile ? 36 : 44,
+            height: isMobile ? 36 : 44,
             decoration: BoxDecoration(
               color: Theme.of(context)
                   .colorScheme
                   .primary
                   .withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(isMobile ? 8 : 10),
             ),
             child: Icon(Icons.lyrics_rounded,
-                color: Theme.of(context).colorScheme.primary, size: 22),
+                color: Theme.of(context).colorScheme.primary, size: isMobile ? 18 : 22),
           ),
-          const SizedBox(width: 14),
+          SizedBox(width: isMobile ? 10 : 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -306,7 +443,7 @@ class _LyricsViewState extends State<LyricsView> {
                 Text(
                   _currentTitle.isNotEmpty ? _currentTitle : 'Letras',
                   style: TextStyle(
-                    fontSize: 20,
+                    fontSize: isMobile ? 16 : 20,
                     fontWeight: FontWeight.bold,
                     color: context.colors.textPrimary,
                   ),
@@ -317,7 +454,7 @@ class _LyricsViewState extends State<LyricsView> {
                   Text(
                     _currentArtist,
                     style: TextStyle(
-                        fontSize: 14, color: context.colors.textSecondary),
+                        fontSize: isMobile ? 12 : 14, color: context.colors.textSecondary),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -326,7 +463,7 @@ class _LyricsViewState extends State<LyricsView> {
           ),
           IconButton(
             icon: Icon(Icons.close_rounded,
-                color: context.colors.textSecondary, size: 28),
+                color: context.colors.textSecondary, size: isMobile ? 24 : 28),
             onPressed: () => Navigator.of(context).pop(),
           ),
         ],
@@ -335,6 +472,7 @@ class _LyricsViewState extends State<LyricsView> {
   }
 
   Widget _buildLocalBadge() {
+    final isMobile = context.isMobile;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(
@@ -395,6 +533,7 @@ class _LyricsViewState extends State<LyricsView> {
   }
 
   Widget _buildContent() {
+    final isMobile = context.isMobile;
     if (_isLoading) {
       return Center(
         child: CircularProgressIndicator(
@@ -443,8 +582,9 @@ class _LyricsViewState extends State<LyricsView> {
         builder: (context, player, child) {
           final position = player.position;
           
-          // Compensate for the 250ms visual animation delay
-          final adjustedPosition = position + const Duration(milliseconds: 250);
+          // Compensate for the 250ms visual animation delay + manual offset
+          // Note: a positive manual offset means delaying the lyrics, so we subtract it from adjustedPosition.
+          final adjustedPosition = position + Duration(milliseconds: 250 - _manualOffsetMs);
 
           int newIndex = -1;
           for (int i = 0; i < _syncedLyrics!.length; i++) {
@@ -462,11 +602,13 @@ class _LyricsViewState extends State<LyricsView> {
             });
           }
 
+          final itemHeight = isMobile ? 44.0 : 54.0;
+
           return ListView.builder(
             controller: _scrollController,
             padding:
-                const EdgeInsets.symmetric(horizontal: 40, vertical: 100),
-            itemExtent: 50.0,
+                EdgeInsets.symmetric(horizontal: isMobile ? 24 : 40, vertical: isMobile ? 60 : 100),
+            itemExtent: itemHeight,
             itemCount: _syncedLyrics!.length,
             itemBuilder: (context, index) {
               final lyric    = _syncedLyrics![index];
@@ -474,12 +616,12 @@ class _LyricsViewState extends State<LyricsView> {
               final isPassed = index < _currentIndex;
 
               return Container(
-                height: 50,
+                height: itemHeight,
                 alignment: Alignment.centerLeft,
                 child: AnimatedDefaultTextStyle(
                   duration: const Duration(milliseconds: 250),
                   style: TextStyle(
-                    fontSize: isActive ? 28 : 24,
+                    fontSize: isActive ? (isMobile ? 20 : 28) : (isMobile ? 16 : 24),
                     fontWeight:
                         isActive ? FontWeight.bold : FontWeight.w600,
                     color: isActive
@@ -490,7 +632,7 @@ class _LyricsViewState extends State<LyricsView> {
                   child: Text(
                     lyric.text,
                     maxLines: 1,
-                    overflow: TextOverflow.visible,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
               );
@@ -502,11 +644,11 @@ class _LyricsViewState extends State<LyricsView> {
 
     // Plain text lyrics
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(40),
+      padding: EdgeInsets.all(isMobile ? 24 : 40),
       child: Text(
         _plainLyrics ?? '',
         style: TextStyle(
-          fontSize: 22,
+          fontSize: isMobile ? 18 : 22,
           fontWeight: FontWeight.w500,
           color: context.colors.textPrimary.withValues(alpha: 0.85),
           height: 1.6,

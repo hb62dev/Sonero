@@ -1,11 +1,13 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path/path.dart' as p;
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:path_provider/path_provider.dart';
 import '../core/api_client.dart';
 
 class SettingsProvider extends ChangeNotifier {
@@ -24,12 +26,19 @@ class SettingsProvider extends ChangeNotifier {
   static const _keyGoogleClientId = 'google_client_id';
   static const _keyGoogleClientSecret = 'google_client_secret';
   static const _keyIsLoggedIn = 'is_logged_in';
+  static const _keyLyricsOffset = 'lyrics_offset';
+  static const _keyRecognitionService = 'recognition_service';
+  static const _keyGeminiApiKey = 'gemini_api_key';
+  static const _keyAudDApiToken = 'audd_api_token';
+  static const _keyRapidApiKey = 'rapidapi_key';
+  static const _keyRapidApiHost = 'rapidapi_host';
+  static const _keyShazamProxyUrl = 'shazam_proxy_url';
 
   String _apiUrl = 'http://127.0.0.1:8000';
   String _musicFolder = '';
   String _videoFolder = '';
   int? _deviceIndex;
-  int _listenDuration = 10;
+  int _listenDuration = 15;
   bool _isLoaded = false;
 
   ThemeMode _themeMode = ThemeMode.dark;
@@ -49,11 +58,24 @@ class SettingsProvider extends ChangeNotifier {
   String? _syncError;
   DateTime? _lastSyncTime;
 
+  // Mobile fields
+  int _lyricsOffset = 0;
+  String _recognitionService = 'gemini';
+  String _geminiApiKey = '';
+  String _auddApiToken = '';
+  String _rapidApiKey = '';
+  String _rapidApiHost = 'shazam-song-recognizer.p.rapidapi.com';
+  String _shazamProxyUrl = '';
+
+  String _defaultMusicFolder = '';
+  String _defaultVideoFolder = '';
+  String _effectiveMusicFolder = '';
+  String _effectiveVideoFolder = '';
+
   String get apiUrl => _apiUrl;
-  String get musicFolder => _musicFolder;
-  String get videoFolder => _videoFolder;
-  String get lyricsFolder =>
-      _musicFolder.isNotEmpty ? p.join(_musicFolder, 'lyrics') : '';
+  String get musicFolder => _effectiveMusicFolder.isNotEmpty ? _effectiveMusicFolder : _defaultMusicFolder;
+  String get videoFolder => _effectiveVideoFolder.isNotEmpty ? _effectiveVideoFolder : _defaultVideoFolder;
+  String get lyricsFolder => p.join(musicFolder, 'lyrics');
   int? get deviceIndex => _deviceIndex;
   int get listenDuration => _listenDuration;
   bool get isLoaded => _isLoaded;
@@ -86,11 +108,20 @@ class SettingsProvider extends ChangeNotifier {
     return id.isNotEmpty && secret.isNotEmpty;
   }
 
+  int get lyricsOffset => _lyricsOffset;
+  String get recognitionService => _recognitionService;
+  String get geminiApiKey => _geminiApiKey;
+  String get auddApiToken => _auddApiToken;
+  String get rapidApiKey => _rapidApiKey;
+  String get rapidApiHost => _rapidApiHost;
+  String get shazamProxyUrl => _shazamProxyUrl;
+
   late ApiClient _api;
   ApiClient get api => _api;
 
   Future<void> load() async {
     final prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
     _apiUrl = prefs.getString(_keyApiUrl) ?? 'http://127.0.0.1:8000';
     if (_apiUrl.contains('localhost')) {
       _apiUrl = _apiUrl.replaceAll('localhost', '127.0.0.1');
@@ -99,7 +130,14 @@ class SettingsProvider extends ChangeNotifier {
     _musicFolder = prefs.getString(_keyMusicFolder) ?? '';
     _videoFolder = prefs.getString(_keyVideoFolder) ?? '';
     _deviceIndex = prefs.getInt(_keyDeviceIndex);
-    _listenDuration = prefs.getInt(_keyListenDuration) ?? 10;
+    _listenDuration = prefs.getInt(_keyListenDuration) ?? 15;
+    _lyricsOffset = prefs.getInt(_keyLyricsOffset) ?? 0;
+    _recognitionService = prefs.getString(_keyRecognitionService) ?? 'gemini';
+    _geminiApiKey = prefs.getString(_keyGeminiApiKey) ?? '';
+    _auddApiToken = prefs.getString(_keyAudDApiToken) ?? '';
+    _rapidApiKey = prefs.getString(_keyRapidApiKey) ?? '';
+    _rapidApiHost = prefs.getString(_keyRapidApiHost) ?? 'shazam-song-recognizer.p.rapidapi.com';
+    _shazamProxyUrl = prefs.getString(_keyShazamProxyUrl) ?? '';
 
     final themeModeStr = prefs.getString(_keyThemeMode);
     if (themeModeStr == 'light') _themeMode = ThemeMode.light;
@@ -126,25 +164,102 @@ class SettingsProvider extends ChangeNotifier {
       _lastSyncTime = DateTime.fromMillisecondsSinceEpoch(lastSyncMs);
     }
 
-    _api = ApiClient(baseUrl: _apiUrl);
+    await _resolveEffectiveFolders();
+
+    _api = ApiClient(
+      baseUrl: _apiUrl,
+      musicFolder: musicFolder,
+      videoFolder: videoFolder,
+    );
     
-    // Sync paths with backend if we have any custom paths
-    if (_musicFolder.isNotEmpty || _videoFolder.isNotEmpty) {
-      try {
-        await _api.updatePaths(
-          music: _musicFolder.isNotEmpty ? _musicFolder : null, 
-          video: _videoFolder.isNotEmpty ? _videoFolder : null
-        );
-      } catch (_) {}
-    }
+    // Sync paths with backend
+    try {
+      await _api.updatePaths(
+        music: musicFolder, 
+        video: videoFolder,
+      );
+    } catch (_) {}
     
     _isLoaded = true;
     notifyListeners();
   }
 
+  Future<bool> _isDirectoryWritable(String path) async {
+    if (kIsWeb) return false;
+    try {
+      final dir = Directory(path);
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+      final testFile = File(p.join(path, '.write_test_${DateTime.now().millisecondsSinceEpoch}'));
+      await testFile.writeAsString('test');
+      await testFile.delete();
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<void> _resolveEffectiveFolders() async {
+    if (kIsWeb) {
+      _effectiveMusicFolder = _musicFolder;
+      _effectiveVideoFolder = _videoFolder;
+      return;
+    }
+
+    final Directory? extDir = Platform.isAndroid ? await getExternalStorageDirectory() : null;
+    final fallbackBase = extDir != null ? extDir.path : (await getApplicationDocumentsDirectory()).path;
+    _defaultMusicFolder = p.join(fallbackBase, 'Sonero', 'Music');
+    _defaultVideoFolder = p.join(fallbackBase, 'Sonero', 'Videos');
+
+    // Resolve Music Folder
+    if (_musicFolder.isNotEmpty) {
+      if (await _isDirectoryWritable(_musicFolder)) {
+        _effectiveMusicFolder = _musicFolder;
+      } else {
+        _effectiveMusicFolder = _defaultMusicFolder;
+      }
+    } else {
+      if (Platform.isAndroid) {
+        const publicMusic = '/storage/emulated/0/Music/Sonero';
+        if (await _isDirectoryWritable(publicMusic)) {
+          _effectiveMusicFolder = publicMusic;
+        } else {
+          _effectiveMusicFolder = _defaultMusicFolder;
+        }
+      } else {
+        _effectiveMusicFolder = _defaultMusicFolder;
+      }
+    }
+
+    // Resolve Video Folder
+    if (_videoFolder.isNotEmpty) {
+      if (await _isDirectoryWritable(_videoFolder)) {
+        _effectiveVideoFolder = _videoFolder;
+      } else {
+        _effectiveVideoFolder = _defaultVideoFolder;
+      }
+    } else {
+      if (Platform.isAndroid) {
+        const publicVideo = '/storage/emulated/0/Download/Sonero';
+        if (await _isDirectoryWritable(publicVideo)) {
+          _effectiveVideoFolder = publicVideo;
+        } else {
+          _effectiveVideoFolder = _defaultVideoFolder;
+        }
+      } else {
+        _effectiveVideoFolder = _defaultVideoFolder;
+      }
+    }
+  }
+
   Future<void> setApiUrl(String url) async {
     _apiUrl = url;
-    _api = ApiClient(baseUrl: url);
+    _api = ApiClient(
+      baseUrl: url,
+      musicFolder: musicFolder,
+      videoFolder: videoFolder,
+    );
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyApiUrl, url);
     notifyListeners();
@@ -152,11 +267,13 @@ class SettingsProvider extends ChangeNotifier {
 
   Future<void> setMusicFolder(String folder) async {
     _musicFolder = folder;
+    await _resolveEffectiveFolders();
+    _api.musicFolder = musicFolder;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyMusicFolder, folder);
     
     try {
-      await _api.updatePaths(music: folder.isNotEmpty ? folder : null);
+      await _api.updatePaths(music: musicFolder);
     } catch (_) {}
     
     notifyListeners();
@@ -164,11 +281,13 @@ class SettingsProvider extends ChangeNotifier {
 
   Future<void> setVideoFolder(String folder) async {
     _videoFolder = folder;
+    await _resolveEffectiveFolders();
+    _api.videoFolder = videoFolder;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyVideoFolder, folder);
     
     try {
-      await _api.updatePaths(video: folder.isNotEmpty ? folder : null);
+      await _api.updatePaths(video: videoFolder);
     } catch (_) {}
     
     notifyListeners();
@@ -317,12 +436,10 @@ class SettingsProvider extends ChangeNotifier {
 
       HttpServer? server;
       try {
-        // Bind local loopback on dynamic port
         server = await HttpServer.bind(InternetAddress.loopbackIPv4, 0);
         final port = server.port;
         final redirectUri = 'http://127.0.0.1:$port';
 
-        // Google Auth URL
         final authUrl = Uri.https('accounts.google.com', '/o/oauth2/v2/auth', {
           'client_id': clientId,
           'redirect_uri': redirectUri,
@@ -330,10 +447,8 @@ class SettingsProvider extends ChangeNotifier {
           'scope': 'openid email profile https://www.googleapis.com/auth/drive.appdata',
         });
 
-        // Launch system browser
         await launchUrl(authUrl, mode: LaunchMode.externalApplication);
 
-        // Wait for redirect
         String? authCode;
         await for (var request in server) {
           final code = request.uri.queryParameters['code'];
@@ -393,7 +508,6 @@ class SettingsProvider extends ChangeNotifier {
           throw Exception('El código de autorización no fue recibido.');
         }
 
-        // Exchange authorization code for token
         final tokenRes = await http.post(
           Uri.parse('https://oauth2.googleapis.com/token'),
           headers: {'Content-Type': 'application/x-www-form-urlencoded'},
@@ -512,7 +626,6 @@ class SettingsProvider extends ChangeNotifier {
 
         if (downloadRes.statusCode == 200) {
           final syncPayload = jsonDecode(downloadRes.body) as Map<String, dynamic>;
-          // Send to local backend for merging
           await _api.importSyncData(syncPayload);
         } else {
           throw Exception('Error al descargar archivo de Drive: ${downloadRes.body}');
@@ -524,7 +637,6 @@ class SettingsProvider extends ChangeNotifier {
 
       // 4. Upload updated database JSON back to Google Drive
       if (fileId == null) {
-        // Create new file via multipart upload
         final boundary = 'sonero_sync_boundary';
         final uploadHeaders = {
           'Authorization': 'Bearer $_googleAccessToken',
@@ -549,7 +661,6 @@ class SettingsProvider extends ChangeNotifier {
           throw Exception('Error al crear archivo de sincronización: ${createRes.body}');
         }
       } else {
-        // Update existing file
         final updateUri = Uri.parse('https://www.googleapis.com/upload/drive/v3/files/$fileId?uploadType=media');
         final updateRes = await http.patch(
           updateUri,
@@ -577,5 +688,54 @@ class SettingsProvider extends ChangeNotifier {
       _isSyncing = false;
       notifyListeners();
     }
+  }
+
+  Future<void> setLyricsOffset(int ms) async {
+    _lyricsOffset = ms;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(_keyLyricsOffset, ms);
+    notifyListeners();
+  }
+
+  Future<void> setRecognitionService(String service) async {
+    _recognitionService = service;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyRecognitionService, service);
+    notifyListeners();
+  }
+
+  Future<void> setGeminiApiKey(String key) async {
+    _geminiApiKey = key;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyGeminiApiKey, key);
+    notifyListeners();
+  }
+
+  Future<void> setAudDApiToken(String token) async {
+    _auddApiToken = token;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyAudDApiToken, token);
+    notifyListeners();
+  }
+
+  Future<void> setRapidApiKey(String key) async {
+    _rapidApiKey = key;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyRapidApiKey, key);
+    notifyListeners();
+  }
+
+  Future<void> setRapidApiHost(String host) async {
+    _rapidApiHost = host;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyRapidApiHost, host);
+    notifyListeners();
+  }
+
+  Future<void> setShazamProxyUrl(String url) async {
+    _shazamProxyUrl = url;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyShazamProxyUrl, url);
+    notifyListeners();
   }
 }

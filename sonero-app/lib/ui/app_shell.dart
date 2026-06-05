@@ -21,6 +21,7 @@ import 'downloads/downloads_page.dart';
 import 'search/search_view.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'setup_modal.dart';
+import 'settings/settings_page.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -31,18 +32,31 @@ class AppShell extends StatefulWidget {
 
 class _AppShellState extends State<AppShell> {
   int _currentViewIndex = 0;
+  final TextEditingController _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    _searchController.addListener(_onSearchQueryChanged);
     HardwareKeyboard.instance.addHandler(_handleKey);
     WidgetsBinding.instance.addPostFrameCallback((_) => _init());
   }
 
   @override
   void dispose() {
+    _searchController.removeListener(_onSearchQueryChanged);
+    _searchController.dispose();
     HardwareKeyboard.instance.removeHandler(_handleKey);
     super.dispose();
+  }
+
+  void _onSearchQueryChanged() {
+    final query = _searchController.text;
+    if (query.isNotEmpty && _currentViewIndex != 3) {
+      setState(() {
+        _currentViewIndex = 3;
+      });
+    }
   }
 
   bool _handleKey(KeyEvent event) {
@@ -245,6 +259,33 @@ class _AppShellState extends State<AppShell> {
     await library.loadTracks(settings.api);
   }
 
+
+
+  PopupMenuItem<int> _buildPopupMenuItem(int index, IconData icon, String title) {
+    final isSelected = _currentViewIndex == index;
+    return PopupMenuItem<int>(
+      value: index,
+      child: Row(
+        children: [
+          Icon(
+            icon,
+            color: isSelected ? Theme.of(context).colorScheme.primary : context.colors.textSecondary,
+            size: 20,
+          ),
+          const SizedBox(width: 12),
+          Text(
+            title,
+            style: TextStyle(
+              color: isSelected ? context.colors.textPrimary : context.colors.textSecondary,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final player       = context.watch<PlayerProvider>();
@@ -264,7 +305,10 @@ class _AppShellState extends State<AppShell> {
         currentView = const AnalyticsView();
         break;
       case 3:
-        currentView = SearchView(onNavigate: (i) => setState(() => _currentViewIndex = i));
+        currentView = SearchView(
+          onNavigate: (i) => setState(() => _currentViewIndex = i),
+          searchController: _searchController,
+        );
         break;
       case 4:
         currentView = const DownloadsPage();
@@ -281,23 +325,86 @@ class _AppShellState extends State<AppShell> {
               ? AppBar(
                   backgroundColor: context.colors.bg,
                   elevation: 0,
-                  iconTheme: IconThemeData(color: context.colors.textPrimary),
-                  title: Text(
-                    AppLocalizations.of(context)!.appTitle,
-                    style: TextStyle(color: context.colors.textPrimary),
-                  ),
-                )
-              : null,
-          drawer: isMobile
-              ? Drawer(
-                  child: SidebarWidget(
-                    currentIndex: _currentViewIndex,
-                    isCollapsed: false,
-                    onToggle: () => Navigator.pop(context),
-                    onNavigate: (index) {
-                      setState(() => _currentViewIndex = index);
-                      Navigator.pop(context);
-                    },
+                  automaticallyImplyLeading: false,
+                  titleSpacing: 12,
+                  title: Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          height: 38,
+                          decoration: BoxDecoration(
+                            color: context.colors.surfaceAlt,
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: ValueListenableBuilder<TextEditingValue>(
+                            valueListenable: _searchController,
+                            builder: (context, value, _) {
+                              return TextField(
+                                controller: _searchController,
+                                style: TextStyle(
+                                  color: context.colors.textPrimary,
+                                  fontSize: 14,
+                                ),
+                                decoration: InputDecoration(
+                                  hintText: 'Buscar música...',
+                                  hintStyle: TextStyle(
+                                    color: context.colors.textSecondary.withOpacity(0.5),
+                                    fontSize: 13,
+                                  ),
+                                  prefixIcon: Icon(
+                                    Icons.search_rounded,
+                                    color: context.colors.textSecondary.withOpacity(0.7),
+                                    size: 18,
+                                  ),
+                                  suffixIcon: value.text.isNotEmpty
+                                      ? IconButton(
+                                          icon: Icon(Icons.close_rounded, color: context.colors.textSecondary, size: 16),
+                                          padding: EdgeInsets.zero,
+                                          constraints: const BoxConstraints(),
+                                          onPressed: () => _searchController.clear(),
+                                        )
+                                      : null,
+                                  border: InputBorder.none,
+                                  contentPadding: const EdgeInsets.symmetric(vertical: 9),
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      PopupMenuButton<int>(
+                        icon: Icon(
+                          Icons.menu_rounded,
+                          color: context.colors.textSecondary,
+                          size: 20,
+                        ),
+                        offset: const Offset(0, 44),
+                        color: context.colors.bg,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        onSelected: (index) {
+                          if (index == 5) {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(builder: (_) => const SettingsPage()),
+                            );
+                          } else {
+                            if (index != 3) {
+                              _searchController.clear();
+                            }
+                            setState(() => _currentViewIndex = index);
+                          }
+                        },
+                        itemBuilder: (context) => [
+                          _buildPopupMenuItem(0, Icons.home_rounded, 'Inicio'),
+                          _buildPopupMenuItem(1, Icons.library_music_rounded, 'Biblioteca'),
+                          _buildPopupMenuItem(2, Icons.analytics_rounded, 'Análisis'),
+                          _buildPopupMenuItem(3, Icons.search_rounded, 'Buscar'),
+                          _buildPopupMenuItem(4, Icons.download_rounded, 'Descargas'),
+                          const PopupMenuDivider(),
+                          _buildPopupMenuItem(5, Icons.settings_rounded, 'Configuración'),
+                        ],
+                      ),
+                    ],
                   ),
                 )
               : null,

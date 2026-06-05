@@ -287,14 +287,15 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
     return Container(
-      height: 52,
-      padding: EdgeInsets.symmetric(horizontal: isCollapsed ? 20 : 16),
+      height: isMobile ? 44 : 52,
+      padding: EdgeInsets.symmetric(horizontal: isCollapsed ? (isMobile ? 14 : 20) : (isMobile ? 12 : 16)),
       child: Row(
         mainAxisAlignment: isCollapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
         children: [
           IconButton(
-            icon: Icon(Icons.menu, size: 20),
+            icon: Icon(Icons.menu, size: isMobile ? 18 : 20),
             color: context.colors.textPrimary,
             onPressed: onToggle,
             padding: EdgeInsets.zero,
@@ -302,19 +303,19 @@ class _Header extends StatelessWidget {
             tooltip: AppLocalizations.of(context)!.appTitle,
           ),
           if (!isCollapsed) ...[
-            const SizedBox(width: 12),
+            const SizedBox(width: 10),
             ShaderMask(
               shaderCallback: (b) => context.colors.gradient.createShader(b),
-              child: Icon(Icons.music_note_rounded, color: Colors.white, size: 22),
+              child: Icon(Icons.music_note_rounded, color: Colors.white, size: isMobile ? 18 : 22),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             Expanded(
               child: Text(
                 AppLocalizations.of(context)!.appTitle,
                 style: TextStyle(
                   color: context.colors.textPrimary,
                   fontWeight: FontWeight.w700,
-                  fontSize: 14,
+                  fontSize: isMobile ? 13 : 14,
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -367,15 +368,16 @@ class _PlaylistTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final color = isSelected ? Theme.of(context).colorScheme.primary : context.colors.textSecondary;
+    final isMobile = MediaQuery.of(context).size.width < 600;
     
     Widget leadingIcon;
     if (playlist.isLibrary) {
-      leadingIcon = Icon(Icons.library_music_outlined, size: 24, color: color);
+      leadingIcon = Icon(Icons.library_music_outlined, size: isMobile ? 18 : 24, color: color);
     } else {
       final initial = playlist.name.isNotEmpty ? playlist.name[0].toUpperCase() : '?';
       leadingIcon = Container(
-        width: 20,
-        height: 20,
+        width: isMobile ? 16 : 20,
+        height: isMobile ? 16 : 20,
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: isSelected ? color.withOpacity(0.2) : context.colors.border,
@@ -384,7 +386,7 @@ class _PlaylistTile extends StatelessWidget {
         child: Text(
           initial,
           style: TextStyle(
-            fontSize: 13,
+            fontSize: isMobile ? 10 : 13,
             fontWeight: FontWeight.w700,
             color: isSelected ? color : context.colors.textPrimary,
           ),
@@ -401,15 +403,22 @@ class _PlaylistTile extends StatelessWidget {
           onSecondaryTapUp: (onDelete != null || onRename != null)
               ? (details) => _showContextMenu(context, details.globalPosition)
               : null,
+          onLongPress: (onDelete != null || onRename != null)
+              ? () async {
+                  final RenderBox box = context.findRenderObject() as RenderBox;
+                  final pos = box.localToGlobal(Offset.zero);
+                  _showContextMenu(context, Offset(pos.dx + box.size.width / 2, pos.dy));
+                }
+              : null,
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 1),
+            padding: EdgeInsets.symmetric(horizontal: isMobile ? 10 : 14, vertical: 1),
             child: Material(
               type: MaterialType.transparency,
               child: InkWell(
                 onTap: onTap,
                 borderRadius: BorderRadius.circular(8),
                 child: Container(
-                  height: 36,
+                  height: isMobile ? 30 : 36,
                   decoration: BoxDecoration(
                     color: isSelected ? Theme.of(context).colorScheme.primary.withOpacity(0.12) : Colors.transparent,
                     borderRadius: BorderRadius.circular(8),
@@ -421,12 +430,12 @@ class _PlaylistTile extends StatelessWidget {
                     children: [
                       leadingIcon,
                       if (!isCollapsed) ...[
-                        const SizedBox(width: 12),
+                        const SizedBox(width: 10),
                         Expanded(
                           child: Text(
                             playlist.name,
                             style: TextStyle(
-                              fontSize: 15,
+                              fontSize: isMobile ? 13 : 15,
                               color: isSelected ? context.colors.textPrimary : context.colors.textSecondary,
                               fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                             ),
@@ -438,7 +447,7 @@ class _PlaylistTile extends StatelessWidget {
                             '${playlist.trackCount}',
                             style: TextStyle(
                               color: context.colors.textSecondary,
-                              fontSize: 13,
+                              fontSize: isMobile ? 11 : 13,
                             ),
                           ),
                       ],
@@ -478,36 +487,42 @@ class _NewPlaylistButton extends StatelessWidget {
   const _NewPlaylistButton({required this.isCollapsed, required this.onPressed});
 
   @override
-  Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        child: SizedBox(
-          width: double.infinity,
-          height: 36,
-          child: OutlinedButton(
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.primary,
-              side: BorderSide(color: Theme.of(context).colorScheme.primary),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-              padding: EdgeInsets.zero,
-            ),
-            onPressed: onPressed,
-            child: Tooltip(
-              message: isCollapsed ? AppLocalizations.of(context)!.newPlaylist : '',
-              waitDuration: const Duration(milliseconds: 500),
-              child: isCollapsed
-                  ? Icon(Icons.add, size: 18)
-                  : Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.add, size: 16),
-                        const SizedBox(width: 8),
-                        Text(AppLocalizations.of(context)!.newPlaylist, style: TextStyle(fontSize: 15)),
-                      ],
-                    ),
-            ),
+  Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 10 : 14, vertical: isMobile ? 6 : 8),
+      child: SizedBox(
+        width: double.infinity,
+        height: isMobile ? 30 : 36,
+        child: OutlinedButton(
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Theme.of(context).colorScheme.primary,
+            side: BorderSide(color: Theme.of(context).colorScheme.primary),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            padding: EdgeInsets.zero,
+          ),
+          onPressed: onPressed,
+          child: Tooltip(
+            message: isCollapsed ? AppLocalizations.of(context)!.newPlaylist : '',
+            waitDuration: const Duration(milliseconds: 500),
+            child: isCollapsed
+                ? Icon(Icons.add, size: isMobile ? 16 : 18)
+                : Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.add, size: isMobile ? 14 : 16),
+                      const SizedBox(width: 6),
+                      Text(
+                        AppLocalizations.of(context)!.newPlaylist,
+                        style: TextStyle(fontSize: isMobile ? 13 : 15),
+                      ),
+                    ],
+                  ),
           ),
         ),
-      );
+      ),
+    );
+  }
 }
 
 class _NavItem extends StatelessWidget {
@@ -530,20 +545,21 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
     return Tooltip(
       message: isCollapsed ? label : '',
       waitDuration: const Duration(milliseconds: 500),
       child: HoverScale(
         scale: 1.02,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 1),
+          padding: EdgeInsets.symmetric(horizontal: isMobile ? 10 : 14, vertical: 1),
           child: Material(
             type: MaterialType.transparency,
             child: InkWell(
               onTap: onTap,
               borderRadius: BorderRadius.circular(8),
               child: Container(
-                height: 36,
+                height: isMobile ? 30 : 36,
                 decoration: BoxDecoration(
                   color: isSelected ? Theme.of(context).colorScheme.primary.withOpacity(0.12) : Colors.transparent,
                   borderRadius: BorderRadius.circular(8),
@@ -558,7 +574,7 @@ class _NavItem extends StatelessWidget {
                       children: [
                         Icon(
                           icon,
-                          size: 24,
+                          size: isMobile ? 20 : 24,
                           color: isSelected ? Theme.of(context).colorScheme.primary : context.colors.textSecondary,
                         ),
                         if (isCollapsed && badgeCount > 0)
@@ -577,12 +593,12 @@ class _NavItem extends StatelessWidget {
                       ],
                     ),
                     if (!isCollapsed) ...[
-                      const SizedBox(width: 12),
+                      SizedBox(width: isMobile ? 10 : 12),
                       Expanded(
                         child: Text(
                           label,
                           style: TextStyle(
-                            fontSize: 15,
+                            fontSize: isMobile ? 13 : 15,
                             color: isSelected ? context.colors.textPrimary : context.colors.textSecondary,
                             fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
                           ),

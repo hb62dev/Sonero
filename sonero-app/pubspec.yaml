@@ -55,6 +55,16 @@ dependencies:
   flutter_background_service: ^5.1.0
   record: ^6.2.0
   path_provider: ^2.1.5
+  # Native backend replacements
+  youtube_explode_dart: ^3.1.0
+  sqflite: ^2.3.0
+  sqflite_common_ffi: ^2.3.0
+  dio: ^5.4.0
+  audiotags: ^1.2.0
+  permission_handler: ^12.0.1
+  uuid: ^4.3.3
+  audio_service: ^0.18.12
+  flutter_local_notifications: ^17.0.0
 
 dev_dependencies:
   flutter_test:
@@ -64,3 +74,6 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   generate: true
+
+  assets:
+    - assets/app/

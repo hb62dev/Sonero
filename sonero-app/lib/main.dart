@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:hotkey_manager/hotkey_manager.dart';
 import 'package:media_kit/media_kit.dart';
 import 'package:window_manager/window_manager.dart';
-
 import 'app.dart';
 import 'services/background_listen_service.dart';
+import 'package:audio_service/audio_service.dart';
+import 'services/audio_handler.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 /// Handle to the Python backend process so we can kill it on exit.
 Process? _backendProcess;
@@ -15,6 +17,44 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   MediaKit.ensureInitialized();
 
+  if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+    try {
+      SoneroAudioHandler.instance = await AudioService.init(
+        builder: () => SoneroAudioHandler(),
+        config: const AudioServiceConfig(
+          androidNotificationChannelId: 'com.example.sonero.channel.audio',
+          androidNotificationChannelName: 'Reproductor Sonero',
+          androidNotificationOngoing: false,
+          androidStopForegroundOnPause: false,
+          androidShowNotificationBadge: true,
+        ),
+      );
+    } catch (e) {
+      debugPrint('Error initializing AudioService: $e');
+    }
+
+    try {
+      final notifications = FlutterLocalNotificationsPlugin();
+      const channel = AndroidNotificationChannel(
+        'sonero_background',
+        'Servicio Sonero',
+        description: 'Identificación y descargas rápidas',
+        importance: Importance.low,
+      );
+      await notifications
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(channel);
+    } catch (e) {
+      debugPrint('Error creating notification channel: $e');
+    }
+
+    try {
+      await BackgroundListenService.initialize();
+    } catch (e) {
+      debugPrint('Error initializing BackgroundListenService: $e');
+    }
+  }
   // Suppress transient red error screens (e.g. during track transitions).
   // In debug mode, keep the default error widget for development visibility.
   if (!kDebugMode) {
@@ -29,9 +69,6 @@ void main() async {
     await _startBackend();
   }
 
-  if (!kIsWeb && Platform.isAndroid) {
-    // await BackgroundListenService.initialize();
-  }
 
   // Desktop-only setup (window manager + hotkeys)
   if (!kIsWeb && Platform.isWindows) {
@@ -67,7 +104,6 @@ Future<bool> _isBackendAlive(String url) async {
     client.close();
   }
 }
-
 /// Launches `sonero_backend.exe` next to the Flutter executable.
 /// The process runs hidden (no console window) and is killed when the app exits.
 Future<void> _startBackend() async {
@@ -79,7 +115,6 @@ Future<void> _startBackend() async {
       debugPrint('Backend is already running. Skipping startup.');
       return;
     }
-
     final exeDir = File(Platform.resolvedExecutable).parent.path;
     final backendPath = '$exeDir${Platform.pathSeparator}sonero_backend${Platform.pathSeparator}sonero_backend.exe';
 
@@ -117,7 +152,6 @@ Future<void> _startBackend() async {
     } else {
       debugPrint('Warning: Backend started but health check timed out.');
     }
-
     // Ensure cleanup on app exit
     ProcessSignal.sigint.watch().listen((_) => _killBackend());
   } catch (e) {
@@ -132,3 +166,4 @@ void _killBackend() {
     _backendProcess = null;
   }
 }
+

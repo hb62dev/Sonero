@@ -1236,3 +1236,10 @@ class _AnalyticsViewState extends State<AnalyticsView> with SingleTickerProvider
     );
   }
 }
+
+class _StatData {
+  final String title;
+  final String value;
+  final IconData icon;
+  const _StatData(this.title, this.value, this.icon);
+}

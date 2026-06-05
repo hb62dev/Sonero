@@ -74,37 +74,44 @@ class _LibraryPageState extends State<LibraryPage>
         ),
 
         // ── Tabs ─────────────────────────────────────────────────────────────
-        TabBar(
-          controller: _tabController,
-          isScrollable: false,
-          indicatorColor: Theme.of(context).colorScheme.primary,
-          labelColor: Theme.of(context).colorScheme.primary,
-          unselectedLabelColor: context.colors.textSecondary,
-          labelStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
-          tabs: [
-            Tab(
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.library_music_rounded, size: 16),
-                const SizedBox(width: 6),
-                Text('Todo (${allTracks.length})'),
-              ]),
-            ),
-            Tab(
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.audiotrack_rounded, size: 16),
-                const SizedBox(width: 6),
-                Text('Audio (${audioTracks.length})'),
-              ]),
-            ),
-            Tab(
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                const Icon(Icons.videocam_rounded, size: 16),
-                const SizedBox(width: 6),
-                Text('Video (${videoTracks.length})'),
-              ]),
-            ),
-          ],
-        ),
+        Builder(builder: (context) {
+          final isMobile = MediaQuery.of(context).size.width < 600;
+          return TabBar(
+            controller: _tabController,
+            isScrollable: false,
+            indicatorColor: Theme.of(context).colorScheme.primary,
+            labelColor: Theme.of(context).colorScheme.primary,
+            unselectedLabelColor: context.colors.textSecondary,
+            labelStyle: TextStyle(fontWeight: FontWeight.w600, fontSize: isMobile ? 11 : 13),
+            labelPadding: isMobile ? const EdgeInsets.symmetric(horizontal: 6) : null,
+            tabs: [
+              Tab(
+                height: isMobile ? 36 : null,
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.library_music_rounded, size: isMobile ? 14 : 16),
+                  const SizedBox(width: 4),
+                  Text('Todo (${allTracks.length})'),
+                ]),
+              ),
+              Tab(
+                height: isMobile ? 36 : null,
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.audiotrack_rounded, size: isMobile ? 14 : 16),
+                  const SizedBox(width: 4),
+                  Text('Audio (${audioTracks.length})'),
+                ]),
+              ),
+              Tab(
+                height: isMobile ? 36 : null,
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.videocam_rounded, size: isMobile ? 14 : 16),
+                  const SizedBox(width: 4),
+                  Text('Video (${videoTracks.length})'),
+                ]),
+              ),
+            ],
+          );
+        }),
 
         Divider(height: 1, color: context.colors.border),
 

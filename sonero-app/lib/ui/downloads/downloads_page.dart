@@ -29,19 +29,24 @@ class DownloadsPage extends StatelessWidget {
   }
 
   Widget _buildHeader(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
     return Container(
-      height: 80,
-      padding: const EdgeInsets.symmetric(horizontal: 32),
+      height: isMobile ? 60 : 80,
+      padding: EdgeInsets.symmetric(horizontal: isMobile ? 16 : 32),
       child: Row(
         children: [
-          Icon(Icons.download_rounded, color: context.colors.textPrimary, size: 28),
-          const SizedBox(width: 16),
-          Text(
-            'Gestor de Descargas',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: context.colors.textPrimary,
+          Icon(Icons.download_rounded, color: context.colors.textPrimary, size: isMobile ? 22 : 28),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              'Gestor de Descargas',
+              style: TextStyle(
+                fontSize: isMobile ? 18 : 24,
+                fontWeight: FontWeight.bold,
+                color: context.colors.textPrimary,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
         ],
@@ -70,8 +75,9 @@ class DownloadsPage extends StatelessWidget {
   }
 
   Widget _buildList(BuildContext context, DownloadsProvider downloads) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
     return ListView.separated(
-      padding: const EdgeInsets.all(32),
+      padding: EdgeInsets.all(isMobile ? 16 : 32),
       itemCount: downloads.jobs.length,
       separatorBuilder: (_, __) => const SizedBox(height: 16),
       itemBuilder: (context, index) {

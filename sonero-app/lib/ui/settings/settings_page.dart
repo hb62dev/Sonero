@@ -9,6 +9,7 @@ import '../../core/hotkey_service.dart';
 import '../../providers/listen_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../theme.dart';
+import '../../services/log_service.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 class SettingsPage extends StatefulWidget {
@@ -23,6 +24,11 @@ class _SettingsPageState extends State<SettingsPage> {
   late final TextEditingController _durationCtrl;
   late final TextEditingController _googleClientIdCtrl;
   late final TextEditingController _googleClientSecretCtrl;
+  late final TextEditingController _geminiKeyCtrl;
+  late final TextEditingController _auddTokenCtrl;
+  late final TextEditingController _rapidApiKeyCtrl;
+  late final TextEditingController _rapidApiHostCtrl;
+  late final TextEditingController _shazamProxyUrlCtrl;
 
   @override
   void initState() {
@@ -32,6 +38,11 @@ class _SettingsPageState extends State<SettingsPage> {
     _durationCtrl = TextEditingController(text: settings.listenDuration.toString());
     _googleClientIdCtrl = TextEditingController(text: settings.googleClientId);
     _googleClientSecretCtrl = TextEditingController(text: settings.googleClientSecret);
+    _geminiKeyCtrl = TextEditingController(text: settings.geminiApiKey);
+    _auddTokenCtrl = TextEditingController(text: settings.auddApiToken);
+    _rapidApiKeyCtrl = TextEditingController(text: settings.rapidApiKey);
+    _rapidApiHostCtrl = TextEditingController(text: settings.rapidApiHost);
+    _shazamProxyUrlCtrl = TextEditingController(text: settings.shazamProxyUrl);
   }
 
   @override
@@ -40,6 +51,11 @@ class _SettingsPageState extends State<SettingsPage> {
     _durationCtrl.dispose();
     _googleClientIdCtrl.dispose();
     _googleClientSecretCtrl.dispose();
+    _geminiKeyCtrl.dispose();
+    _auddTokenCtrl.dispose();
+    _rapidApiKeyCtrl.dispose();
+    _rapidApiHostCtrl.dispose();
+    _shazamProxyUrlCtrl.dispose();
     super.dispose();
   }
 
@@ -61,7 +77,12 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
       ),
       body: ListView(
-        padding: const EdgeInsets.all(24),
+        padding: EdgeInsets.fromLTRB(
+          MediaQuery.of(context).size.width < 600 ? 16 : 24,  // left
+          MediaQuery.of(context).size.width < 600 ? 16 : 24,  // top
+          MediaQuery.of(context).size.width < 600 ? 16 : 24,  // right
+          MediaQuery.of(context).size.width < 600 ? 40 : 32,  // bottom
+        ),
         children: [
           // ── Music folder ───────────────────────────────────────────────
           _Section(
@@ -74,11 +95,13 @@ class _SettingsPageState extends State<SettingsPage> {
                     : 'No seleccionada',
               ),
               const SizedBox(height: 10),
-              Row(
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
                   ElevatedButton.icon(
-                    icon: Icon(Icons.folder_open, size: 16),
-                    label: Text('Seleccionar carpeta'),
+                    icon: const Icon(Icons.folder_open, size: 16),
+                    label: const Text('Seleccionar carpeta'),
                     onPressed: () async {
                       final result = await FilePicker.getDirectoryPath(
                         dialogTitle: 'Selecciona la carpeta donde guardar la música',
@@ -89,10 +112,9 @@ class _SettingsPageState extends State<SettingsPage> {
                     },
                   ),
                   if (settings.hasMusicFolder) ...[
-                    const SizedBox(width: 8),
                     OutlinedButton.icon(
-                      icon: Icon(Icons.open_in_new, size: 16),
-                      label: Text('Abrir'),
+                      icon: const Icon(Icons.open_in_new, size: 16),
+                      label: const Text('Abrir'),
                       onPressed: () {
                         final path = settings.musicFolder;
                         if (Platform.isWindows) {
@@ -129,11 +151,13 @@ class _SettingsPageState extends State<SettingsPage> {
                     : 'No seleccionada',
               ),
               const SizedBox(height: 10),
-              Row(
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
                   ElevatedButton.icon(
-                    icon: Icon(Icons.folder_open, size: 16),
-                    label: Text('Seleccionar carpeta'),
+                    icon: const Icon(Icons.folder_open, size: 16),
+                    label: const Text('Seleccionar carpeta'),
                     onPressed: () async {
                       final result = await FilePicker.getDirectoryPath(
                         dialogTitle: 'Selecciona la carpeta donde guardar los videos',
@@ -144,10 +168,9 @@ class _SettingsPageState extends State<SettingsPage> {
                     },
                   ),
                   if (settings.hasVideoFolder) ...[
-                    const SizedBox(width: 8),
                     OutlinedButton.icon(
-                      icon: Icon(Icons.open_in_new, size: 16),
-                      label: Text('Abrir'),
+                      icon: const Icon(Icons.open_in_new, size: 16),
+                      label: const Text('Abrir'),
                       onPressed: () {
                         final path = settings.videoFolder;
                         if (Platform.isWindows) {
@@ -482,6 +505,151 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
 
           const SizedBox(height: 24),
+
+          // ── Servicio de Reconocimiento ─────────────────────────────────
+          _Section(
+            title: 'Reconocimiento de Música',
+            icon: Icons.music_note_rounded,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Proveedor', style: TextStyle(color: context.colors.textPrimary)),
+                  DropdownButton<String>(
+                    value: settings.recognitionService,
+                    dropdownColor: context.colors.surfaceAlt,
+                    underline: const SizedBox(),
+                    items: const [
+                      DropdownMenuItem(value: 'gemini', child: Text('Google Gemini (Flash)')),
+                      DropdownMenuItem(value: 'audd', child: Text('AudD API')),
+                      DropdownMenuItem(value: 'rapidapi', child: Text('RapidAPI Shazam')),
+                      DropdownMenuItem(value: 'shazam_proxy', child: Text('Shazam (Servidor Proxy)')),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) {
+                        settings.setRecognitionService(val);
+                      }
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              if (settings.recognitionService == 'gemini') ...[
+                TextField(
+                  controller: _geminiKeyCtrl,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Gemini API Key',
+                    hintText: 'AIzaSy...',
+                    prefixIcon: Icon(Icons.key, size: 18),
+                  ),
+                  style: const TextStyle(fontSize: 13),
+                  onSubmitted: (v) => settings.setGeminiApiKey(v.trim()),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton(
+                  onPressed: () {
+                    settings.setGeminiApiKey(_geminiKeyCtrl.text.trim());
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('API Key de Gemini guardada'),
+                      duration: Duration(seconds: 2),
+                    ));
+                  },
+                  child: const Text('Guardar API Key'),
+                ),
+              ] else if (settings.recognitionService == 'audd') ...[
+                TextField(
+                  controller: _auddTokenCtrl,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'AudD API Token',
+                    hintText: 'Tu token de AudD',
+                    prefixIcon: Icon(Icons.key, size: 18),
+                  ),
+                  style: const TextStyle(fontSize: 13),
+                  onSubmitted: (v) => settings.setAudDApiToken(v.trim()),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton(
+                  onPressed: () {
+                    settings.setAudDApiToken(_auddTokenCtrl.text.trim());
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('Token de AudD guardado'),
+                      duration: Duration(seconds: 2),
+                    ));
+                  },
+                  child: const Text('Guardar Token'),
+                ),
+              ] else if (settings.recognitionService == 'rapidapi') ...[
+                TextField(
+                  controller: _rapidApiKeyCtrl,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: 'RapidAPI Key',
+                    hintText: 'Tu clave x-rapidapi-key',
+                    prefixIcon: Icon(Icons.key, size: 18),
+                  ),
+                  style: const TextStyle(fontSize: 13),
+                  onSubmitted: (v) => settings.setRapidApiKey(v.trim()),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _rapidApiHostCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'RapidAPI Host',
+                    hintText: 'shazam-song-recognizer.p.rapidapi.com',
+                    prefixIcon: Icon(Icons.dns, size: 18),
+                  ),
+                  style: const TextStyle(fontSize: 13),
+                  onSubmitted: (v) => settings.setRapidApiHost(v.trim()),
+                ),
+                const SizedBox(height: 8),
+                ElevatedButton(
+                  onPressed: () {
+                    settings.setRapidApiKey(_rapidApiKeyCtrl.text.trim());
+                    settings.setRapidApiHost(_rapidApiHostCtrl.text.trim());
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('Credenciales de RapidAPI guardadas'),
+                      duration: Duration(seconds: 2),
+                    ));
+                  },
+                  child: const Text('Guardar Credenciales'),
+                ),
+              ] else if (settings.recognitionService == 'shazam_proxy') ...[
+                TextField(
+                  controller: _shazamProxyUrlCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'URL del Servidor Proxy',
+                    hintText: 'https://mi-espacio.hf.space o http://192.168.1.50:8000',
+                    prefixIcon: Icon(Icons.link, size: 18),
+                  ),
+                  style: const TextStyle(fontSize: 13),
+                  onSubmitted: (v) => settings.setShazamProxyUrl(v.trim()),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Este modo envía el audio grabado a un servidor proxy que ejecuta shazamio. '
+                  'Puedes usar tu backend local de Sonero o crear tu propio servidor gratuito '
+                  'en Hugging Face Spaces (instrucciones y archivos en sonero-api/deploy_huggingface/).',
+                  style: TextStyle(fontSize: 12, color: context.colors.textSecondary),
+                ),
+                const SizedBox(height: 12),
+                ElevatedButton(
+                  onPressed: () {
+                    settings.setShazamProxyUrl(_shazamProxyUrlCtrl.text.trim());
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                      content: Text('URL del Proxy de Shazam guardada'),
+                      duration: Duration(seconds: 2),
+                    ));
+                  },
+                  child: const Text('Guardar URL del Proxy'),
+                ),
+              ],
+            ],
+          ),
+
+          const SizedBox(height: 24),
+
           // ── Backend API URL ────────────────────────────────────────────
           _Section(
             title: AppLocalizations.of(context)!.apiConnection,
@@ -497,16 +665,17 @@ class _SettingsPageState extends State<SettingsPage> {
                 onSubmitted: (v) => settings.setApiUrl(v.trim()),
               ),
               const SizedBox(height: 8),
-              Row(
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
                   ElevatedButton(
                     onPressed: () => settings.setApiUrl(_apiUrlCtrl.text.trim()),
-                    child: Text('Guardar URL'),
+                    child: const Text('Guardar URL'),
                   ),
-                  const SizedBox(width: 8),
                   OutlinedButton.icon(
-                    icon: Icon(Icons.refresh, size: 16),
-                    label: Text('Refetch / Probar'),
+                    icon: const Icon(Icons.refresh, size: 16),
+                    label: const Text('Refetch / Probar'),
                     onPressed: () async {
                       final isAlive = await settings.api.checkHealth();
                       if (context.mounted) {
@@ -565,56 +734,108 @@ class _SettingsPageState extends State<SettingsPage> {
 
           const SizedBox(height: 24),
 
-          // ── Hotkeys ────────────────────────────────────────────────────
+          // ── Lyrics latency/offset ──────────────────────────────────────
           _Section(
-            title: 'Atajos de teclado globales',
-            icon: Icons.keyboard_outlined,
+            title: 'Retraso de letras global',
+            icon: Icons.sync_rounded,
             children: [
+              Row(
+                children: [
+                  IconButton(
+                    icon: Icon(Icons.remove_circle_outline_rounded, color: context.colors.textSecondary),
+                    onPressed: () => settings.setLyricsOffset(settings.lyricsOffset - 100),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: context.colors.surfaceAlt,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      '${settings.lyricsOffset >= 0 ? "+" : ""}${(settings.lyricsOffset / 1000.0).toStringAsFixed(2)}s',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: settings.lyricsOffset == 0
+                            ? context.colors.textSecondary
+                            : Theme.of(context).colorScheme.primary,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    icon: Icon(Icons.add_circle_outline_rounded, color: context.colors.textSecondary),
+                    onPressed: () => settings.setLyricsOffset(settings.lyricsOffset + 100),
+                  ),
+                  if (settings.lyricsOffset != 0) ...[
+                    const SizedBox(width: 8),
+                    TextButton(
+                      onPressed: () => settings.setLyricsOffset(0),
+                      child: const Text('Restablecer'),
+                    ),
+                  ],
+                ],
+              ),
               Text(
-                'Funcionan aunque la ventana esté minimizada.',
-                style: TextStyle(color: context.colors.textSecondary, fontSize: 12),
-              ),
-              const SizedBox(height: 16),
-              _HotkeyRow(
-                label: '🎙️ Escuchar con Micrófono',
-                currentKey: HotkeyService.label(
-                    context.read<HotkeyService>().currentMicHotkey),
-                onRecord: () => _recordHotkey(context, type: 'mic'),
-              ),
-              const SizedBox(height: 12),
-              _HotkeyRow(
-                label: '🖥️ Escuchar Audio del Sistema',
-                currentKey: HotkeyService.label(
-                    context.read<HotkeyService>().currentSystemHotkey),
-                onRecord: () => _recordHotkey(context, type: 'system'),
-              ),
-              const SizedBox(height: 12),
-              _HotkeyRow(
-                label: '📺 Descargar Video (Portapapeles)',
-                currentKey: HotkeyService.label(
-                    context.read<HotkeyService>().currentVideoHotkey),
-                onRecord: () => _recordHotkey(context, type: 'video'),
-              ),
-              const SizedBox(height: 12),
-              _HotkeyRow(
-                label: '👀 Mostrar Ventana',
-                currentKey: HotkeyService.label(
-                    context.read<HotkeyService>().currentShowHotkey),
-                onRecord: () => _recordHotkey(context, type: 'show'),
-              ),
-              const SizedBox(height: 12),
-              _HotkeyRow(
-                label: '👻 Ocultar Ventana',
-                currentKey: HotkeyService.label(
-                    context.read<HotkeyService>().currentHideHotkey),
-                onRecord: () => _recordHotkey(context, type: 'hide'),
+                'Compensa la latencia del audio (ej. audífonos Bluetooth). Valores positivos retrasan las letras (se muestran después); negativos las adelantan (se muestran antes).',
+                style: TextStyle(color: context.colors.textSecondary, fontSize: 11),
               ),
             ],
           ),
 
           const SizedBox(height: 24),
 
-          // ── Mic device ────────────────────────────────────────────────
+          // ── Hotkeys ──────────────────────────────────────────────────
+          // Solo se muestran en escritorio: en Android no existen teclas globales
+          if (!Platform.isAndroid) ...[
+            _Section(
+              title: 'Atajos de teclado globales',
+              icon: Icons.keyboard_outlined,
+              children: [
+                Text(
+                  'Funcionan aunque la ventana esté minimizada.',
+                  style: TextStyle(color: context.colors.textSecondary, fontSize: 12),
+                ),
+                const SizedBox(height: 16),
+                _HotkeyRow(
+                  label: '🎙️ Escuchar con Micrófono',
+                  currentKey: HotkeyService.label(
+                      context.read<HotkeyService>().currentMicHotkey),
+                  onRecord: () => _recordHotkey(context, type: 'mic'),
+                ),
+                const SizedBox(height: 12),
+                _HotkeyRow(
+                  label: '🖥️ Escuchar Audio del Sistema',
+                  currentKey: HotkeyService.label(
+                      context.read<HotkeyService>().currentSystemHotkey),
+                  onRecord: () => _recordHotkey(context, type: 'system'),
+                ),
+                const SizedBox(height: 12),
+                _HotkeyRow(
+                  label: '📺 Descargar Video (Portapapeles)',
+                  currentKey: HotkeyService.label(
+                      context.read<HotkeyService>().currentVideoHotkey),
+                  onRecord: () => _recordHotkey(context, type: 'video'),
+                ),
+                const SizedBox(height: 12),
+                _HotkeyRow(
+                  label: '👀 Mostrar Ventana',
+                  currentKey: HotkeyService.label(
+                      context.read<HotkeyService>().currentShowHotkey),
+                  onRecord: () => _recordHotkey(context, type: 'show'),
+                ),
+                const SizedBox(height: 12),
+                _HotkeyRow(
+                  label: '👻 Ocultar Ventana',
+                  currentKey: HotkeyService.label(
+                      context.read<HotkeyService>().currentHideHotkey),
+                  onRecord: () => _recordHotkey(context, type: 'hide'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+          ],
+
+          // ── Mic device ─────────────────────────────────────────────
           _Section(
             title: 'Dispositivo de micrófono',
             icon: Icons.mic_outlined,
@@ -623,11 +844,13 @@ class _SettingsPageState extends State<SettingsPage> {
                   ? 'Dispositivo #${settings.deviceIndex}'
                   : 'Default del sistema'),
               const SizedBox(height: 8),
-              Row(
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
                   ElevatedButton.icon(
-                    icon: Icon(Icons.search, size: 16),
-                    label: Text('Detectar dispositivos'),
+                    icon: const Icon(Icons.search, size: 16),
+                    label: const Text('Detectar dispositivos'),
                     onPressed: () => _showDeviceDialog(context, settings),
                   ),
                   if (settings.deviceIndex != null) ...[
@@ -642,8 +865,143 @@ class _SettingsPageState extends State<SettingsPage> {
               ),
             ],
           ),
+
+          const SizedBox(height: 24),
+
+          // ── Logs de Diagnóstico ───────────────────────────────────────
+          _Section(
+            title: 'Logs de Diagnóstico',
+            icon: Icons.developer_mode_outlined,
+            children: [
+              Text(
+                'Usa esta sección para ver y depurar el funcionamiento interno de la aplicación (ej. descargas y sockets).',
+                style: TextStyle(color: context.colors.textSecondary, fontSize: 11),
+              ),
+              const SizedBox(height: 12),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.list_alt_rounded, size: 16),
+                label: const Text('Ver Logs de Sonero'),
+                onPressed: () => _showLogsDialog(context),
+              ),
+            ],
+          ),
         ],
       ),
+    );
+  }
+
+  void _showLogsDialog(BuildContext pageContext) {
+    showDialog(
+      context: pageContext,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return FutureBuilder<List<String>>(
+              future: LogService.getLogs(),
+              builder: (context, snapshot) {
+                final logs = snapshot.data ?? [];
+                final isLoading = snapshot.connectionState == ConnectionState.waiting;
+                return AlertDialog(
+                  backgroundColor: context.colors.surfaceAlt,
+                  title: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Logs de Diagnóstico'),
+                      Row(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.copy_rounded),
+                            tooltip: 'Copiar logs',
+                            onPressed: () async {
+                              if (logs.isNotEmpty) {
+                                await Clipboard.setData(ClipboardData(text: logs.join('\n')));
+                                if (pageContext.mounted) {
+                                  ScaffoldMessenger.of(pageContext).showSnackBar(
+                                    SnackBar(
+                                      content: const Text('Logs copiados al portapapeles'),
+                                      backgroundColor: pageContext.colors.success,
+                                      duration: const Duration(seconds: 2),
+                                    ),
+                                  );
+                                }
+                              } else {
+                                if (pageContext.mounted) {
+                                  ScaffoldMessenger.of(pageContext).showSnackBar(
+                                    SnackBar(
+                                      content: const Text('No hay logs para copiar'),
+                                      backgroundColor: pageContext.colors.error,
+                                      duration: const Duration(seconds: 2),
+                                    ),
+                                  );
+                                }
+                              }
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.refresh_rounded),
+                            tooltip: 'Actualizar',
+                            onPressed: () => setState(() {}),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline_rounded),
+                            tooltip: 'Limpiar',
+                            onPressed: () async {
+                              await LogService.clear();
+                              setState(() {});
+                            },
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                  content: SizedBox(
+                    width: double.maxFinite,
+                    height: 400,
+                    child: isLoading
+                        ? const Center(child: CircularProgressIndicator())
+                        : logs.isEmpty
+                            ? Center(
+                                child: Text(
+                                  'No hay logs registrados aún.',
+                                  style: TextStyle(color: context.colors.textSecondary),
+                                ),
+                              )
+                            : Container(
+                                padding: const EdgeInsets.all(8),
+                                decoration: BoxDecoration(
+                                  color: context.colors.bg,
+                                  borderRadius: BorderRadius.circular(8),
+                                  border: Border.all(color: context.colors.border),
+                                ),
+                                child: ListView.builder(
+                                  itemCount: logs.length,
+                                  itemBuilder: (context, index) {
+                                    return Padding(
+                                      padding: const EdgeInsets.symmetric(vertical: 2.0),
+                                      child: Text(
+                                        logs[index],
+                                        style: const TextStyle(
+                                          fontFamily: 'monospace',
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                                ),
+                              ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cerrar'),
+                    ),
+                  ],
+                );
+              },
+            );
+          },
+        );
+      },
     );
   }
 
@@ -788,32 +1146,35 @@ class _Section extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) => Container(
-        padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(
-          color: context.colors.surface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: context.colors.border),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
-                const SizedBox(width: 8),
-                Text(title,
-                    style: TextStyle(
-                        color: context.colors.textPrimary,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14)),
-              ],
-            ),
-            const SizedBox(height: 16),
-            ...children,
-          ],
-        ),
-      );
+  Widget build(BuildContext context) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
+    return Container(
+      padding: EdgeInsets.all(isMobile ? 14 : 20),
+      decoration: BoxDecoration(
+        color: context.colors.surface,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: context.colors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: isMobile ? 16 : 18, color: Theme.of(context).colorScheme.primary),
+              SizedBox(width: isMobile ? 6 : 8),
+              Text(title,
+                  style: TextStyle(
+                      color: context.colors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: isMobile ? 13 : 14)),
+            ],
+          ),
+          SizedBox(height: isMobile ? 12 : 16),
+          ...children,
+        ],
+      ),
+    );
+  }
 }
 
 class _InfoText extends StatelessWidget {
@@ -848,41 +1209,61 @@ class _HotkeyRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label,
-                    style: TextStyle(
-                        color: context.colors.textPrimary, fontSize: 13)),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: context.colors.textPrimary,
+                    fontSize: 13,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
                 const SizedBox(height: 4),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
                     color: context.colors.bg,
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5)),
+                    border: Border.all(
+                        color: Theme.of(context)
+                            .colorScheme
+                            .primary
+                            .withValues(alpha: 0.5)),
                   ),
-                  child: Text(currentKey,
-                      style: TextStyle(
-                          color: Theme.of(context).colorScheme.primary,
-                          fontSize: 12,
-                          fontFamily: 'monospace')),
+                  child: Text(
+                    currentKey,
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontSize: 11,
+                      fontFamily: 'monospace',
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
             ),
           ),
           const SizedBox(width: 12),
-          OutlinedButton(
-            onPressed: onRecord,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Theme.of(context).colorScheme.secondary,
-              side: BorderSide(color: Theme.of(context).colorScheme.secondary),
-              shape:
-                  RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          SizedBox(
+            width: 80,
+            child: OutlinedButton(
+              onPressed: onRecord,
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.secondary,
+                side: BorderSide(color: Theme.of(context).colorScheme.secondary),
+                shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8)),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+              ),
+              child: const Text('Cambiar', style: TextStyle(fontSize: 12)),
             ),
-            child: Text('Cambiar', style: TextStyle(fontSize: 12)),
           ),
         ],
       );
@@ -940,7 +1321,3 @@ class _HotkeyRecorderDialogState extends State<_HotkeyRecorderDialog> {
     );
   }
 }
-
-
-
-
