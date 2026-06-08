@@ -7,6 +7,7 @@ import '../../providers/player_provider.dart';
 import '../../models/track.dart';
 import '../../models/playlist.dart';
 import '../theme.dart';
+import '../widgets/track_cover_image.dart';
 import 'download_options_dialog.dart';
 
 class SearchView extends StatefulWidget {
@@ -287,9 +288,18 @@ class _LocalResultsColumn extends StatelessWidget {
           ...tracks.map((track) => ListTile(
                 leading: ClipRRect(
                   borderRadius: BorderRadius.circular(6),
-                  child: track.coverUrl != null
-                      ? Image.network(track.coverUrl!, width: 48, height: 48, fit: BoxFit.cover, errorBuilder: (_,__,___) => const Icon(Icons.music_note))
-                      : Container(width: 48, height: 48, color: context.colors.surfaceAlt, child: const Icon(Icons.music_note)),
+                  child: TrackCoverImage(
+                    coverUrl: track.coverUrl,
+                    width: 48,
+                    height: 48,
+                    fit: BoxFit.cover,
+                    errorWidget: Container(
+                      width: 48,
+                      height: 48,
+                      color: context.colors.surfaceAlt,
+                      child: const Icon(Icons.music_note),
+                    ),
+                  ),
                 ),
                 title: Text(track.title.isNotEmpty ? track.title : track.filename, style: TextStyle(color: context.colors.textPrimary)),
                 subtitle: Text(track.artist, style: TextStyle(color: context.colors.textSecondary)),

@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:io';
+import 'package:path/path.dart' as p;
 import 'package:flutter/foundation.dart';
 import '../core/api_client.dart';
 import '../models/playlist.dart';
@@ -196,6 +198,47 @@ class LibraryProvider extends ChangeNotifier {
 
   Future<void> deleteTrack(ApiClient api, Track track) async {
     if (api.isNative) {
+      final isVideo = track.filename.toLowerCase().endsWith('.mp4') ||
+          track.filename.toLowerCase().endsWith('.mkv') ||
+          track.filename.toLowerCase().endsWith('.avi') ||
+          track.filename.toLowerCase().endsWith('.mov') ||
+          track.filename.toLowerCase().endsWith('.webm') ||
+          track.filename.startsWith('videos/');
+
+      final activeFolder = isVideo ? (api.videoFolder ?? api.musicFolder) : api.musicFolder;
+      if (activeFolder != null && activeFolder.isNotEmpty) {
+        final cleanFilename = track.filename.startsWith('videos/') ? track.filename.substring(7) : track.filename;
+        final file = File(p.join(activeFolder, cleanFilename));
+        
+        try {
+          if (await file.exists()) {
+            await file.delete();
+            print("[LibraryProvider] Deleted physical file: ${file.path}");
+          }
+        } catch (e) {
+          print("[LibraryProvider] Error deleting physical file: $e");
+        }
+
+        // Also delete lyric files if present
+        try {
+          final stem = p.basenameWithoutExtension(cleanFilename);
+          
+          // 1. Delete from lyrics/ folder
+          final lrcFile = File(p.join(activeFolder, 'lyrics', '$stem.lrc'));
+          if (await lrcFile.exists()) await lrcFile.delete();
+          final txtFile = File(p.join(activeFolder, 'lyrics', '$stem.txt'));
+          if (await txtFile.exists()) await txtFile.delete();
+          
+          // 2. Delete next to the audio file if it is there
+          final dirPath = p.dirname(file.path);
+          final localLrc = File(p.join(dirPath, '$stem.lrc'));
+          if (await localLrc.exists()) await localLrc.delete();
+          final localTxt = File(p.join(dirPath, '$stem.txt'));
+          if (await localTxt.exists()) await localTxt.delete();
+        } catch (e) {
+          print("[LibraryProvider] Error deleting lyric files: $e");
+        }
+      }
       await DatabaseService.instance.deleteMedia(track.filename);
     } else {
       await api.deleteTrack(track.filename);

@@ -9,6 +9,7 @@ import '../../providers/player_provider.dart';
 import '../../core/csv_service.dart';
 import '../../services/lyrics_service.dart';
 import '../theme.dart';
+import '../widgets/track_cover_image.dart';
 import 'metadata_dialog.dart';
 
 class LibraryPage extends StatefulWidget {
@@ -470,14 +471,13 @@ class _TrackListRowState extends State<_TrackListRow> {
                 child: SizedBox(
                   width: 48,
                   height: 48,
-                  child: track.coverUrl != null
-                      ? Image.network(
-                          track.coverUrl!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (_, __, ___) =>
-                              _CoverPlaceholderSmall(isVideo: _isVideo(track)),
-                        )
-                      : _CoverPlaceholderSmall(isVideo: _isVideo(track)),
+                  child: TrackCoverImage(
+                    coverUrl: track.coverUrl,
+                    width: 48,
+                    height: 48,
+                    fit: BoxFit.cover,
+                    errorWidget: _CoverPlaceholderSmall(isVideo: _isVideo(track)),
+                  ),
                 ),
               ),
               const SizedBox(width: 16),
@@ -864,15 +864,12 @@ class _TrackCardState extends State<_TrackCard> {
                 child: ClipRRect(
                   borderRadius:
                       const BorderRadius.vertical(top: Radius.circular(12)),
-                  child: track.coverUrl != null
-                      ? Image.network(
-                          track.coverUrl!,
-                          fit: BoxFit.cover,
-                          width: double.infinity,
-                          errorBuilder: (_, __, ___) =>
-                              _CoverPlaceholder(isVideo: _isVideo(widget.track)),
-                        )
-                      : _CoverPlaceholder(isVideo: _isVideo(widget.track)),
+                  child: TrackCoverImage(
+                    coverUrl: track.coverUrl,
+                    width: double.infinity,
+                    fit: BoxFit.cover,
+                    errorWidget: _CoverPlaceholder(isVideo: _isVideo(widget.track)),
+                  ),
                 ),
               ),
               // Info

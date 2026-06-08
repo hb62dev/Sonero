@@ -4,6 +4,7 @@ import 'package:media_kit/media_kit.dart';
 import '../../providers/player_provider.dart';
 import '../theme.dart';
 import '../widgets/hover_scale.dart';
+import '../widgets/track_cover_image.dart';
 import 'lyrics_view.dart';
 import 'mobile_player_sheet.dart';
 
@@ -59,14 +60,14 @@ class MiniPlayer extends StatelessWidget {
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(6),
                 color: context.colors.surface,
-                image: track.coverUrl != null
+                image: getCoverImageProvider(track.coverUrl) != null
                     ? DecorationImage(
-                        image: NetworkImage(track.coverUrl!),
+                        image: getCoverImageProvider(track.coverUrl)!,
                         fit: BoxFit.cover,
                       )
                     : null,
               ),
-              child: track.coverUrl == null
+              child: getCoverImageProvider(track.coverUrl) == null
                   ? Icon(Icons.videocam_rounded,
                       color: context.colors.textSecondary, size: 20)
                   : null,
@@ -184,14 +185,14 @@ class MiniPlayer extends StatelessWidget {
                                 decoration: BoxDecoration(
                                   borderRadius: BorderRadius.circular(6),
                                   color: context.colors.surface,
-                                  image: track.coverUrl != null
+                                  image: getCoverImageProvider(track.coverUrl) != null
                                       ? DecorationImage(
-                                          image: NetworkImage(track.coverUrl!),
+                                          image: getCoverImageProvider(track.coverUrl)!,
                                           fit: BoxFit.cover,
                                         )
                                       : null,
                                 ),
-                                child: track.coverUrl == null
+                                child: getCoverImageProvider(track.coverUrl) == null
                                     ? Icon(Icons.music_note, color: context.colors.textSecondary, size: 18)
                                     : null,
                               ),
@@ -278,14 +279,14 @@ class MiniPlayer extends StatelessWidget {
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(8),
                     color: context.colors.surface,
-                    image: track.coverUrl != null
+                    image: getCoverImageProvider(track.coverUrl) != null
                         ? DecorationImage(
-                            image: NetworkImage(track.coverUrl!),
+                            image: getCoverImageProvider(track.coverUrl)!,
                             fit: BoxFit.cover,
                           )
                         : null,
                   ),
-                  child: track.coverUrl == null
+                  child: getCoverImageProvider(track.coverUrl) == null
                       ? Icon(Icons.music_note,
                           color: context.colors.textSecondary)
                       : null,

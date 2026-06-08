@@ -250,6 +250,31 @@ class DatabaseService {
     final db = await database;
     final Set<String> existingFiles = {};
 
+    // 0. Scan immediate subdirectories to register all folders as playlists (even if empty)
+    try {
+      final musicDir = Directory(musicFolder);
+      if (await musicDir.exists()) {
+        await for (final entity in musicDir.list(recursive: false)) {
+          if (entity is Directory) {
+            final dirName = p.basename(entity.path);
+            if (dirName != 'lyrics' && dirName != '.git' && dirName != 'covers') {
+              final pRes = await db.query('playlists', where: 'name = ?', whereArgs: [dirName]);
+              if (pRes.isEmpty) {
+                await db.insert('playlists', {
+                  'name': dirName,
+                  'is_smart': 0,
+                  'created_at': DateTime.now().toIso8601String(),
+                });
+                print("[DatabaseService] Registered subdirectory playlist: $dirName");
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      print("[DatabaseService] Error scanning subdirectory playlists: $e");
+    }
+
     // 1. Scan Music Folder
     try {
       final musicDir = Directory(musicFolder);
@@ -263,6 +288,8 @@ class DatabaseService {
 
               // Check if already exists in DB
               final existing = await db.query('media', where: 'filename = ?', whereArgs: [relativePath]);
+              int? mediaId;
+
               if (existing.isEmpty) {
                 // Read tags for this new file
                 String title = p.basenameWithoutExtension(entity.path);
@@ -270,6 +297,7 @@ class DatabaseService {
                 String album = '';
                 String genre = '';
                 String year = '';
+                String? coverUrl;
 
                 try {
                   final tag = await AudioTags.read(entity.path);
@@ -289,13 +317,28 @@ class DatabaseService {
                     if (tag.year != null) {
                       year = tag.year!.toString();
                     }
+
+                    // Extract embedded album art cover
+                    if (tag.pictures != null && tag.pictures!.isNotEmpty) {
+                      final picture = tag.pictures!.first;
+                      final supportDir = await getApplicationSupportDirectory();
+                      final coversDir = Directory(p.join(supportDir.path, 'covers'));
+                      if (!await coversDir.exists()) {
+                        await coversDir.create(recursive: true);
+                      }
+                      final filenameHash = relativePath.hashCode.toString();
+                      final picExt = picture.mimeType == MimeType.png ? 'png' : 'jpg';
+                      final coverFile = File(p.join(coversDir.path, '$filenameHash.$picExt'));
+                      await coverFile.writeAsBytes(picture.bytes);
+                      coverUrl = coverFile.path.replaceAll('\\', '/');
+                    }
                   }
                 } catch (e) {
                   print("[DatabaseService] Error reading tags for ${entity.path}: $e");
                 }
 
                 // Add to DB
-                await db.insert('media', {
+                mediaId = await db.insert('media', {
                   'type': 'music',
                   'title': title,
                   'artist': artist,
@@ -304,9 +347,70 @@ class DatabaseService {
                   'year': year,
                   'filename': relativePath,
                   'format': ext.replaceAll('.', ''),
+                  'cover_url': coverUrl,
                   'added_at': DateTime.now().toIso8601String(),
                 });
                 print("[DatabaseService] Synced new music file: $relativePath");
+              } else {
+                final existingRow = existing.first;
+                mediaId = existingRow['id'] as int;
+                final existingCover = existingRow['cover_url'] as String?;
+
+                // Proactively extract cover art if missing for existing database row
+                if (existingCover == null || existingCover.isEmpty) {
+                  try {
+                    final tag = await AudioTags.read(entity.path);
+                    if (tag != null && tag.pictures != null && tag.pictures!.isNotEmpty) {
+                      final picture = tag.pictures!.first;
+                      final supportDir = await getApplicationSupportDirectory();
+                      final coversDir = Directory(p.join(supportDir.path, 'covers'));
+                      if (!await coversDir.exists()) {
+                        await coversDir.create(recursive: true);
+                      }
+                      final filenameHash = relativePath.hashCode.toString();
+                      final picExt = picture.mimeType == MimeType.png ? 'png' : 'jpg';
+                      final coverFile = File(p.join(coversDir.path, '$filenameHash.$picExt'));
+                      await coverFile.writeAsBytes(picture.bytes);
+                      final coverUrl = coverFile.path.replaceAll('\\', '/');
+                      await db.update('media', {'cover_url': coverUrl}, where: 'id = ?', whereArgs: [mediaId]);
+                      print("[DatabaseService] Updated cover for existing music file: $relativePath");
+                    }
+                  } catch (e) {
+                    print("[DatabaseService] Error reading tags/cover for existing track ${entity.path}: $e");
+                  }
+                }
+              }
+
+              // Handle subdirectory playlist mapping
+              final parts = relativePath.split('/');
+              if (parts.length > 1 && mediaId != null) {
+                final playlistName = parts.first;
+
+                // Ensure playlist exists in DB
+                final pRes = await db.query('playlists', where: 'name = ?', whereArgs: [playlistName]);
+                int playlistId;
+                if (pRes.isEmpty) {
+                  playlistId = await db.insert('playlists', {
+                    'name': playlistName,
+                    'is_smart': 0,
+                    'created_at': DateTime.now().toIso8601String(),
+                  });
+                } else {
+                  playlistId = pRes.first['id'] as int;
+                }
+
+                // Ensure relation exists in playlist_media
+                final pmRes = await db.query('playlist_media',
+                    where: 'playlist_id = ? AND media_id = ?',
+                    whereArgs: [playlistId, mediaId]);
+                if (pmRes.isEmpty) {
+                  await db.insert('playlist_media', {
+                    'playlist_id': playlistId,
+                    'media_id': mediaId,
+                    'added_at': DateTime.now().toIso8601String(),
+                  });
+                  print("[DatabaseService] Linked track $relativePath to playlist $playlistName");
+                }
               }
             }
           }
@@ -375,6 +479,24 @@ class DatabaseService {
       }
     } catch (e) {
       print("[DatabaseService] Error cleaning up missing files: $e");
+    }
+
+    // 4. Clean up playlists in DB whose physical directories no longer exist
+    try {
+      final playlists = await db.query('playlists');
+      for (final playlist in playlists) {
+        final name = playlist['name'] as String;
+        final isSmart = playlist['is_smart'] as int? ?? 0;
+        if (isSmart == 0) {
+          final dir = Directory(p.join(musicFolder, name));
+          if (!await dir.exists()) {
+            await db.delete('playlists', where: 'name = ?', whereArgs: [name]);
+            print("[DatabaseService] Cleaned up missing playlist: $name");
+          }
+        }
+      }
+    } catch (e) {
+      print("[DatabaseService] Error cleaning up missing playlists: $e");
     }
   }
 

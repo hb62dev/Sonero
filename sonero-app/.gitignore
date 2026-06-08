@@ -26,3 +26,5 @@ Thumbs.db
 
 # Flutter build intermediates
 *.snap
+*.exe
+

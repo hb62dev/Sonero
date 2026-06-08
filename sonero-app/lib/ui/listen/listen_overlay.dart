@@ -6,6 +6,7 @@ import '../../providers/listen_provider.dart';
 import '../../providers/library_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../theme.dart';
+import '../widgets/track_cover_image.dart';
 
 class ListenOverlay extends StatelessWidget {
   const ListenOverlay({super.key});
@@ -234,12 +235,12 @@ class _SuccessIcon extends StatelessWidget {
     if (track?.coverUrl != null) {
       return ClipRRect(
         borderRadius: BorderRadius.circular(12),
-        child: Image.network(
-          track!.coverUrl!,
+        child: TrackCoverImage(
+          coverUrl: track!.coverUrl,
           width: 80,
           height: 80,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _defaultIcon(context),
+          errorWidget: _defaultIcon(context),
         ),
       );
     }

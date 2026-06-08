@@ -8,6 +8,7 @@ import '../../models/track.dart';
 import '../../models/playlist.dart';
 import '../theme.dart';
 import '../widgets/hover_scale.dart';
+import '../widgets/track_cover_image.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 class HomeView extends StatelessWidget {
@@ -206,9 +207,9 @@ class HomeView extends StatelessWidget {
                             offset: const Offset(0, 1),
                           )
                         ],
-                        image: item.coverUrl != null && item.coverUrl!.isNotEmpty
+                        image: item.coverUrl != null && item.coverUrl!.isNotEmpty && getCoverImageProvider(item.coverUrl) != null
                             ? DecorationImage(
-                                image: NetworkImage(item.coverUrl!),
+                                image: getCoverImageProvider(item.coverUrl)!,
                                 fit: BoxFit.cover,
                               )
                             : null,

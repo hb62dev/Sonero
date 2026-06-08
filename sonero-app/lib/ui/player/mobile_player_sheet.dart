@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import 'package:media_kit/media_kit.dart' hide Track;
 import '../../providers/player_provider.dart';
 import '../theme.dart';
+import '../widgets/track_cover_image.dart';
 import 'lyrics_view.dart';
 
 class MobileExpandedPlayer extends StatelessWidget {
@@ -30,14 +31,14 @@ class MobileExpandedPlayer extends StatelessWidget {
       child: Stack(
         children: [
           // ── Background artwork blur ────────────────────────────────────────
-          if (hasCover)
+          if (hasCover && getCoverImageProvider(track.coverUrl) != null)
             Positioned.fill(
               child: ImageFiltered(
                 imageFilter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
                 child: Container(
                   decoration: BoxDecoration(
                     image: DecorationImage(
-                      image: NetworkImage(track.coverUrl!),
+                      image: getCoverImageProvider(track.coverUrl)!,
                       fit: BoxFit.cover,
                       colorFilter: ColorFilter.mode(
                         Colors.black.withValues(alpha: 0.65),
@@ -130,14 +131,14 @@ class MobileExpandedPlayer extends StatelessWidget {
                               offset: const Offset(0, 10),
                             ),
                           ],
-                          image: hasCover
+                          image: hasCover && getCoverImageProvider(track.coverUrl) != null
                               ? DecorationImage(
-                                  image: NetworkImage(track.coverUrl!),
+                                  image: getCoverImageProvider(track.coverUrl)!,
                                   fit: BoxFit.cover,
                                 )
                               : null,
                         ),
-                        child: !hasCover
+                        child: !hasCover || getCoverImageProvider(track.coverUrl) == null
                             ? Icon(Icons.music_note_rounded,
                                 color: context.colors.textSecondary, size: 80)
                             : null,

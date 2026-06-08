@@ -27,24 +27,44 @@ class LyricsService {
   /// Returns the content of the local `.lrc` file, or null if it doesn't exist.
   static String? readLrc(String musicFolder, String audioFilename) {
     if (musicFolder.isEmpty) return null;
-    final file = File(lrcPath(musicFolder, audioFilename));
-    if (file.existsSync()) return file.readAsStringSync();
+    // 1. Try inside lyrics/ folder
+    final fileInLyrics = File(lrcPath(musicFolder, audioFilename));
+    if (fileInLyrics.existsSync()) return fileInLyrics.readAsStringSync();
+    
+    // 2. Try next to the audio file
+    final stem = p.basenameWithoutExtension(audioFilename);
+    final fileNextToAudio = File(p.join(p.dirname(p.join(musicFolder, audioFilename)), '$stem.lrc'));
+    if (fileNextToAudio.existsSync()) return fileNextToAudio.readAsStringSync();
+    
     return null;
   }
 
   /// Returns the content of the local `.txt` file, or null if it doesn't exist.
   static String? readTxt(String musicFolder, String audioFilename) {
     if (musicFolder.isEmpty) return null;
-    final file = File(txtPath(musicFolder, audioFilename));
-    if (file.existsSync()) return file.readAsStringSync();
+    // 1. Try inside lyrics/ folder
+    final fileInLyrics = File(txtPath(musicFolder, audioFilename));
+    if (fileInLyrics.existsSync()) return fileInLyrics.readAsStringSync();
+    
+    // 2. Try next to the audio file
+    final stem = p.basenameWithoutExtension(audioFilename);
+    final fileNextToAudio = File(p.join(p.dirname(p.join(musicFolder, audioFilename)), '$stem.txt'));
+    if (fileNextToAudio.existsSync()) return fileNextToAudio.readAsStringSync();
+    
     return null;
   }
 
   /// Returns true if any local lyric file exists for this track.
   static bool hasLocal(String musicFolder, String audioFilename) {
     if (musicFolder.isEmpty) return false;
-    return File(lrcPath(musicFolder, audioFilename)).existsSync() ||
-        File(txtPath(musicFolder, audioFilename)).existsSync();
+    final fileInLyricsLrc = File(lrcPath(musicFolder, audioFilename));
+    final fileInLyricsTxt = File(txtPath(musicFolder, audioFilename));
+    if (fileInLyricsLrc.existsSync() || fileInLyricsTxt.existsSync()) return true;
+
+    final stem = p.basenameWithoutExtension(audioFilename);
+    final dir = p.dirname(p.join(musicFolder, audioFilename));
+    return File(p.join(dir, '$stem.lrc')).existsSync() ||
+        File(p.join(dir, '$stem.txt')).existsSync();
   }
 
   // ── Write ─────────────────────────────────────────────────────────────────

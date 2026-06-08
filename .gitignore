@@ -61,3 +61,5 @@ sonero-app/installers/
 *.swo
 .DS_Store
 Thumbs.db
+*.exe
+

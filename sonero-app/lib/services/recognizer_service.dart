@@ -101,44 +101,60 @@ class RecognizerService {
       LogService.log('Cargando configuraciones de reconocimiento...');
       final prefs = await SharedPreferences.getInstance();
       await prefs.reload();
-      final service = prefs.getString('recognition_service') ?? 'gemini';
-
-      LogService.log('Servicio seleccionado: $service');
 
       TrackInfo? track;
+      final proxyUrl = prefs.getString('shazam_proxy_url') ?? '';
 
-      if (service == 'gemini') {
-        final apiKey = prefs.getString('gemini_api_key') ?? '';
-        if (apiKey.isEmpty) {
-          LogService.log('Error: API Key de Gemini vacía. Configúrala en Ajustes.');
+      if (proxyUrl.isNotEmpty) {
+        LogService.log('Intentando primero con Shazam Proxy ($proxyUrl)...');
+        try {
+          track = await _recognizeWithShazamProxy(audioPath, proxyUrl);
+          if (track != null) {
+            LogService.log('Reconocimiento exitoso con Shazam Proxy.');
+          } else {
+            LogService.log('Shazam Proxy no pudo reconocer el audio. Continuando con el servicio configurado...');
+          }
+        } catch (e) {
+          LogService.log('Error al usar Shazam Proxy: $e. Continuando con el servicio configurado...');
+        }
+      }
+
+      if (track == null) {
+        final service = prefs.getString('recognition_service') ?? 'gemini';
+        LogService.log('Servicio configurado (fallback): $service');
+
+        if (service == 'gemini') {
+          final apiKey = prefs.getString('gemini_api_key') ?? '';
+          if (apiKey.isEmpty) {
+            LogService.log('Error: API Key de Gemini vacía. Configúrala en Ajustes.');
+            return null;
+          }
+          track = await _recognizeWithGemini(audioPath, apiKey);
+        } else if (service == 'audd') {
+          final apiToken = prefs.getString('audd_api_token') ?? '';
+          if (apiToken.isEmpty) {
+            LogService.log('Error: API Token de AudD vacío. Configúrala en Ajustes.');
+            return null;
+          }
+          track = await _recognizeWithAudD(audioPath, apiToken);
+        } else if (service == 'rapidapi') {
+          final apiKey = prefs.getString('rapidapi_key') ?? '';
+          final apiHost = prefs.getString('rapidapi_host') ?? 'shazam-song-recognizer.p.rapidapi.com';
+          if (apiKey.isEmpty) {
+            LogService.log('Error: API Key de RapidAPI vacía. Configúrala en Ajustes.');
+            return null;
+          }
+          track = await _recognizeWithRapidAPI(audioPath, apiKey, apiHost);
+        } else if (service == 'shazam_proxy') {
+          if (proxyUrl.isEmpty) {
+            LogService.log('Error: URL del Servidor Proxy de Shazam vacía. Configúrala en Ajustes.');
+            return null;
+          }
+          // Ya se intentó arriba y no tuvo éxito.
+        } else {
+          LogService.log('Error: Servicio de reconocimiento desconocido: $service');
           return null;
         }
-        track = await _recognizeWithGemini(audioPath, apiKey);
-      } else if (service == 'audd') {
-        final apiToken = prefs.getString('audd_api_token') ?? '';
-        if (apiToken.isEmpty) {
-          LogService.log('Error: API Token de AudD vacío. Configúrala en Ajustes.');
-          return null;
-        }
-        track = await _recognizeWithAudD(audioPath, apiToken);
-      } else if (service == 'rapidapi') {
-        final apiKey = prefs.getString('rapidapi_key') ?? '';
-        final apiHost = prefs.getString('rapidapi_host') ?? 'shazam-song-recognizer.p.rapidapi.com';
-        if (apiKey.isEmpty) {
-          LogService.log('Error: API Key de RapidAPI vacía. Configúrala en Ajustes.');
-          return null;
-        }
-        track = await _recognizeWithRapidAPI(audioPath, apiKey, apiHost);
-      } else if (service == 'shazam_proxy') {
-        final proxyUrl = prefs.getString('shazam_proxy_url') ?? '';
-        if (proxyUrl.isEmpty) {
-          LogService.log('Error: URL del Servidor Proxy de Shazam vacía. Configúrala en Ajustes.');
-          return null;
-        }
-        track = await _recognizeWithShazamProxy(audioPath, proxyUrl);
-      } else {
-        LogService.log('Error: Servicio de reconocimiento desconocido: $service');
-        return null;
       }
 
       if (track != null) {

@@ -27,7 +27,9 @@ class SoneroAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler
       artist: track.artist.isNotEmpty ? track.artist : 'Desconocido',
       duration: duration,
       artUri: (track.coverUrl != null && track.coverUrl!.isNotEmpty)
-          ? Uri.parse(track.coverUrl!)
+          ? (track.coverUrl!.startsWith('http://') || track.coverUrl!.startsWith('https://')
+              ? Uri.parse(track.coverUrl!)
+              : Uri.file(track.coverUrl!))
           : null,
     ));
   }

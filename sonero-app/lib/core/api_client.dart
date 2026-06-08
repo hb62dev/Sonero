@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:path/path.dart' as p;
+import 'package:audiotags/audiotags.dart';
 import '../services/database_service.dart';
 import '../services/native_download_manager.dart';
 
@@ -353,6 +354,27 @@ class ApiClient {
   Future<void> updateTrackMetadata(Map<String, dynamic> update) async {
     if (isNative) {
       final filename = update['filename'] as String;
+      final fullPath = p.join(musicFolder ?? '', filename);
+      
+      // Update physical file tags
+      try {
+        final file = File(fullPath);
+        if (await file.exists()) {
+          final tag = Tag(
+            title: update['title'],
+            trackArtist: update['artist'],
+            album: update['album'],
+            year: update['year'] != null ? int.tryParse(update['year'].toString()) : null,
+            genre: update['genre'],
+            pictures: const [],
+          );
+          await AudioTags.write(fullPath, tag);
+          print("[api_client] Updated physical file tags for: $fullPath");
+        }
+      } catch (e) {
+        print("[api_client] Error writing tags to physical file: $e");
+      }
+
       await DatabaseService.instance.updateMediaMetadata(filename, {
         'title': update['title'],
         'artist': update['artist'],
@@ -487,6 +509,8 @@ class ApiClient {
 
   String _cleanTitle(String title) {
     var t = title.trim();
+    // Remove extension if present
+    t = t.replaceAll(RegExp(r'\.(mp3|m4a|mp4|webm|mkv|avi|mov)$', caseSensitive: false), '');
     t = t.replaceAll(_youtubeSuffixes, '');
     t = t.replaceAll(_featuring, '');
     t = t.replaceAll(_extraParens, '');
@@ -494,7 +518,9 @@ class ApiClient {
   }
 
   Map<String, String> _extractArtistTitle(String rawTitle, String rawArtist) {
-    final cleaned = _cleanTitle(rawTitle);
+    // Strip extension before parsing
+    var title = rawTitle.replaceAll(RegExp(r'\.(mp3|m4a|mp4|webm|mkv|avi|mov)$', caseSensitive: false), '');
+    final cleaned = _cleanTitle(title);
     final match = _artistPrefix.firstMatch(cleaned);
     if (match != null) {
       final extractedArtist = match.group(1)!.trim();
