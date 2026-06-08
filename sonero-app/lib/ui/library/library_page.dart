@@ -23,6 +23,8 @@ class _LibraryPageState extends State<LibraryPage>
     with SingleTickerProviderStateMixin {
   bool _isListView = false;
   late TabController _tabController;
+  bool _isMultiSelectMode = false;
+  final Set<String> _selectedTrackFilenames = {};
 
   static const _videoExts = {'.mp4', '.mkv', '.avi', '.mov', '.webm'};
 
@@ -42,6 +44,26 @@ class _LibraryPageState extends State<LibraryPage>
   void dispose() {
     _tabController.dispose();
     super.dispose();
+  }
+
+  void _toggleMultiSelectMode() {
+    setState(() {
+      _isMultiSelectMode = !_isMultiSelectMode;
+      _selectedTrackFilenames.clear();
+    });
+  }
+
+  void _toggleTrackSelection(Track track) {
+    setState(() {
+      if (_selectedTrackFilenames.contains(track.filename)) {
+        _selectedTrackFilenames.remove(track.filename);
+        if (_selectedTrackFilenames.isEmpty) {
+          _isMultiSelectMode = false;
+        }
+      } else {
+        _selectedTrackFilenames.add(track.filename);
+      }
+    });
   }
 
   @override
@@ -72,6 +94,8 @@ class _LibraryPageState extends State<LibraryPage>
           isListView:  _isListView,
           tabIndex:    _tabController.index,
           onToggleView: () => setState(() => _isListView = !_isListView),
+          isMultiSelectMode: _isMultiSelectMode,
+          onToggleMultiSelect: _toggleMultiSelectMode,
         ),
 
         // ── Tabs ─────────────────────────────────────────────────────────────
@@ -135,6 +159,8 @@ class _LibraryPageState extends State<LibraryPage>
                       ],
                     ),
         ),
+        if (_isMultiSelectMode)
+          _buildSelectionActionBar(context, library, settings, currentTracks),
       ],
     );
   }
@@ -147,8 +173,278 @@ class _LibraryPageState extends State<LibraryPage>
       );
     }
     return _isListView
-        ? _TrackList(tracks: tracks, queue: queue)
-        : _TrackGrid(tracks: tracks, queue: queue);
+        ? _TrackList(
+            tracks: tracks,
+            queue: queue,
+            isMultiSelectMode: _isMultiSelectMode,
+            selectedTrackFilenames: _selectedTrackFilenames,
+            onTrackToggled: _toggleTrackSelection,
+            onTrackLongPressed: (track) {
+              if (!_isMultiSelectMode) {
+                setState(() {
+                  _isMultiSelectMode = true;
+                  _selectedTrackFilenames.add(track.filename);
+                });
+              }
+            },
+          )
+        : _TrackGrid(
+            tracks: tracks,
+            queue: queue,
+            isMultiSelectMode: _isMultiSelectMode,
+            selectedTrackFilenames: _selectedTrackFilenames,
+            onTrackToggled: _toggleTrackSelection,
+            onTrackLongPressed: (track) {
+              if (!_isMultiSelectMode) {
+                setState(() {
+                  _isMultiSelectMode = true;
+                  _selectedTrackFilenames.add(track.filename);
+                });
+              }
+            },
+          );
+  }
+
+  Widget _buildSelectionActionBar(
+    BuildContext context,
+    LibraryProvider library,
+    SettingsProvider settings,
+    List<Track> currentTracks,
+  ) {
+    final selectedTracks = currentTracks.where((t) => _selectedTrackFilenames.contains(t.filename)).toList();
+    
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: context.colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: context.colors.border),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.3),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.close),
+            onPressed: () {
+              setState(() {
+                _isMultiSelectMode = false;
+                _selectedTrackFilenames.clear();
+              });
+            },
+          ),
+          const SizedBox(width: 8),
+          Text(
+            '${selectedTracks.length} seleccionados',
+            style: TextStyle(
+              color: context.colors.textPrimary,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const Spacer(),
+          // Actions
+          IconButton(
+            icon: const Icon(Icons.playlist_add),
+            color: Theme.of(context).colorScheme.primary,
+            tooltip: 'Añadir a playlist',
+            onPressed: selectedTracks.isEmpty ? null : () => _onBatchAdd(context, library, settings, selectedTracks),
+          ),
+          IconButton(
+            icon: const Icon(Icons.drive_file_move_rounded),
+            color: Colors.cyan,
+            tooltip: 'Mover a playlist',
+            onPressed: selectedTracks.isEmpty ? null : () => _onBatchMove(context, library, settings, selectedTracks),
+          ),
+          IconButton(
+            icon: const Icon(Icons.auto_awesome_rounded),
+            color: Colors.orange,
+            tooltip: 'Autocompletar metadatos (API)',
+            onPressed: selectedTracks.isEmpty ? null : () => _onBatchAutocomplete(context, library, settings, selectedTracks),
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete_rounded),
+            color: context.colors.error,
+            tooltip: 'Eliminar archivos',
+            onPressed: selectedTracks.isEmpty ? null : () => _onBatchDelete(context, library, settings, selectedTracks),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _onBatchAdd(
+    BuildContext context,
+    LibraryProvider library,
+    SettingsProvider settings,
+    List<Track> tracks,
+  ) async {
+    final Playlist? pl = await _showPlaylistPicker(context, library, title: 'Añadir selección a...');
+    if (pl != null && context.mounted) {
+      await library.addTracksToPlaylist(settings.api, tracks, pl.name);
+      setState(() {
+        _isMultiSelectMode = false;
+        _selectedTrackFilenames.clear();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Añadidas ${tracks.length} canciones a "${pl.name}"'),
+        backgroundColor: context.colors.success,
+      ));
+    }
+  }
+
+  Future<void> _onBatchMove(
+    BuildContext context,
+    LibraryProvider library,
+    SettingsProvider settings,
+    List<Track> tracks,
+  ) async {
+    final Playlist? pl = await _showPlaylistPicker(context, library, title: 'Mover selección a...');
+    if (pl != null && context.mounted) {
+      await library.moveTracks(settings.api, tracks, pl.name);
+      setState(() {
+        _isMultiSelectMode = false;
+        _selectedTrackFilenames.clear();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Movidas ${tracks.length} canciones a "${pl.name}"'),
+        backgroundColor: context.colors.success,
+      ));
+    }
+  }
+
+  Future<void> _onBatchAutocomplete(
+    BuildContext context,
+    LibraryProvider library,
+    SettingsProvider settings,
+    List<Track> tracks,
+  ) async {
+    try {
+      final filenames = tracks.map((t) => t.filename).toList();
+      final jobId = await settings.api.autoFillMetadata(filenames);
+      if (context.mounted) {
+        await showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (ctx) => _AutofillProgressDialog(jobId: jobId, settings: settings),
+        );
+        setState(() {
+          _isMultiSelectMode = false;
+          _selectedTrackFilenames.clear();
+        });
+        context.read<LibraryProvider>().loadTracks(settings.api);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Error: $e'),
+          backgroundColor: context.colors.error,
+        ));
+      }
+    }
+  }
+
+  Future<void> _onBatchDelete(
+    BuildContext context,
+    LibraryProvider library,
+    SettingsProvider settings,
+    List<Track> tracks,
+  ) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: context.colors.surfaceAlt,
+        title: const Text('Eliminar canciones'),
+        content: Text('¿Seguro que quieres eliminar estas ${tracks.length} canciones del disco físicamente? Esta acción no se puede deshacer.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: Text('Eliminar', style: TextStyle(color: context.colors.error)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && context.mounted) {
+      await library.deleteTracks(settings.api, tracks);
+      setState(() {
+        _isMultiSelectMode = false;
+        _selectedTrackFilenames.clear();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Eliminadas ${tracks.length} canciones'),
+        backgroundColor: context.colors.success,
+      ));
+    }
+  }
+
+  Future<Playlist?> _showPlaylistPicker(BuildContext context, LibraryProvider library, {required String title}) async {
+    return await showModalBottomSheet<Playlist>(
+      context: context,
+      backgroundColor: context.colors.bg,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        final customPlaylists = library.playlists.where((p) => !p.isLibrary).toList();
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 10),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: context.colors.textSecondary.withOpacity(0.3),
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                title,
+                style: TextStyle(
+                  color: context.colors.textPrimary,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 16,
+                ),
+              ),
+              const Divider(),
+              if (customPlaylists.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Text('No hay listas de reproducción creadas.', style: TextStyle(color: context.colors.textSecondary)),
+                )
+              else
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: customPlaylists.length,
+                    itemBuilder: (context, index) {
+                      final pl = customPlaylists[index];
+                      return ListTile(
+                        leading: const Icon(Icons.playlist_play_rounded),
+                        title: Text(pl.name, style: TextStyle(color: context.colors.textPrimary)),
+                        onTap: () => Navigator.pop(ctx, pl),
+                      );
+                    },
+                  ),
+                ),
+              const SizedBox(height: 10),
+            ],
+          ),
+        );
+      },
+    );
   }
 }
 
@@ -162,6 +458,8 @@ class _PageHeader extends StatelessWidget {
   final bool isListView;
   final int tabIndex;
   final VoidCallback onToggleView;
+  final bool isMultiSelectMode;
+  final VoidCallback onToggleMultiSelect;
 
   const _PageHeader({
     required this.playlist,
@@ -171,6 +469,8 @@ class _PageHeader extends StatelessWidget {
     required this.isListView,
     required this.tabIndex,
     required this.onToggleView,
+    required this.isMultiSelectMode,
+    required this.onToggleMultiSelect,
   });
 
   @override
@@ -186,12 +486,33 @@ class _PageHeader extends StatelessWidget {
     final headerText = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          playlist.name,
-          style: TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.w700,
-            color: context.colors.textPrimary,
+        InkWell(
+          onTap: () => _showPlaylistSelectorBottomSheet(context),
+          borderRadius: BorderRadius.circular(8),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 4),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    playlist.name,
+                    style: TextStyle(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w700,
+                      color: context.colors.textPrimary,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  color: context.colors.textPrimary,
+                  size: 24,
+                ),
+              ],
+            ),
           ),
         ),
         const SizedBox(height: 2),
@@ -216,6 +537,13 @@ class _PageHeader extends StatelessWidget {
         // Export CSV button (only for playlists, not library root)
         if (!playlist.isLibrary && allTracks.isNotEmpty && !isMobile)
           _ExportButton(playlist: playlist, tracks: allTracks, settings: settings),
+        // Multi-select Toggle Button
+        IconButton(
+          icon: Icon(isMultiSelectMode ? Icons.check_circle_rounded : Icons.check_circle_outline_rounded),
+          color: isMultiSelectMode ? Theme.of(context).colorScheme.primary : context.colors.textSecondary,
+          tooltip: 'Seleccionar por lotes',
+          onPressed: onToggleMultiSelect,
+        ),
         // Sort button
         PopupMenuButton<SortOption>(
           icon: const Icon(Icons.sort_rounded),
@@ -404,14 +732,33 @@ class _ExportButton extends StatelessWidget {
 class _TrackList extends StatelessWidget {
   final List<Track> tracks;
   final List<Track> queue;
-  const _TrackList({required this.tracks, required this.queue});
+  final bool isMultiSelectMode;
+  final Set<String> selectedTrackFilenames;
+  final void Function(Track) onTrackToggled;
+  final void Function(Track) onTrackLongPressed;
+  
+  const _TrackList({
+    required this.tracks,
+    required this.queue,
+    required this.isMultiSelectMode,
+    required this.selectedTrackFilenames,
+    required this.onTrackToggled,
+    required this.onTrackLongPressed,
+  });
 
   @override
   Widget build(BuildContext context) {
     return ListView.builder(
       padding: const EdgeInsets.all(20),
       itemCount: tracks.length,
-      itemBuilder: (_, i) => _TrackListRow(track: tracks[i], queue: queue),
+      itemBuilder: (_, i) => _TrackListRow(
+        track: tracks[i],
+        queue: queue,
+        isMultiSelectMode: isMultiSelectMode,
+        isSelected: selectedTrackFilenames.contains(tracks[i].filename),
+        onToggled: () => onTrackToggled(tracks[i]),
+        onLongPressed: () => onTrackLongPressed(tracks[i]),
+      ),
     );
   }
 }
@@ -419,7 +766,19 @@ class _TrackList extends StatelessWidget {
 class _TrackListRow extends StatefulWidget {
   final Track track;
   final List<Track> queue;
-  const _TrackListRow({required this.track, required this.queue});
+  final bool isMultiSelectMode;
+  final bool isSelected;
+  final VoidCallback onToggled;
+  final VoidCallback onLongPressed;
+  
+  const _TrackListRow({
+    required this.track,
+    required this.queue,
+    required this.isMultiSelectMode,
+    required this.isSelected,
+    required this.onToggled,
+    required this.onLongPressed,
+  });
 
   @override
   State<_TrackListRow> createState() => _TrackListRowState();
@@ -438,6 +797,10 @@ class _TrackListRowState extends State<_TrackListRow> {
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
         onTap: () async {
+          if (widget.isMultiSelectMode) {
+            widget.onToggled();
+            return;
+          }
           try {
             final settings = context.read<SettingsProvider>();
             await context.read<PlayerProvider>().playTrack(
@@ -452,20 +815,37 @@ class _TrackListRowState extends State<_TrackListRow> {
             }
           }
         },
-        onSecondaryTapUp: (d) => _showTrackContextMenu(context, track, d.globalPosition),
+        onLongPress: widget.onLongPressed,
+        onSecondaryTapUp: (d) {
+          if (!widget.isMultiSelectMode) {
+            _showTrackContextMenu(context, track, d.globalPosition);
+          }
+        },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           margin: const EdgeInsets.only(bottom: 8),
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: _hovered ? context.colors.surfaceAlt : context.colors.surface,
+            color: widget.isSelected
+                ? Theme.of(context).colorScheme.primary.withOpacity(0.12)
+                : (_hovered ? context.colors.surfaceAlt : context.colors.surface),
             borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: _hovered ? Theme.of(context).colorScheme.primary.withOpacity(0.3) : context.colors.border,
+              color: widget.isSelected
+                  ? Theme.of(context).colorScheme.primary
+                  : (_hovered ? Theme.of(context).colorScheme.primary.withOpacity(0.3) : context.colors.border),
             ),
           ),
           child: Row(
             children: [
+              if (widget.isMultiSelectMode) ...[
+                Checkbox(
+                  value: widget.isSelected,
+                  onChanged: (_) => widget.onToggled(),
+                  activeColor: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+              ],
               ClipRRect(
                 borderRadius: BorderRadius.circular(6),
                 child: SizedBox(
@@ -536,15 +916,16 @@ class _TrackListRowState extends State<_TrackListRow> {
                 ),
               ],
               // Options Menu Button
-              IconButton(
-                icon: const Icon(Icons.more_horiz),
-                color: context.colors.textSecondary,
-                onPressed: () {
-                  final renderBox = context.findRenderObject() as RenderBox;
-                  final position = renderBox.localToGlobal(Offset(renderBox.size.width, renderBox.size.height / 2));
-                  _showTrackContextMenu(context, track, position);
-                },
-              ),
+              if (!widget.isMultiSelectMode)
+                IconButton(
+                  icon: const Icon(Icons.more_horiz),
+                  color: context.colors.textSecondary,
+                  onPressed: () {
+                    final renderBox = context.findRenderObject() as RenderBox;
+                    final position = renderBox.localToGlobal(Offset(renderBox.size.width, renderBox.size.height / 2));
+                    _showTrackContextMenu(context, track, position);
+                  },
+                ),
             ],
           ),
         ),
@@ -782,7 +1163,19 @@ bool _isVideo(Track t) {
 class _TrackGrid extends StatelessWidget {
   final List<Track> tracks;
   final List<Track> queue;
-  const _TrackGrid({required this.tracks, required this.queue});
+  final bool isMultiSelectMode;
+  final Set<String> selectedTrackFilenames;
+  final void Function(Track) onTrackToggled;
+  final void Function(Track) onTrackLongPressed;
+  
+  const _TrackGrid({
+    required this.tracks,
+    required this.queue,
+    required this.isMultiSelectMode,
+    required this.selectedTrackFilenames,
+    required this.onTrackToggled,
+    required this.onTrackLongPressed,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -795,7 +1188,14 @@ class _TrackGrid extends StatelessWidget {
         childAspectRatio: 0.78,
       ),
       itemCount: tracks.length,
-      itemBuilder: (_, i) => _TrackCard(track: tracks[i], queue: queue),
+      itemBuilder: (_, i) => _TrackCard(
+        track: tracks[i],
+        queue: queue,
+        isMultiSelectMode: isMultiSelectMode,
+        isSelected: selectedTrackFilenames.contains(tracks[i].filename),
+        onToggled: () => onTrackToggled(tracks[i]),
+        onLongPressed: () => onTrackLongPressed(tracks[i]),
+      ),
     );
   }
 }
@@ -805,7 +1205,19 @@ class _TrackGrid extends StatelessWidget {
 class _TrackCard extends StatefulWidget {
   final Track track;
   final List<Track> queue;
-  const _TrackCard({required this.track, required this.queue});
+  final bool isMultiSelectMode;
+  final bool isSelected;
+  final VoidCallback onToggled;
+  final VoidCallback onLongPressed;
+  
+  const _TrackCard({
+    required this.track,
+    required this.queue,
+    required this.isMultiSelectMode,
+    required this.isSelected,
+    required this.onToggled,
+    required this.onLongPressed,
+  });
 
   @override
   State<_TrackCard> createState() => _TrackCardState();
@@ -823,6 +1235,10 @@ class _TrackCardState extends State<_TrackCard> {
       onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
         onTap: () async {
+          if (widget.isMultiSelectMode) {
+            widget.onToggled();
+            return;
+          }
           try {
             final settings = context.read<SettingsProvider>();
             await context.read<PlayerProvider>().playTrack(
@@ -837,14 +1253,23 @@ class _TrackCardState extends State<_TrackCard> {
             }
           }
         },
-        onSecondaryTapUp: (d) => _showTrackContextMenu(context, track, d.globalPosition),
+        onLongPress: widget.onLongPressed,
+        onSecondaryTapUp: (d) {
+          if (!widget.isMultiSelectMode) {
+            _showTrackContextMenu(context, track, d.globalPosition);
+          }
+        },
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 180),
           decoration: BoxDecoration(
-            color: _hovered ? context.colors.surfaceAlt : context.colors.surface,
+            color: widget.isSelected
+                ? Theme.of(context).colorScheme.primary.withOpacity(0.12)
+                : (_hovered ? context.colors.surfaceAlt : context.colors.surface),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-              color: _hovered ? Theme.of(context).colorScheme.primary.withOpacity(0.5) : context.colors.border,
+              color: widget.isSelected
+                  ? Theme.of(context).colorScheme.primary
+                  : (_hovered ? Theme.of(context).colorScheme.primary.withOpacity(0.5) : context.colors.border),
             ),
             boxShadow: _hovered
                 ? [
@@ -856,53 +1281,73 @@ class _TrackCardState extends State<_TrackCard> {
                   ]
                 : [],
           ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Stack(
             children: [
-              // Cover / placeholder
-              Expanded(
-                child: ClipRRect(
-                  borderRadius:
-                      const BorderRadius.vertical(top: Radius.circular(12)),
-                  child: TrackCoverImage(
-                    coverUrl: track.coverUrl,
-                    width: double.infinity,
-                    fit: BoxFit.cover,
-                    errorWidget: _CoverPlaceholder(isVideo: _isVideo(widget.track)),
-                  ),
-                ),
-              ),
-              // Info
-              Padding(
-                padding: const EdgeInsets.all(10),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      track.title.isNotEmpty ? track.title : track.filename,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: context.colors.textPrimary,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 13,
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Cover / placeholder
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius:
+                          const BorderRadius.vertical(top: Radius.circular(12)),
+                      child: TrackCoverImage(
+                        coverUrl: track.coverUrl,
+                        width: double.infinity,
+                        fit: BoxFit.cover,
+                        errorWidget: _CoverPlaceholder(isVideo: _isVideo(widget.track)),
                       ),
                     ),
-                    if (track.artist.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        track.artist,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: context.colors.textSecondary,
-                          fontSize: 11,
+                  ),
+                  // Info
+                  Padding(
+                    padding: const EdgeInsets.all(10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          track.title.isNotEmpty ? track.title : track.filename,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: context.colors.textPrimary,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 13,
+                          ),
                         ),
-                      ),
-                    ],
-                  ],
-                ),
+                        if (track.artist.isNotEmpty) ...[
+                          const SizedBox(height: 2),
+                          Text(
+                            track.artist,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: context.colors.textSecondary,
+                              fontSize: 11,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
               ),
+              if (widget.isMultiSelectMode)
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withOpacity(0.5),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Checkbox(
+                      value: widget.isSelected,
+                      onChanged: (_) => widget.onToggled(),
+                      activeColor: Theme.of(context).colorScheme.primary,
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
@@ -1058,6 +1503,216 @@ class _AutofillProgressDialogState extends State<_AutofillProgressDialog> {
           TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cerrar')),
       ],
     );
+  }
+}
+
+void _showPlaylistSelectorBottomSheet(BuildContext context) {
+  final library = context.read<LibraryProvider>();
+  final settings = context.read<SettingsProvider>();
+  
+  showModalBottomSheet(
+    context: context,
+    backgroundColor: context.colors.bg,
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+    ),
+    builder: (ctx) {
+      return Consumer<LibraryProvider>(
+        builder: (context, lib, child) {
+          return SafeArea(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const SizedBox(height: 10),
+                Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: context.colors.textSecondary.withOpacity(0.3),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        'Listas de reproducción',
+                        style: TextStyle(
+                          color: context.colors.textPrimary,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                        ),
+                      ),
+                      TextButton.icon(
+                        icon: const Icon(Icons.add, size: 18),
+                        label: const Text('Nueva', style: TextStyle(fontSize: 13)),
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          _createPlaylistDialog(context, lib, settings);
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(),
+                Flexible(
+                  child: ListView.builder(
+                    shrinkWrap: true,
+                    itemCount: lib.playlists.length,
+                    itemBuilder: (context, index) {
+                      final pl = lib.playlists[index];
+                      final isSelected = lib.selected.name == pl.name;
+                      
+                      return ListTile(
+                        leading: Icon(
+                          pl.isLibrary ? Icons.library_music_rounded : Icons.playlist_play_rounded,
+                          color: isSelected ? Theme.of(context).colorScheme.primary : context.colors.textSecondary,
+                        ),
+                        title: Text(
+                          pl.name,
+                          style: TextStyle(
+                            color: isSelected ? context.colors.textPrimary : context.colors.textSecondary,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          ),
+                        ),
+                        trailing: pl.isLibrary
+                            ? null
+                            : PopupMenuButton<String>(
+                                icon: Icon(Icons.more_vert, color: context.colors.textSecondary),
+                                color: context.colors.surfaceAlt,
+                                onSelected: (val) {
+                                  if (val == 'rename') {
+                                    _renamePlaylistDialog(context, lib, settings, pl);
+                                  } else if (val == 'delete') {
+                                    _confirmDeletePlaylist(context, lib, settings, pl);
+                                  }
+                                },
+                                itemBuilder: (context) => [
+                                  const PopupMenuItem(
+                                    value: 'rename',
+                                    child: Text('Renombrar'),
+                                  ),
+                                  const PopupMenuItem(
+                                    value: 'delete',
+                                    child: Text('Eliminar', style: TextStyle(color: Colors.red)),
+                                  ),
+                                ],
+                              ),
+                        onTap: () {
+                          lib.selectPlaylist(settings.api, pl);
+                          Navigator.pop(ctx);
+                        },
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 10),
+              ],
+            ),
+          );
+        },
+      );
+    },
+  );
+}
+
+Future<void> _createPlaylistDialog(
+  BuildContext context,
+  LibraryProvider library,
+  SettingsProvider settings,
+) async {
+  final ctrl = TextEditingController();
+  final name = await showDialog<String>(
+    context: context,
+    builder: (_) => AlertDialog(
+      backgroundColor: context.colors.surfaceAlt,
+      title: const Text('Nueva lista de reproducción'),
+      content: TextField(
+        controller: ctrl,
+        autofocus: true,
+        decoration: const InputDecoration(hintText: 'Nombre de la lista'),
+        onSubmitted: (v) => Navigator.pop(context, v),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, ctrl.text),
+          child: const Text('Crear'),
+        ),
+      ],
+    ),
+  );
+  if (name != null && name.trim().isNotEmpty) {
+    await library.createPlaylist(settings.api, name.trim());
+  }
+}
+
+Future<void> _renamePlaylistDialog(
+  BuildContext context,
+  LibraryProvider library,
+  SettingsProvider settings,
+  Playlist pl,
+) async {
+  final ctrl = TextEditingController(text: pl.name);
+  final name = await showDialog<String>(
+    context: context,
+    builder: (_) => AlertDialog(
+      backgroundColor: context.colors.surfaceAlt,
+      title: const Text('Renombrar lista'),
+      content: TextField(
+        controller: ctrl,
+        autofocus: true,
+        onSubmitted: (v) => Navigator.pop(context, v),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, ctrl.text),
+          child: const Text('Guardar'),
+        ),
+      ],
+    ),
+  );
+  if (name != null && name.trim().isNotEmpty && name.trim() != pl.name) {
+    await library.renamePlaylist(settings.api, pl.name, name.trim());
+  }
+}
+
+Future<void> _confirmDeletePlaylist(
+  BuildContext context,
+  LibraryProvider library,
+  SettingsProvider settings,
+  Playlist pl,
+) async {
+  final confirm = await showDialog<bool>(
+    context: context,
+    builder: (_) => AlertDialog(
+      backgroundColor: context.colors.surfaceAlt,
+      title: const Text('Eliminar lista de reproducción'),
+      content: Text('¿Seguro que quieres eliminar la lista "${pl.name}"?\n(Las canciones no se eliminarán del disco)'),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context, false),
+          child: const Text('Cancelar'),
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context, true),
+          child: const Text('Eliminar', style: TextStyle(color: Colors.red)),
+        ),
+      ],
+    ),
+  );
+  if (confirm == true) {
+    await library.deletePlaylist(settings.api, pl.name);
   }
 }
 

@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:path/path.dart' as p;
 import 'package:audiotags/audiotags.dart';
+import 'package:path_provider/path_provider.dart';
 import '../services/database_service.dart';
 import '../services/native_download_manager.dart';
 
@@ -11,6 +12,8 @@ class ApiClient {
   final String baseUrl;
   String? musicFolder;
   String? videoFolder;
+  
+  static final Map<String, Map<String, dynamic>> _nativeJobs = {};
 
   ApiClient({required this.baseUrl, this.musicFolder, this.videoFolder});
 
@@ -306,7 +309,17 @@ class ApiClient {
 
   Future<String> autoFillMetadata(List<String> filenames) async {
     if (isNative) {
-      return 'local_native';
+      final jobId = 'native_${DateTime.now().millisecondsSinceEpoch}';
+      _nativeJobs[jobId] = {
+        'job_id': jobId,
+        'status': 'running',
+        'total': filenames.length,
+        'completed': 0,
+        'failed': 0,
+        'current': 'Iniciando escaneo...',
+      };
+      _runNativeAutofill(jobId, filenames);
+      return jobId;
     }
     final res = await http.post(
       Uri.parse('$baseUrl/api/v1/metadata/auto'),
@@ -317,9 +330,135 @@ class ApiClient {
     return jsonDecode(res.body)['job_id'] as String;
   }
 
+  Future<void> _runNativeAutofill(String jobId, List<String> filenames) async {
+    final job = _nativeJobs[jobId]!;
+    for (final filename in filenames) {
+      if (job['status'] == 'cancelled') break;
+      final basename = p.basename(filename);
+      job['current'] = 'Buscando: $basename';
+      
+      try {
+        final fullPath = p.join(musicFolder ?? '', filename);
+        final file = File(fullPath);
+        if (!await file.exists()) {
+          job['failed'] = (job['failed'] as int) + 1;
+          continue;
+        }
+
+        // 1. Get current tag info if possible to guide the search
+        String artist = '';
+        String title = _cleanTitle(p.basenameWithoutExtension(filename));
+        try {
+          final tag = await AudioTags.read(fullPath);
+          if (tag != null) {
+            if (tag.trackArtist != null && tag.trackArtist!.trim().isNotEmpty) {
+              artist = tag.trackArtist!.trim();
+            }
+            if (tag.title != null && tag.title!.trim().isNotEmpty) {
+              title = tag.title!.trim();
+            }
+          }
+        } catch (_) {}
+
+        // Build query
+        final query = artist.isNotEmpty ? '$artist $title' : title;
+        final url = Uri.parse('https://itunes.apple.com/search?term=${Uri.encodeComponent(query)}&media=music&limit=1');
+        final response = await http.get(url).timeout(const Duration(seconds: 10));
+
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          final results = data['results'] as List;
+          if (results.isNotEmpty) {
+            final result = results.first as Map<String, dynamic>;
+            final matchTitle = result['trackName'] as String? ?? title;
+            final matchArtist = result['artistName'] as String? ?? artist;
+            final matchAlbum = result['collectionName'] as String? ?? '';
+            final matchGenre = result['primaryGenreName'] as String? ?? '';
+            final releaseDate = result['releaseDate'] as String? ?? '';
+            String matchYear = '';
+            if (releaseDate.length >= 4) {
+              matchYear = releaseDate.substring(0, 4);
+            }
+
+            // Cover Art URL (higher resolution: replace 100x100bb.jpg with 600x600bb.jpg)
+            final artworkUrl100 = result['artworkUrl100'] as String?;
+            String? coverUrl;
+            List<Picture> pictures = [];
+
+            if (artworkUrl100 != null && artworkUrl100.isNotEmpty) {
+              final artworkUrl600 = artworkUrl100.replaceAll('100x100bb.jpg', '600x600bb.jpg');
+              try {
+                final coverRes = await http.get(Uri.parse(artworkUrl600)).timeout(const Duration(seconds: 15));
+                if (coverRes.statusCode == 200) {
+                  final supportDir = await getApplicationSupportDirectory();
+                  final coversDir = Directory(p.join(supportDir.path, 'covers'));
+                  if (!await coversDir.exists()) {
+                    await coversDir.create(recursive: true);
+                  }
+                  final filenameHash = filename.hashCode.toString();
+                  final picExt = artworkUrl600.toLowerCase().contains('.png') ? 'png' : 'jpg';
+                  final coverFile = File(p.join(coversDir.path, '$filenameHash.$picExt'));
+                  await coverFile.writeAsBytes(coverRes.bodyBytes);
+                  coverUrl = coverFile.path.replaceAll('\\', '/');
+
+                  pictures = [
+                    Picture(
+                      pictureType: PictureType.coverFront,
+                      bytes: coverRes.bodyBytes,
+                      mimeType: artworkUrl600.toLowerCase().contains('.png') ? MimeType.png : MimeType.jpeg,
+                    )
+                  ];
+                }
+              } catch (e) {
+                print("[NativeAutofill] Error downloading cover art: $e");
+              }
+            }
+
+            // Write tags to file
+            try {
+              final tag = Tag(
+                title: matchTitle,
+                trackArtist: matchArtist,
+                album: matchAlbum,
+                genre: matchGenre,
+                year: int.tryParse(matchYear),
+                pictures: pictures,
+              );
+              await AudioTags.write(fullPath, tag);
+            } catch (e) {
+              print("[NativeAutofill] Error writing tags to file: $e");
+            }
+
+            // Update local DB
+            await DatabaseService.instance.updateMediaMetadata(filename, {
+              'title': matchTitle,
+              'artist': matchArtist,
+              'album': matchAlbum,
+              'genre': matchGenre,
+              'year': matchYear,
+              if (coverUrl != null) 'cover_url': coverUrl,
+            });
+
+            job['completed'] = (job['completed'] as int) + 1;
+            continue;
+          }
+        }
+      } catch (e) {
+        print("[NativeAutofill] Error processing track $filename: $e");
+      }
+      job['failed'] = (job['failed'] as int) + 1;
+    }
+    job['status'] = 'done';
+    job['current'] = 'Completado';
+  }
+
   Future<Map<String, dynamic>> getAutofillJobStatus(String jobId) async {
     if (isNative) {
-      return {'job_id': jobId, 'status': 'done', 'progress': 100};
+      final job = _nativeJobs[jobId];
+      if (job != null) {
+        return job;
+      }
+      return {'job_id': jobId, 'status': 'done', 'progress': 100, 'total': 1, 'completed': 1, 'failed': 0, 'current': 'Completado'};
     }
     final res = await http.get(Uri.parse('$baseUrl/api/v1/metadata/auto/jobs/$jobId'));
     _check(res);
