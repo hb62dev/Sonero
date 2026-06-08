@@ -738,4 +738,14 @@ class SettingsProvider extends ChangeNotifier {
     await prefs.setString(_keyShazamProxyUrl, url);
     notifyListeners();
   }
+
+  Future<void> refreshFolders() async {
+    await _resolveEffectiveFolders();
+    _api.musicFolder = musicFolder;
+    _api.videoFolder = videoFolder;
+    try {
+      await _api.updatePaths(music: musicFolder, video: videoFolder);
+    } catch (_) {}
+    notifyListeners();
+  }
 }

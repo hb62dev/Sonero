@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../providers/settings_provider.dart';
 import '../ui/theme.dart';
 
@@ -14,6 +16,32 @@ class SetupModal extends StatefulWidget {
 
 class _SetupModalState extends State<SetupModal> {
   bool _isLoading = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _requestPermissions();
+  }
+
+  Future<void> _requestPermissions() async {
+    if (Platform.isAndroid) {
+      try {
+        await [
+          Permission.audio,
+          Permission.videos,
+          Permission.storage,
+          Permission.manageExternalStorage,
+        ].request();
+        
+        if (mounted) {
+          await context.read<SettingsProvider>().refreshFolders();
+          setState(() {});
+        }
+      } catch (e) {
+        debugPrint('Error requesting permissions in SetupModal: $e');
+      }
+    }
+  }
 
   Future<void> _pickMusicFolder(BuildContext context) async {
     final settings = context.read<SettingsProvider>();

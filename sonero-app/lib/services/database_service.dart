@@ -4,6 +4,7 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
+import 'package:dio/dio.dart';
 import 'package:audiotags/audiotags.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -356,8 +357,11 @@ class DatabaseService {
                 mediaId = existingRow['id'] as int;
                 final existingCover = existingRow['cover_url'] as String?;
 
-                // Proactively extract cover art if missing for existing database row
-                if (existingCover == null || existingCover.isEmpty) {
+                // Proactively extract cover art if missing or is a remote URL
+                final isRemote = existingCover != null && (existingCover.startsWith('http://') || existingCover.startsWith('https://'));
+                if (existingCover == null || existingCover.isEmpty || isRemote) {
+                  bool localSaved = false;
+                  // Try to extract from file tags first
                   try {
                     final tag = await AudioTags.read(entity.path);
                     if (tag != null && tag.pictures != null && tag.pictures!.isNotEmpty) {
@@ -374,9 +378,30 @@ class DatabaseService {
                       final coverUrl = coverFile.path.replaceAll('\\', '/');
                       await db.update('media', {'cover_url': coverUrl}, where: 'id = ?', whereArgs: [mediaId]);
                       print("[DatabaseService] Updated cover for existing music file: $relativePath");
+                      localSaved = true;
                     }
                   } catch (e) {
                     print("[DatabaseService] Error reading tags/cover for existing track ${entity.path}: $e");
+                  }
+
+                  // If still not saved and it was a remote URL, download it locally
+                  if (!localSaved && isRemote) {
+                    try {
+                      final supportDir = await getApplicationSupportDirectory();
+                      final coversDir = Directory(p.join(supportDir.path, 'covers'));
+                      if (!await coversDir.exists()) {
+                        await coversDir.create(recursive: true);
+                      }
+                      final filenameHash = relativePath.hashCode.toString();
+                      final coverFile = File(p.join(coversDir.path, '$filenameHash.jpg'));
+                      final dio = Dio();
+                      await dio.download(existingCover!, coverFile.path);
+                      final coverUrl = coverFile.path.replaceAll('\\', '/');
+                      await db.update('media', {'cover_url': coverUrl}, where: 'id = ?', whereArgs: [mediaId]);
+                      print("[DatabaseService] Cached remote cover locally for: $relativePath");
+                    } catch (e) {
+                      print("[DatabaseService] Error caching remote cover locally for $relativePath: $e");
+                    }
                   }
                 }
               }
@@ -445,6 +470,29 @@ class DatabaseService {
                     'added_at': DateTime.now().toIso8601String(),
                   });
                   print("[DatabaseService] Synced new video file: $dbFilename");
+                } else {
+                  final existingRow = existing.first;
+                  final mediaId = existingRow['id'] as int;
+                  final existingCover = existingRow['cover_url'] as String?;
+                  final isRemote = existingCover != null && (existingCover.startsWith('http://') || existingCover.startsWith('https://'));
+                  if (isRemote) {
+                    try {
+                      final supportDir = await getApplicationSupportDirectory();
+                      final coversDir = Directory(p.join(supportDir.path, 'covers'));
+                      if (!await coversDir.exists()) {
+                        await coversDir.create(recursive: true);
+                      }
+                      final filenameHash = dbFilename.hashCode.toString();
+                      final coverFile = File(p.join(coversDir.path, '$filenameHash.jpg'));
+                      final dio = Dio();
+                      await dio.download(existingCover!, coverFile.path);
+                      final coverUrl = coverFile.path.replaceAll('\\', '/');
+                      await db.update('media', {'cover_url': coverUrl}, where: 'id = ?', whereArgs: [mediaId]);
+                      print("[DatabaseService] Cached remote video cover locally: $dbFilename");
+                    } catch (e) {
+                      print("[DatabaseService] Error caching remote video cover locally for $dbFilename: $e");
+                    }
+                  }
                 }
               }
             }

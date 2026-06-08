@@ -266,13 +266,26 @@ class NativeDownloadManager {
       job['step'] = '🏷️ Aplicando etiquetas...';
       LogService.log('[_runMp3Download] Applying audio metadata tags...');
 
+      // 3. Write record to local database
+      final relativeFilename = playlist != null && playlist.isNotEmpty
+          ? p.join(playlist, filename)
+          : filename;
+
       // 1. Try to download thumbnail as cover art
       String? coverPath;
+      String? dbCoverUrl;
       if (video.thumbnails.mediumResUrl.isNotEmpty) {
         try {
-          coverPath = p.join(targetDir.path, "$filename.jpg");
+          final supportDir = await getApplicationSupportDirectory();
+          final coversDir = Directory(p.join(supportDir.path, 'covers'));
+          if (!await coversDir.exists()) {
+            await coversDir.create(recursive: true);
+          }
+          final filenameHash = relativeFilename.hashCode.toString();
+          coverPath = p.join(coversDir.path, '$filenameHash.jpg');
           LogService.log('[_runMp3Download] Downloading cover art from: ${video.thumbnails.mediumResUrl} to $coverPath');
           await _dio.download(video.thumbnails.mediumResUrl, coverPath);
+          dbCoverUrl = coverPath.replaceAll('\\', '/');
         } catch (e) {
           LogService.log('[_runMp3Download] Cover art download skipped: $e');
           coverPath = null;
@@ -297,19 +310,9 @@ class NativeDownloadManager {
         LogService.log('[_runMp3Download] Writing tags with audiotags...');
         await AudioTags.write(filePath, tag);
         LogService.log('[_runMp3Download] AudioTags write finished.');
-
-        if (coverPath != null && await File(coverPath).exists()) {
-          LogService.log('[_runMp3Download] Deleting temporary cover file...');
-          await File(coverPath).delete();
-        }
       } catch (e) {
         LogService.log('[_runMp3Download] Writing audio tags failed: $e');
       }
-
-      // 3. Write record to local database
-      final relativeFilename = playlist != null && playlist.isNotEmpty
-          ? p.join(playlist, filename)
-          : filename;
 
       LogService.log('[_runMp3Download] Registering track in local database...');
       await DatabaseService.instance.insertMedia({
@@ -318,7 +321,7 @@ class NativeDownloadManager {
         'artist': artist,
         'filename': relativeFilename,
         'format': 'mp3',
-        'cover_url': video.thumbnails.mediumResUrl.isNotEmpty ? video.thumbnails.mediumResUrl : null,
+        'cover_url': dbCoverUrl,
       });
 
       if (playlist != null && playlist.isNotEmpty) {
@@ -520,6 +523,25 @@ class NativeDownloadManager {
       }
 
       final relativeFilename = p.join('videos', filename);
+
+      String? dbCoverUrl;
+      if (video.thumbnails.mediumResUrl.isNotEmpty) {
+        try {
+          final supportDir = await getApplicationSupportDirectory();
+          final coversDir = Directory(p.join(supportDir.path, 'covers'));
+          if (!await coversDir.exists()) {
+            await coversDir.create(recursive: true);
+          }
+          final filenameHash = relativeFilename.hashCode.toString();
+          final coverPath = p.join(coversDir.path, '$filenameHash.jpg');
+          LogService.log('[_runVideoDownload] Downloading video thumbnail from: ${video.thumbnails.mediumResUrl} to $coverPath');
+          await _dio.download(video.thumbnails.mediumResUrl, coverPath);
+          dbCoverUrl = coverPath.replaceAll('\\', '/');
+        } catch (e) {
+          LogService.log('[_runVideoDownload] Video thumbnail download skipped: $e');
+        }
+      }
+
       LogService.log('[_runVideoDownload] Registering video in database...');
       await DatabaseService.instance.insertMedia({
         'type': 'video',
@@ -527,7 +549,7 @@ class NativeDownloadManager {
         'artist': video.author,
         'filename': relativeFilename,
         'format': 'mp4',
-        'cover_url': video.thumbnails.mediumResUrl.isNotEmpty ? video.thumbnails.mediumResUrl : null,
+        'cover_url': dbCoverUrl,
       });
 
       job['status'] = 'done';

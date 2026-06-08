@@ -213,67 +213,70 @@ class _LibraryPageState extends State<LibraryPage>
   ) {
     final selectedTracks = currentTracks.where((t) => _selectedTrackFilenames.contains(t.filename)).toList();
     
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: context.colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: context.colors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.3),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          IconButton(
-            icon: const Icon(Icons.close),
-            onPressed: () {
-              setState(() {
-                _isMultiSelectMode = false;
-                _selectedTrackFilenames.clear();
-              });
-            },
-          ),
-          const SizedBox(width: 8),
-          Text(
-            '${selectedTracks.length} seleccionados',
-            style: TextStyle(
-              color: context.colors.textPrimary,
-              fontWeight: FontWeight.bold,
+    return SafeArea(
+      top: false,
+      child: Container(
+        margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: context.colors.surfaceAlt,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: context.colors.border),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.3),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
-          ),
-          const Spacer(),
-          // Actions
-          IconButton(
-            icon: const Icon(Icons.playlist_add),
-            color: Theme.of(context).colorScheme.primary,
-            tooltip: 'Añadir a playlist',
-            onPressed: selectedTracks.isEmpty ? null : () => _onBatchAdd(context, library, settings, selectedTracks),
-          ),
-          IconButton(
-            icon: const Icon(Icons.drive_file_move_rounded),
-            color: Colors.cyan,
-            tooltip: 'Mover a playlist',
-            onPressed: selectedTracks.isEmpty ? null : () => _onBatchMove(context, library, settings, selectedTracks),
-          ),
-          IconButton(
-            icon: const Icon(Icons.auto_awesome_rounded),
-            color: Colors.orange,
-            tooltip: 'Autocompletar metadatos (API)',
-            onPressed: selectedTracks.isEmpty ? null : () => _onBatchAutocomplete(context, library, settings, selectedTracks),
-          ),
-          IconButton(
-            icon: const Icon(Icons.delete_rounded),
-            color: context.colors.error,
-            tooltip: 'Eliminar archivos',
-            onPressed: selectedTracks.isEmpty ? null : () => _onBatchDelete(context, library, settings, selectedTracks),
-          ),
-        ],
+          ],
+        ),
+        child: Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: () {
+                setState(() {
+                  _isMultiSelectMode = false;
+                  _selectedTrackFilenames.clear();
+                });
+              },
+            ),
+            const SizedBox(width: 8),
+            Text(
+              '${selectedTracks.length} seleccionados',
+              style: TextStyle(
+                color: context.colors.textPrimary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const Spacer(),
+            // Actions
+            IconButton(
+              icon: const Icon(Icons.playlist_add),
+              color: Theme.of(context).colorScheme.primary,
+              tooltip: 'Añadir a playlist',
+              onPressed: selectedTracks.isEmpty ? null : () => _onBatchAdd(context, library, settings, selectedTracks),
+            ),
+            IconButton(
+              icon: const Icon(Icons.drive_file_move_rounded),
+              color: Colors.cyan,
+              tooltip: 'Mover a playlist',
+              onPressed: selectedTracks.isEmpty ? null : () => _onBatchMove(context, library, settings, selectedTracks),
+            ),
+            IconButton(
+              icon: const Icon(Icons.auto_awesome_rounded),
+              color: Colors.orange,
+              tooltip: 'Autocompletar metadatos (API)',
+              onPressed: selectedTracks.isEmpty ? null : () => _onBatchAutocomplete(context, library, settings, selectedTracks),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_rounded),
+              color: context.colors.error,
+              tooltip: 'Eliminar archivos',
+              onPressed: selectedTracks.isEmpty ? null : () => _onBatchDelete(context, library, settings, selectedTracks),
+            ),
+          ],
+        ),
       ),
     );
   }

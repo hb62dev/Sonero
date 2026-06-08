@@ -86,12 +86,23 @@ class _ShazamAppState extends State<ShazamApp> with TrayListener, WindowListener
         try {
           final micGranted = await Permission.microphone.isGranted;
           final notificationGranted = await Permission.notification.isGranted;
+          final audioGranted = await Permission.audio.isGranted;
+          final videosGranted = await Permission.videos.isGranted;
+          final storageGranted = await Permission.storage.isGranted;
+          final manageGranted = await Permission.manageExternalStorage.isGranted;
 
-          if (!micGranted || !notificationGranted) {
+          if (!micGranted || !notificationGranted || !audioGranted || !videosGranted || !storageGranted || !manageGranted) {
             final statuses = await [
               Permission.microphone,
               Permission.notification,
+              Permission.audio,
+              Permission.videos,
+              Permission.storage,
+              Permission.manageExternalStorage,
             ].request();
+
+            // Refresh settings folders since permissions have changed
+            await _settings.refreshFolders();
 
             if (statuses[Permission.microphone]?.isGranted == true) {
               final isRunning = await FlutterBackgroundService().isRunning();
