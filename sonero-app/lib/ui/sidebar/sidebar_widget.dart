@@ -41,144 +41,148 @@ class SidebarWidget extends StatelessWidget {
         ),
       ),
       clipBehavior: Clip.hardEdge,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ── Header ─────────────────────────────────────────────────────
-          _Header(
-            isCollapsed: isCollapsed,
-            onToggle: onToggle,
-          ),
-
-          Divider(height: 1, color: context.colors.border),
-
-          // ── Main Navigation ─────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Column(
-              children: [
-                _NavItem(
-                  key: const ValueKey('nav_home'),
-                  icon: Icons.home_filled,
-                  label: AppLocalizations.of(context)!.navHome,
-                  isSelected: currentIndex == 0,
-                  isCollapsed: isCollapsed,
-                  onTap: () => onNavigate(0),
-                ),
-                _NavItem(
-                  key: const ValueKey('nav_analytics'),
-                  icon: Icons.analytics_outlined,
-                  label: AppLocalizations.of(context)!.navAnalytics,
-                  isSelected: currentIndex == 2,
-                  isCollapsed: isCollapsed,
-                  onTap: () => onNavigate(2),
-                ),
-                _NavItem(
-                  key: const ValueKey('nav_search'),
-                  icon: Icons.search_rounded,
-                  label: 'Buscador',
-                  isSelected: currentIndex == 3,
-                  isCollapsed: isCollapsed,
-                  onTap: () => onNavigate(3),
-                ),
-                _NavItem(
-                  key: const ValueKey('nav_download'),
-                  icon: Icons.add_link_rounded,
-                  label: AppLocalizations.of(context)!.navDownload,
-                  isSelected: false,
-                  isCollapsed: isCollapsed,
-                  onTap: () {
-                    showDialog(
-                      context: context,
-                      builder: (_) => const VideoDownloadDialog(),
-                    ).then((result) {
-                      if (result != null) {
-                        if (result is String) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Descarga completada con advertencias: $result'), backgroundColor: Colors.orange, duration: const Duration(seconds: 5)),
-                          );
-                        } else if (result == true) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text(AppLocalizations.of(context)!.downloadComplete)),
-                          );
-                        }
-                        final settings = context.read<SettingsProvider>();
-                        context.read<LibraryProvider>().loadTracks(settings.api);
-                      }
-                    });
-                  },
-                ),
-                _NavItem(
-                  key: const ValueKey('nav_active_downloads'),
-                  icon: downloads.activeJobsCount > 0 ? Icons.downloading_rounded : Icons.download_done_rounded,
-                  label: downloads.activeJobsCount > 0 
-                      ? 'Descargas (${downloads.activeJobsCount})' 
-                      : 'Descargas',
-                  isSelected: currentIndex == 4,
-                  isCollapsed: isCollapsed,
-                  badgeCount: downloads.activeJobsCount,
-                  onTap: () => onNavigate(4),
-                ),
-                _NavItem(
-                  key: const ValueKey('nav_wifi_share'),
-                  icon: Icons.wifi_rounded,
-                  label: 'Compartir WiFi',
-                  isSelected: currentIndex == 5,
-                  isCollapsed: isCollapsed,
-                  onTap: () => onNavigate(5),
-                ),
-              ],
+      child: SafeArea(
+        left: false,
+        right: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // ── Header ─────────────────────────────────────────────────────
+            _Header(
+              isCollapsed: isCollapsed,
+              onToggle: onToggle,
             ),
-          ),
 
-          Divider(height: 1, color: context.colors.border),
+            Divider(height: 1, color: context.colors.border),
 
-          // ── Playlists list ─────────────────────────────────────────────
-          Expanded(
-            child: ListView(
+            // ── Main Navigation ─────────────────────────────────────────────
+            Padding(
               padding: const EdgeInsets.symmetric(vertical: 8),
-              children: [
-                if (!isCollapsed)
-                  _SectionLabel(AppLocalizations.of(context)!.librarySection),
-                for (final pl in library.playlists)
-                  _PlaylistTile(
-                    key: ValueKey('playlist_${pl.name}'),
-                    playlist: pl,
-                    isSelected: library.selected.name == pl.name,
+              child: Column(
+                children: [
+                  _NavItem(
+                    key: const ValueKey('nav_home'),
+                    icon: Icons.home_filled,
+                    label: AppLocalizations.of(context)!.navHome,
+                    isSelected: currentIndex == 0,
+                    isCollapsed: isCollapsed,
+                    onTap: () => onNavigate(0),
+                  ),
+                  _NavItem(
+                    key: const ValueKey('nav_analytics'),
+                    icon: Icons.analytics_outlined,
+                    label: AppLocalizations.of(context)!.navAnalytics,
+                    isSelected: currentIndex == 2,
+                    isCollapsed: isCollapsed,
+                    onTap: () => onNavigate(2),
+                  ),
+                  _NavItem(
+                    key: const ValueKey('nav_search'),
+                    icon: Icons.search_rounded,
+                    label: 'Buscador',
+                    isSelected: currentIndex == 3,
+                    isCollapsed: isCollapsed,
+                    onTap: () => onNavigate(3),
+                  ),
+                  _NavItem(
+                    key: const ValueKey('nav_download'),
+                    icon: Icons.add_link_rounded,
+                    label: AppLocalizations.of(context)!.navDownload,
+                    isSelected: false,
                     isCollapsed: isCollapsed,
                     onTap: () {
-                      onNavigate(1); // Switch to library view
-                      library.selectPlaylist(settings.api, pl);
+                      showDialog(
+                        context: context,
+                        builder: (_) => const VideoDownloadDialog(),
+                      ).then((result) {
+                        if (result != null) {
+                          if (result is String) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Descarga completada con advertencias: $result'), backgroundColor: Colors.orange, duration: const Duration(seconds: 5)),
+                            );
+                          } else if (result == true) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(AppLocalizations.of(context)!.downloadComplete)),
+                            );
+                          }
+                          final settings = context.read<SettingsProvider>();
+                          context.read<LibraryProvider>().loadTracks(settings.api);
+                        }
+                      });
                     },
-                    onDelete: pl.isLibrary
-                        ? null
-                        : () => _confirmDelete(context, library, settings, pl),
-                    onRename: pl.isLibrary
-                        ? null
-                        : () => _renameDialog(context, library, settings, pl),
                   ),
-              ],
+                  _NavItem(
+                    key: const ValueKey('nav_active_downloads'),
+                    icon: downloads.activeJobsCount > 0 ? Icons.downloading_rounded : Icons.download_done_rounded,
+                    label: downloads.activeJobsCount > 0 
+                        ? 'Descargas (${downloads.activeJobsCount})' 
+                        : 'Descargas',
+                    isSelected: currentIndex == 4,
+                    isCollapsed: isCollapsed,
+                    badgeCount: downloads.activeJobsCount,
+                    onTap: () => onNavigate(4),
+                  ),
+                  _NavItem(
+                    key: const ValueKey('nav_wifi_share'),
+                    icon: Icons.wifi_rounded,
+                    label: 'Compartir WiFi',
+                    isSelected: currentIndex == 5,
+                    isCollapsed: isCollapsed,
+                    onTap: () => onNavigate(5),
+                  ),
+                ],
+              ),
             ),
-          ),
 
-          Divider(height: 1, color: context.colors.border),
+            Divider(height: 1, color: context.colors.border),
 
-          // ── Settings & New playlist button ──────────────────────────────
-          _NavItem(
-            key: const ValueKey('nav_settings'),
-            icon: Icons.settings_outlined,
-            label: AppLocalizations.of(context)!.settings,
-            isSelected: false,
-            isCollapsed: isCollapsed,
-            onTap: () => _openSettings(context),
-          ),
-          
-          _NewPlaylistButton(
-            isCollapsed: isCollapsed,
-            onPressed: () => _createDialog(context, library, settings),
-          ),
-          const SizedBox(height: 8),
-        ],
+            // ── Playlists list ─────────────────────────────────────────────
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.symmetric(vertical: 8),
+                children: [
+                  if (!isCollapsed)
+                    _SectionLabel(AppLocalizations.of(context)!.librarySection),
+                  for (final pl in library.playlists)
+                    _PlaylistTile(
+                      key: ValueKey('playlist_${pl.name}'),
+                      playlist: pl,
+                      isSelected: library.selected.name == pl.name,
+                      isCollapsed: isCollapsed,
+                      onTap: () {
+                        onNavigate(1); // Switch to library view
+                        library.selectPlaylist(settings.api, pl);
+                      },
+                      onDelete: pl.isLibrary
+                          ? null
+                          : () => _confirmDelete(context, library, settings, pl),
+                      onRename: pl.isLibrary
+                          ? null
+                          : () => _renameDialog(context, library, settings, pl),
+                    ),
+                ],
+              ),
+            ),
+
+            Divider(height: 1, color: context.colors.border),
+
+            // ── Settings & New playlist button ──────────────────────────────
+            _NavItem(
+              key: const ValueKey('nav_settings'),
+              icon: Icons.settings_outlined,
+              label: AppLocalizations.of(context)!.settings,
+              isSelected: false,
+              isCollapsed: isCollapsed,
+              onTap: () => _openSettings(context),
+            ),
+            
+            _NewPlaylistButton(
+              isCollapsed: isCollapsed,
+              onPressed: () => _createDialog(context, library, settings),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
       ),
     );
   }
