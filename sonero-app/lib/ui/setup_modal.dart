@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../providers/settings_provider.dart';
 import '../ui/theme.dart';
@@ -31,6 +30,8 @@ class _SetupModalState extends State<SetupModal> {
           Permission.videos,
           Permission.storage,
           Permission.manageExternalStorage,
+          Permission.notification,
+          Permission.microphone,
         ].request();
         
         if (mounted) {
@@ -64,7 +65,6 @@ class _SetupModalState extends State<SetupModal> {
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
-    final loc = AppLocalizations.of(context)!;
     final isReady = settings.hasMusicFolder;
     final isMobile = MediaQuery.of(context).size.width < 600;
     final screenH = MediaQuery.of(context).size.height;

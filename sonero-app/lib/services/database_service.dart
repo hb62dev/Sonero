@@ -4,9 +4,9 @@ import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:dio/dio.dart';
 import 'package:audiotags/audiotags.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 class DatabaseService {
   static final DatabaseService instance = DatabaseService._init();
@@ -101,7 +101,12 @@ class DatabaseService {
 
   Future<List<Map<String, dynamic>>> getPlaylists() async {
     final db = await instance.database;
-    final result = await db.query('playlists');
+    final result = await db.rawQuery('''
+      SELECT p.*, COUNT(pm.media_id) as track_count
+      FROM playlists p
+      LEFT JOIN playlist_media pm ON p.id = pm.playlist_id
+      GROUP BY p.id
+    ''');
     return result;
   }
 
@@ -227,26 +232,6 @@ class DatabaseService {
   Future<void> syncWithFileSystem({String? musicFolder, String? videoFolder}) async {
     if (musicFolder == null || musicFolder.isEmpty) return;
 
-    // Request permissions on Android
-    if (Platform.isAndroid) {
-      try {
-        final statusAudio = await Permission.audio.status;
-        final statusVideo = await Permission.videos.status;
-        final statusStorage = await Permission.storage.status;
-        final statusManage = await Permission.manageExternalStorage.status;
-
-        if (!statusAudio.isGranted || !statusVideo.isGranted || !statusStorage.isGranted || !statusManage.isGranted) {
-          await [
-            Permission.audio,
-            Permission.videos,
-            Permission.storage,
-            Permission.manageExternalStorage,
-          ].request();
-        }
-      } catch (e) {
-        print("[DatabaseService] Permission request warning: $e");
-      }
-    }
 
     final db = await database;
     final Set<String> existingFiles = {};
@@ -338,6 +323,10 @@ class DatabaseService {
                   print("[DatabaseService] Error reading tags for ${entity.path}: $e");
                 }
 
+                if (coverUrl == null || coverUrl.isEmpty) {
+                  coverUrl = await _fallbackGetCover(entity.path, relativePath);
+                }
+
                 // Add to DB
                 mediaId = await db.insert('media', {
                   'type': 'music',
@@ -382,6 +371,14 @@ class DatabaseService {
                     }
                   } catch (e) {
                     print("[DatabaseService] Error reading tags/cover for existing track ${entity.path}: $e");
+                  }
+
+                  if (!localSaved) {
+                    final fallbackCover = await _fallbackGetCover(entity.path, relativePath);
+                    if (fallbackCover != null) {
+                      await db.update('media', {'cover_url': fallbackCover}, where: 'id = ?', whereArgs: [mediaId]);
+                      localSaved = true;
+                    }
                   }
 
                   // If still not saved and it was a remote URL, download it locally
@@ -566,6 +563,243 @@ class DatabaseService {
   Future<int> clearLogs() async {
     final db = await instance.database;
     return await db.delete('logs');
+  }
+
+  Future<Uint8List?> _extractId3v2Cover(String filePath) async {
+    final file = File(filePath);
+    if (!await file.exists()) return null;
+
+    RandomAccessFile? raf;
+    try {
+      raf = await file.open(mode: FileMode.read);
+      // Read header (10 bytes)
+      final header = await raf.read(10);
+      if (header.length < 10) return null;
+      
+      // Check magic "ID3"
+      if (header[0] != 0x49 || header[1] != 0x44 || header[2] != 0x33) return null;
+      
+      final versionMajor = header[3];
+      if (versionMajor < 2 || versionMajor > 4) return null; // Only ID3v2.2, ID3v2.3, ID3v2.4
+      
+      // Size is synchsafe integer (4 bytes, MSB is 0)
+      int size = ((header[6] & 0x7F) << 21) |
+                 ((header[7] & 0x7F) << 14) |
+                 ((header[8] & 0x7F) << 7)  |
+                 (header[9] & 0x7F);
+                 
+      // Let's read the tag content
+      final tagData = await raf.read(size);
+      if (tagData.length < size) {
+        size = tagData.length;
+      }
+      
+      // Parse frames in tagData
+      int offset = 0;
+      while (offset < size - 10) {
+        String frameId;
+        int frameSize;
+        int headerSize;
+        
+        if (versionMajor == 2) {
+          if (offset + 6 > size) break;
+          frameId = String.fromCharCodes(tagData.sublist(offset, offset + 3));
+          frameSize = (tagData[offset + 3] << 16) | (tagData[offset + 4] << 8) | tagData[offset + 5];
+          headerSize = 6;
+        } else {
+          if (offset + 10 > size) break;
+          frameId = String.fromCharCodes(tagData.sublist(offset, offset + 4));
+          if (versionMajor == 4) {
+            // ID3v2.4 size is synchsafe
+            frameSize = ((tagData[offset + 4] & 0x7F) << 21) |
+                        ((tagData[offset + 5] & 0x7F) << 14) |
+                        ((tagData[offset + 6] & 0x7F) << 7)  |
+                        (tagData[offset + 7] & 0x7F);
+          } else {
+            // ID3v2.3 size is normal 32-bit int
+            frameSize = (tagData[offset + 4] << 24) |
+                        (tagData[offset + 5] << 16) |
+                        (tagData[offset + 6] << 8)  |
+                        tagData[offset + 7];
+          }
+          headerSize = 10;
+        }
+        
+        if (frameSize <= 0 || offset + headerSize + frameSize > size) {
+          break;
+        }
+        
+        final isApic = (versionMajor == 2 && frameId == "PIC") || (versionMajor > 2 && frameId == "APIC");
+        if (isApic) {
+          final frameData = tagData.sublist(offset + headerSize, offset + headerSize + frameSize);
+          int dataOffset = 1; // skip encoding byte
+          
+          if (versionMajor == 2) {
+            // Format (3 bytes, e.g. "JPG" or "PNG")
+            dataOffset += 3;
+            if (dataOffset < frameData.length) {
+              dataOffset += 1; // Picture Type (1 byte)
+            }
+            // Description (null terminated)
+            while (dataOffset < frameData.length && frameData[dataOffset] != 0) {
+              dataOffset++;
+            }
+            dataOffset++; // skip null terminator
+          } else {
+            // MIME type (null terminated)
+            while (dataOffset < frameData.length && frameData[dataOffset] != 0) {
+              dataOffset++;
+            }
+            dataOffset++; // skip null terminator
+            
+            // Picture Type (1 byte)
+            if (dataOffset < frameData.length) {
+              dataOffset += 1;
+            }
+            
+            // Description (null terminated)
+            final encoding = frameData[0];
+            if (encoding == 1 || encoding == 2) {
+              // UTF-16, double null terminated
+              while (dataOffset < frameData.length - 1 && (frameData[dataOffset] != 0 || frameData[dataOffset + 1] != 0)) {
+                dataOffset += 2;
+              }
+              dataOffset += 2; // skip both nulls
+            } else {
+              while (dataOffset < frameData.length && frameData[dataOffset] != 0) {
+                dataOffset++;
+              }
+              dataOffset++; // skip null
+            }
+          }
+          
+          if (dataOffset < frameData.length) {
+            return Uint8List.fromList(frameData.sublist(dataOffset));
+          }
+          break;
+        }
+        
+        offset += headerSize + frameSize;
+      }
+    } catch (e) {
+      print("[DatabaseService] Pure Dart ID3 APIC extraction error: $e");
+    } finally {
+      if (raf != null) {
+        await raf.close();
+      }
+    }
+    return null;
+  }
+
+  Future<Uint8List?> _extractM4aCover(String filePath) async {
+    final file = File(filePath);
+    if (!await file.exists()) return null;
+
+    RandomAccessFile? raf;
+    try {
+      raf = await file.open(mode: FileMode.read);
+      final length = await raf.length();
+      
+      Future<Uint8List?> findCovr(int offset, int limit) async {
+        int pos = offset;
+        while (pos < limit - 8) {
+          await raf!.setPosition(pos);
+          final header = await raf!.read(8);
+          if (header.length < 8) break;
+          
+          final size = (header[0] << 24) | (header[1] << 16) | (header[2] << 8) | header[3];
+          final type = String.fromCharCodes(header.sublist(4, 8));
+          
+          if (size <= 0) break;
+          
+          if (type == 'covr') {
+            await raf!.setPosition(pos + 8);
+            final subHeader = await raf!.read(8);
+            if (subHeader.length < 8) return null;
+            final subSize = (subHeader[0] << 24) | (subHeader[1] << 16) | (subHeader[2] << 8) | subHeader[3];
+            final subType = String.fromCharCodes(subHeader.sublist(4, 8));
+            if (subType == 'data') {
+              final imageSize = subSize - 16;
+              if (imageSize > 0 && pos + 8 + 16 + imageSize <= length) {
+                await raf!.setPosition(pos + 8 + 16);
+                final imgBytes = await raf!.read(imageSize);
+                return Uint8List.fromList(imgBytes);
+              }
+            }
+            return null;
+          } else if (type == 'moov' || type == 'udta' || type == 'meta' || type == 'ilst') {
+            int startOffset = pos + 8;
+            if (type == 'meta') {
+              startOffset += 4; // skip 4 bytes version/flags
+            }
+            final res = await findCovr(startOffset, pos + size);
+            if (res != null) return res;
+          }
+          
+          pos += size;
+        }
+        return null;
+      }
+      
+      return await findCovr(0, length);
+    } catch (e) {
+      print("[DatabaseService] Pure Dart M4A covr extraction error: $e");
+    } finally {
+      if (raf != null) {
+        await raf.close();
+      }
+    }
+    return null;
+  }
+
+  Future<String?> _fallbackGetCover(String filePath, String relativePath) async {
+    // 1. Try to extract from file tags using pure Dart
+    try {
+      final ext = p.extension(filePath).toLowerCase();
+      Uint8List? bytes;
+      if (ext == '.mp3') {
+        bytes = await _extractId3v2Cover(filePath);
+      } else if (ext == '.m4a') {
+        bytes = await _extractM4aCover(filePath);
+      }
+      
+      if (bytes != null && bytes.isNotEmpty) {
+        final supportDir = await getApplicationSupportDirectory();
+        final coversDir = Directory(p.join(supportDir.path, 'covers'));
+        if (!await coversDir.exists()) {
+          await coversDir.create(recursive: true);
+        }
+        final filenameHash = relativePath.hashCode.toString();
+        // Detect magic bytes for jpeg (FF D8 FF) or png (89 50 4E 47)
+        String picExt = 'jpg';
+        if (bytes.length > 4 && bytes[0] == 0x89 && bytes[1] == 0x50 && bytes[2] == 0x4E && bytes[3] == 0x47) {
+          picExt = 'png';
+        }
+        final coverFile = File(p.join(coversDir.path, '$filenameHash.$picExt'));
+        await coverFile.writeAsBytes(bytes);
+        print("[DatabaseService] Extracted embedded cover for $relativePath to ${coverFile.path}");
+        return coverFile.path.replaceAll('\\', '/');
+      }
+    } catch (e) {
+      print("[DatabaseService] Error extracting fallback tags cover: $e");
+    }
+
+    // 2. Try to search for a folder image (cover.jpg, folder.jpg, etc.) in the same directory
+    try {
+      final dirPath = p.dirname(filePath);
+      final possibleNames = ['cover.jpg', 'cover.png', 'folder.jpg', 'folder.png', 'album.jpg', 'album.png', 'cover.jpeg', 'folder.jpeg', 'album.jpeg'];
+      for (final name in possibleNames) {
+        final coverImgFile = File(p.join(dirPath, name));
+        if (await coverImgFile.exists()) {
+          print("[DatabaseService] Found local folder cover image for $relativePath at ${coverImgFile.path}");
+          return coverImgFile.path.replaceAll('\\', '/');
+        }
+      }
+    } catch (e) {
+      print("[DatabaseService] Error searching folder cover image: $e");
+    }
+
+    return null;
   }
 
   Future close() async {

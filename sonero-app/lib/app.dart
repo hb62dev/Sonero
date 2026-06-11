@@ -5,7 +5,6 @@ import 'package:provider/provider.dart';
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:local_notifier/local_notifier.dart';
-import 'package:hotkey_manager/hotkey_manager.dart';
 import 'package:flutter/services.dart';
 import 'core/hotkey_service.dart';
 import 'providers/settings_provider.dart';
@@ -18,8 +17,6 @@ import 'ui/theme.dart';
 import 'ui/video_download_dialog.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
-import 'package:flutter_background_service/flutter_background_service.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 class ShazamApp extends StatefulWidget {
   const ShazamApp({super.key});
@@ -80,49 +77,7 @@ class _ShazamAppState extends State<ShazamApp> with TrayListener, WindowListener
       );
     }
 
-    // Initialize background service on mobile (Android/iOS) when app is in foreground
-    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
-      WidgetsBinding.instance.addPostFrameCallback((_) async {
-        try {
-          final micGranted = await Permission.microphone.isGranted;
-          final notificationGranted = await Permission.notification.isGranted;
-          final audioGranted = await Permission.audio.isGranted;
-          final videosGranted = await Permission.videos.isGranted;
-          final storageGranted = await Permission.storage.isGranted;
-          final manageGranted = await Permission.manageExternalStorage.isGranted;
 
-          if (!micGranted || !notificationGranted || !audioGranted || !videosGranted || !storageGranted || !manageGranted) {
-            final statuses = await [
-              Permission.microphone,
-              Permission.notification,
-              Permission.audio,
-              Permission.videos,
-              Permission.storage,
-              Permission.manageExternalStorage,
-            ].request();
-
-            // Refresh settings folders since permissions have changed
-            await _settings.refreshFolders();
-
-            if (statuses[Permission.microphone]?.isGranted == true) {
-              final isRunning = await FlutterBackgroundService().isRunning();
-              if (!isRunning) {
-                await FlutterBackgroundService().startService();
-              }
-            } else {
-              debugPrint('[ShazamApp] Microphone permission denied. Background service not started.');
-            }
-          } else {
-            final isRunning = await FlutterBackgroundService().isRunning();
-            if (!isRunning) {
-              await FlutterBackgroundService().startService();
-            }
-          }
-        } catch (e) {
-          debugPrint('Error starting background service: $e');
-        }
-      });
-    }
     setState(() => _initialized = true);
   }
 

@@ -1,11 +1,17 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Depends
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
+from sqlalchemy.orm import Session
+from pathlib import Path
 from config import settings
+from database import get_db
+from models import Media, PlaylistMedia, PlaybackEvent
 from services import downloader
 from schemas.video import VideoDownloadRequest, VideoInfoResponse
 from schemas.song import TrackInfo
 from routers.metadata import read_mp3_basic_info
+import hashlib
+import re
 
 router = APIRouter()
 
@@ -276,6 +282,254 @@ async def resume_video_job(job_id: str, background_tasks: BackgroundTasks):
 
 
 @router.get(
+    "/downloads/playlist/info",
+    summary="Get playlist information and videos",
+)
+async def get_playlist_info_route(url: str = Query(..., description="YouTube Playlist URL")):
+    try:
+        info = await downloader.get_playlist_info(url)
+        return info
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error fetching playlist info: {str(e)}")
+
+
+def get_file_md5(path: Path) -> str:
+    hasher = hashlib.md5()
+    with open(path, "rb") as f:
+        while chunk := f.read(8192):
+            hasher.update(chunk)
+    return hasher.hexdigest()
+
+
+@router.get(
+    "/downloads/duplicates",
+    summary="Find duplicate files on disk",
+)
+async def get_duplicates(db: Session = Depends(get_db)) -> dict:
+    all_files = []
+    seen_paths = set()
+    
+    # Scan music dir
+    if settings.MUSIC_DIR.exists():
+        for f in settings.MUSIC_DIR.rglob("*"):
+            if f.is_file() and f.suffix.lower() in {".mp3", ".m4a", ".mp4", ".webm", ".mkv", ".avi", ".mov"}:
+                res_path = f.resolve()
+                if res_path not in seen_paths:
+                    seen_paths.add(res_path)
+                    all_files.append(f)
+                    
+    # Scan video dir
+    if settings.VIDEO_DIR.exists() and settings.VIDEO_DIR.resolve() != settings.MUSIC_DIR.resolve():
+        for f in settings.VIDEO_DIR.rglob("*"):
+            if f.is_file() and f.suffix.lower() in {".mp3", ".m4a", ".mp4", ".webm", ".mkv", ".avi", ".mov"}:
+                res_path = f.resolve()
+                if res_path not in seen_paths:
+                    seen_paths.add(res_path)
+                    all_files.append(f)
+                    
+    # Group by size
+    files_by_size = {}
+    for f in all_files:
+        try:
+            size = f.stat().st_size
+            files_by_size.setdefault(size, []).append(f)
+        except Exception:
+            continue
+            
+    # For sizes with multiple files, calculate MD5
+    duplicates_by_hash = {}
+    for size, files in files_by_size.items():
+        if len(files) < 2:
+            continue
+        for f in files:
+            try:
+                md5_hash = get_file_md5(f)
+                duplicates_by_hash.setdefault(md5_hash, []).append(f)
+            except Exception:
+                continue
+                
+    # Prepare result structure
+    exact_groups = []
+    for h, files in duplicates_by_hash.items():
+        if len(files) < 2:
+            continue
+            
+        group_files = []
+        for f in files:
+            # Determine DB filename
+            if f.is_relative_to(settings.VIDEO_DIR) and settings.VIDEO_DIR != settings.MUSIC_DIR:
+                filename = f"videos/{str(f.relative_to(settings.VIDEO_DIR)).replace(chr(92), '/')}"
+            else:
+                filename = str(f.relative_to(settings.MUSIC_DIR)).replace(chr(92), '/')
+                
+            media_entry = db.query(Media).filter(Media.filename == filename).first()
+            stat = f.stat()
+            
+            group_files.append({
+                "filename": filename,
+                "absolute_path": str(f.resolve()),
+                "in_db": media_entry is not None,
+                "size_mb": round(stat.st_size / 1024 / 1024, 2),
+                "created_at": stat.st_ctime,
+                "title": media_entry.title if media_entry else f.stem,
+                "artist": media_entry.artist if media_entry else "",
+            })
+            
+        size_mb = group_files[0]["size_mb"]
+        exact_groups.append({
+            "hash": h,
+            "size_mb": size_mb,
+            "files": group_files
+        })
+        
+    return {"exact_duplicates": exact_groups}
+
+
+class CleanDuplicatesRequest(BaseModel):
+    dry_run: bool = False
+
+
+@router.post(
+    "/downloads/duplicates/clean",
+    summary="Delete duplicate files on disk and database",
+)
+async def clean_duplicates(body: CleanDuplicatesRequest, db: Session = Depends(get_db)) -> dict:
+    dry_run = body.dry_run
+    all_files = []
+    seen_paths = set()
+    
+    if settings.MUSIC_DIR.exists():
+        for f in settings.MUSIC_DIR.rglob("*"):
+            if f.is_file() and f.suffix.lower() in {".mp3", ".m4a", ".mp4", ".webm", ".mkv", ".avi", ".mov"}:
+                res_path = f.resolve()
+                if res_path not in seen_paths:
+                    seen_paths.add(res_path)
+                    all_files.append(f)
+                    
+    if settings.VIDEO_DIR.exists() and settings.VIDEO_DIR.resolve() != settings.MUSIC_DIR.resolve():
+        for f in settings.VIDEO_DIR.rglob("*"):
+            if f.is_file() and f.suffix.lower() in {".mp3", ".m4a", ".mp4", ".webm", ".mkv", ".avi", ".mov"}:
+                res_path = f.resolve()
+                if res_path not in seen_paths:
+                    seen_paths.add(res_path)
+                    all_files.append(f)
+                    
+    files_by_size = {}
+    for f in all_files:
+        try:
+            size = f.stat().st_size
+            files_by_size.setdefault(size, []).append(f)
+        except Exception:
+            continue
+            
+    duplicates_by_hash = {}
+    for size, files in files_by_size.items():
+        if len(files) < 2:
+            continue
+        for f in files:
+            try:
+                md5_hash = get_file_md5(f)
+                duplicates_by_hash.setdefault(md5_hash, []).append(f)
+            except Exception:
+                continue
+                
+    deleted_files = []
+    space_saved_bytes = 0
+    
+    for h, files in duplicates_by_hash.items():
+        if len(files) < 2:
+            continue
+            
+        group_items = []
+        for f in files:
+            if f.is_relative_to(settings.VIDEO_DIR) and settings.VIDEO_DIR != settings.MUSIC_DIR:
+                filename = f"videos/{str(f.relative_to(settings.VIDEO_DIR)).replace(chr(92), '/')}"
+            else:
+                filename = str(f.relative_to(settings.MUSIC_DIR)).replace(chr(92), '/')
+                
+            media_entry = db.query(Media).filter(Media.filename == filename).first()
+            stat = f.stat()
+            has_dup_suffix = bool(re.search(r'\s*\(\d+\)$|\s*_\d+$', f.stem))
+            
+            group_items.append({
+                "path": f,
+                "filename": filename,
+                "db_entry": media_entry,
+                "ctime": stat.st_ctime,
+                "size": stat.st_size,
+                "has_dup_suffix": has_dup_suffix
+            })
+            
+        # Prioritize winner:
+        # 1. Has DB entry
+        # 2. Doesn't have duplicate suffix (like (1))
+        # 3. Oldest added_at or ctime
+        def sort_key(item):
+            has_db = item["db_entry"] is not None
+            db_priority = -1 if has_db else 0
+            suffix_priority = 1 if item["has_dup_suffix"] else 0
+            db_added_at = item["db_entry"].added_at.timestamp() if (has_db and item["db_entry"].added_at) else item["ctime"]
+            return (db_priority, suffix_priority, db_added_at)
+            
+        group_items.sort(key=sort_key)
+        winner = group_items[0]
+        losers = group_items[1:]
+        
+        media_win = winner["db_entry"]
+        
+        for loser in losers:
+            media_del = loser["db_entry"]
+            
+            # Database reconciliation
+            if media_del and media_win:
+                # Reassociate playlist media
+                for pm in list(media_del.playlist_entries):
+                    media_del.playlist_entries.remove(pm)
+                    # Check if winner is already in this playlist
+                    exists = db.query(PlaylistMedia).filter(
+                        PlaylistMedia.playlist_id == pm.playlist_id,
+                        PlaylistMedia.media_id == media_win.id
+                    ).first()
+                    if not exists:
+                        media_win.playlist_entries.append(pm)
+                    else:
+                        db.delete(pm)
+                        
+                # Reassociate playback events
+                for pe in list(media_del.playback_events):
+                    media_del.playback_events.remove(pe)
+                    media_win.playback_events.append(pe)
+                    
+                db.flush()
+                db.delete(media_del)
+            elif media_del:
+                db.delete(media_del)
+                
+            # Delete file on disk
+            if not dry_run:
+                try:
+                    if loser["path"].exists():
+                        loser["path"].unlink()
+                except Exception as e:
+                    raise HTTPException(status_code=500, detail=f"Error deleting file {loser['path']}: {str(e)}")
+                    
+            deleted_files.append(loser["filename"])
+            space_saved_bytes += loser["size"]
+            
+    if not dry_run:
+        db.commit()
+    else:
+        db.rollback()
+        
+    return {
+        "dry_run": dry_run,
+        "deleted_count": len(deleted_files),
+        "deleted_files": deleted_files,
+        "space_saved_mb": round(space_saved_bytes / 1024 / 1024, 2)
+    }
+
+
+@router.get(
     "/downloads/videos/{filename:path}",
     summary="Get a specific video file",
 )
@@ -332,4 +586,8 @@ async def delete_file(filename: str) -> dict:
         raise HTTPException(status_code=404, detail=f"Archivo '{filename}' no encontrado.")
     file_path.unlink()
     return {"message": f"'{filename}' eliminado correctamente."}
+
+
+
+
 

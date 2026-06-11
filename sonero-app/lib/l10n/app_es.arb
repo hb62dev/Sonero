@@ -221,5 +221,29 @@
     "placeholders": {
       "error": { "type": "String" }
     }
+  },
+
+  "playlistDetected": "Playlist de YouTube detectada",
+  "downloadPlaylist": "Descargar Playlist",
+  "playlistDownloadOptions": "Opciones de descarga de Playlist",
+  "loadingPlaylistInfo": "Cargando información de la playlist...",
+  "playlistVideosCount": "{count} videos encontrados",
+  "@playlistVideosCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "enqueuingDownloads": "Encolando {count} descargas...",
+  "@enqueuingDownloads": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "playlistEnqueued": "Se han encolado {count} descargas en el gestor.",
+  "@playlistEnqueued": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
   }
 }
+

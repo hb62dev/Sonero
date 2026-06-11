@@ -1,40 +1,249 @@
 {
   "@@locale": "en",
   "appTitle": "Sonero",
+
   "navHome": "Home",
   "navLibrary": "Library",
   "navAnalytics": "Analytics",
   "navDownload": "Download from YouTube",
+  "navSearch": "Search",
+
   "downloadComplete": "Download Completed",
   "librarySection": "LIBRARY",
+
   "newPlaylist": "New Playlist",
-  "newPlaylistHint": "Playlist Name",
+  "newPlaylistHint": "Playlist name",
   "create": "Create",
   "cancel": "Cancel",
+  "close": "Close",
+  "save": "Save",
+  "confirm": "Confirm",
+  "change": "Change",
+  "delete": "Delete",
+  "retry": "Retry",
+  "clear": "Clear",
+  "open": "Open",
+  "download": "Download",
+  "refresh": "Refresh",
+
   "renamePlaylist": "Rename Playlist",
-  "newPlaylistName": "New Name",
+  "newPlaylistName": "New name",
   "rename": "Rename",
   "deletePlaylist": "Delete Playlist",
   "deletePlaylistConfirm": "\"{name}\" will be deleted. The items will remain in your Library.",
   "@deletePlaylistConfirm": {
     "placeholders": {
-      "name": {
-        "type": "String"
-      }
+      "name": { "type": "String" }
     }
   },
-  "delete": "Delete",
+
   "settings": "Settings",
   "welcomeHome": "Welcome to Sonero",
   "play": "Play",
-  "moreInfo": "More Info",
+  "moreInfo": "More info",
   "continueWatching": "Continue Playing",
   "yourSmartPlaylists": "Smart Playlists",
+
   "language": "Language",
   "languageSpanish": "Spanish",
   "languageEnglish": "English",
   "languageJapanese": "Japanese",
   "appearance": "Appearance",
   "apiConnection": "API Connection (Local/Remote)",
-  "musicFolder": "Media Folder"
+  "musicFolder": "Media Folder",
+
+  "playerShuffle": "Shuffle",
+  "playerPrevious": "Previous",
+  "playerNext": "Next",
+  "playerRepeat": "Repeat",
+  "playerShowVideo": "Show Video",
+  "playerGridView": "Grid View",
+  "playerListView": "List View",
+
+  "trackCount": "{count} song{count, plural, =1{} other{s}}",
+  "@trackCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+
+  "autoFillMetadata": "Auto-fill Metadata",
+  "exportCsv": "Export CSV",
+  "csvSaved": "CSV saved: {path}",
+  "@csvSaved": {
+    "placeholders": {
+      "path": { "type": "String" }
+    }
+  },
+
+  "editMetadata": "Edit metadata",
+  "autoFillMetadataApi": "Auto-fill metadata (API)",
+  "deleteFile": "Delete file",
+  "moveTo": "Move to...",
+  "libraryRoot": "Library (root)",
+  "deleteSong": "Delete song",
+  "deleteSongConfirm": "Are you sure you want to delete \"{name}\" from disk?",
+  "@deleteSongConfirm": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "fileDeleted": "File deleted",
+  "movedTo": "Moved to {destination}",
+  "@movedTo": {
+    "placeholders": {
+      "destination": { "type": "String" }
+    }
+  },
+
+  "emptyLibrary": "Your library is empty",
+  "emptyPlaylist": "{name} is empty",
+  "@emptyPlaylist": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "emptyLibraryHint": "Press the keyboard hotkey to recognize a song",
+
+  "scanningMetadata": "Scanning Metadata",
+  "startingScan": "Starting scan...",
+  "starting": "Starting...",
+  "unknownError": "Unknown error",
+
+  "analyticsTitle": "Consumption Analytics",
+  "yourHabits": "Your Habits",
+  "playbackHours": "Playback hours",
+  "videosCompleted": "Videos Completed",
+  "musicListened": "Music Listened",
+  "recentHistory": "Recent History (Benrio)",
+  "analyticsPlaceholder": "Backend data will be integrated here once the connection to Benrio is implemented.",
+
+  "searchHint": "Search songs, artists, or YouTube...",
+  "typeToSearch": "Type to search...",
+  "noLocalResults": "No local results",
+  "localLibraryCount": "Local Library ({count})",
+  "@localLibraryCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "noYouTubeResults": "No YouTube results",
+
+  "downloadMedia": "Download Media",
+  "format": "Format:",
+  "formatLoadError": "Error loading formats: {error}",
+  "@formatLoadError": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "destinationPlaylist": "Destination (Playlist):",
+
+  "downloadYouTubeVideo": "Download YouTube Video",
+  "fetchInfo": "Get Info",
+  "selectFormat": "Select Format:",
+
+  "videoFolder": "Video Folder",
+  "notSelected": "Not selected",
+  "selectFolder": "Select folder",
+  "selectMusicFolderDialog": "Select the folder where you want to save music",
+  "selectVideoFolderDialog": "Select the folder where you want to save videos",
+
+  "authentication": "Authentication (Anti-Bot)",
+  "authDescription": "Use your YouTube cookies to prevent blocks when downloading.",
+  "syncBenrio": "Synchronize (Benrio)",
+  "cookiesSynced": "Cookies synchronized successfully.",
+  "loadCookiesFile": "Load cookies.txt",
+  "selectCookiesDialog": "Select your cookies.txt file",
+  "fileLoaded": "File loaded successfully.",
+
+  "themeMode": "Theme mode",
+  "themeSystem": "System",
+  "themeLight": "Light",
+  "themeDark": "Dark",
+  "primaryColor": "Primary color",
+  "sidebarColor": "Sidebar color",
+  "defaultColor": "Default",
+  "selectColor": "Select color",
+
+  "saveUrl": "Save URL",
+  "refetchTest": "Refetch / Test",
+  "connectionSuccess": "✅ Successful connection to backend.",
+  "connectionFailed": "❌ Could not connect to backend.",
+
+  "listenDuration": "Listen duration",
+  "durationSaved": "Duration saved",
+  "durationRange": "Between 5 and 60 seconds.",
+  "secondsSuffix": "sec",
+
+  "globalHotkeys": "Global keyboard shortcuts",
+  "hotkeysDescription": "Work even when the window is minimized.",
+  "hotkeyMic": "🎙️ Listen with Microphone",
+  "hotkeySystem": "🖥️ Listen to System Audio",
+  "hotkeyVideo": "📺 Download Video (Clipboard)",
+  "hotkeyShow": "👀 Show Window",
+  "hotkeyHide": "👻 Hide Window",
+  "hotkeySaved": "Hotkey saved",
+  "hotkeyTitleMic": "🎙️ Hotkey — Microphone",
+  "hotkeyTitleSystem": "🖥️ Hotkey — System",
+  "hotkeyTitleVideo": "📺 Hotkey — Video",
+  "hotkeyTitleShow": "👀 Hotkey — Show Window",
+  "hotkeyTitleHide": "👻 Hotkey — Hide Window",
+  "hotkeyRecordPrompt": "Press the key combination you want to use.",
+
+  "micDevice": "Microphone device",
+  "deviceNumber": "Device #{index}",
+  "@deviceNumber": {
+    "placeholders": {
+      "index": { "type": "int" }
+    }
+  },
+  "systemDefault": "System default",
+  "detectDevices": "Detect devices",
+  "useDefault": "Use default",
+  "audioDevices": "Audio devices",
+
+  "editMetadataTitle": "Edit Metadata",
+  "fieldTitle": "Title",
+  "fieldArtist": "Artist",
+  "fieldAlbum": "Album",
+  "fieldYear": "Year",
+  "fieldGenre": "Genre",
+  "errorSaving": "Error saving: {error}",
+  "@errorSaving": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+
+  "errorPrefix": "Error: {error}",
+  "@errorPrefix": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+
+  "playlistDetected": "YouTube Playlist detected",
+  "downloadPlaylist": "Download Playlist",
+  "playlistDownloadOptions": "Playlist Download Options",
+  "loadingPlaylistInfo": "Loading playlist information...",
+  "playlistVideosCount": "{count} videos found",
+  "@playlistVideosCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "enqueuingDownloads": "Enqueuing {count} downloads...",
+  "@enqueuingDownloads": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "playlistEnqueued": "{count} downloads have been enqueued in the manager.",
+  "@playlistEnqueued": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  }
 }
+

@@ -6,8 +6,8 @@ import 'package:flutter/services.dart';
 import 'package:hotkey_manager/hotkey_manager.dart';
 import 'package:provider/provider.dart';
 import '../../core/hotkey_service.dart';
-import '../../providers/listen_provider.dart';
 import '../../providers/settings_provider.dart';
+import '../../providers/library_provider.dart';
 import '../theme.dart';
 import '../../services/log_service.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
@@ -868,6 +868,26 @@ class _SettingsPageState extends State<SettingsPage> {
 
           const SizedBox(height: 24),
 
+          // ── Mantenimiento de Biblioteca ───────────────────────────────
+          _Section(
+            title: 'Mantenimiento de Biblioteca',
+            icon: Icons.cleaning_services_rounded,
+            children: [
+              Text(
+                'Busca y elimina archivos duplicados exactos en tus directorios de música y video para liberar espacio.',
+                style: TextStyle(color: context.colors.textSecondary, fontSize: 11),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.find_replace_rounded, size: 16),
+                label: const Text('Buscar y Limpiar Duplicados'),
+                onPressed: () => _showDuplicatesDialog(context),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 24),
+
           // ── Logs de Diagnóstico ───────────────────────────────────────
           _Section(
             title: 'Logs de Diagnóstico',
@@ -1130,6 +1150,16 @@ class _SettingsPageState extends State<SettingsPage> {
       ),
     );
   }
+
+  void _showDuplicatesDialog(BuildContext pageContext) {
+    showDialog(
+      context: pageContext,
+      barrierDismissible: false,
+      builder: (context) {
+        return _DuplicatesDialog(pageContext: pageContext);
+      },
+    );
+  }
 }
 
 // ── Sub-widgets ──────────────────────────────────────────────────────────────
@@ -1318,6 +1348,315 @@ class _HotkeyRecorderDialogState extends State<_HotkeyRecorderDialog> {
           child: Text('Confirmar'),
         ),
       ],
+    );
+  }
+}
+
+class _DuplicatesDialog extends StatefulWidget {
+  final BuildContext pageContext;
+  const _DuplicatesDialog({required this.pageContext});
+
+  @override
+  State<_DuplicatesDialog> createState() => _DuplicatesDialogState();
+}
+
+class _DuplicatesDialogState extends State<_DuplicatesDialog> {
+  String _state = 'scanning'; // 'scanning', 'no_duplicates', 'found', 'cleaning', 'success', 'error'
+  List<dynamic> _groups = [];
+  int _duplicateCount = 0;
+  double _totalSizeMb = 0.0;
+  String _errorMessage = '';
+  
+  int _deletedCount = 0;
+  double _spaceSavedMb = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _scan();
+  }
+
+  Future<void> _scan() async {
+    setState(() {
+      _state = 'scanning';
+    });
+    try {
+      final settings = Provider.of<SettingsProvider>(widget.pageContext, listen: false);
+      final result = await settings.api.getDuplicates();
+      final exact = result['exact_duplicates'] as List? ?? [];
+      
+      int dupCount = 0;
+      double sizeMb = 0.0;
+      
+      for (final g in exact) {
+        final files = g['files'] as List? ?? [];
+        if (files.length > 1) {
+          dupCount += (files.length - 1);
+          final num size = g['size_mb'] ?? 0.0;
+          sizeMb += size.toDouble() * (files.length - 1);
+        }
+      }
+      
+      setState(() {
+        _groups = exact;
+        _duplicateCount = dupCount;
+        _totalSizeMb = (sizeMb * 100).round() / 100;
+        _state = dupCount > 0 ? 'found' : 'no_duplicates';
+      });
+    } catch (e) {
+      setState(() {
+        _state = 'error';
+        _errorMessage = e.toString();
+      });
+    }
+  }
+
+  Future<void> _clean() async {
+    setState(() {
+      _state = 'cleaning';
+    });
+    try {
+      final settings = Provider.of<SettingsProvider>(widget.pageContext, listen: false);
+      final result = await settings.api.cleanDuplicates(dryRun: false);
+      
+      setState(() {
+        _deletedCount = result['deleted_count'] as int? ?? 0;
+        final num saved = result['space_saved_mb'] ?? 0.0;
+        _spaceSavedMb = saved.toDouble();
+        _state = 'success';
+      });
+    } catch (e) {
+      setState(() {
+        _state = 'error';
+        _errorMessage = e.toString();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    
+    Widget title;
+    Widget content;
+    List<Widget> actions = [];
+
+    if (_state == 'scanning') {
+      title = const Text('Buscando Duplicados');
+      content = Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const CircularProgressIndicator(),
+          const SizedBox(height: 20),
+          Text(
+            'Analizando biblioteca y calculando firmas de archivos...',
+            style: TextStyle(color: colors.textSecondary),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      );
+    } else if (_state == 'no_duplicates') {
+      title = const Text('Biblioteca Limpia');
+      content = Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.check_circle_outline_rounded, color: colors.success, size: 64),
+          const SizedBox(height: 20),
+          Text(
+            'No se encontraron archivos duplicados byte a byte en tu biblioteca.',
+            style: TextStyle(color: colors.textPrimary),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      );
+      actions = [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cerrar'),
+        ),
+      ];
+    } else if (_state == 'found') {
+      title = Text('Duplicados Detectados ($_duplicateCount)');
+      content = SizedBox(
+        width: 500,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline_rounded, color: Theme.of(context).colorScheme.primary),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'Se encontraron $_duplicateCount archivos duplicados. Se pueden liberar $_totalSizeMb MB eliminando las copias redundantes.',
+                      style: TextStyle(fontSize: 13, color: colors.textPrimary),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Archivos que se eliminarán (se conservará la versión más antigua o vinculada a la base de datos):',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: colors.textPrimary),
+            ),
+            const SizedBox(height: 8),
+            Flexible(
+              child: Container(
+                constraints: const BoxConstraints(maxHeight: 200),
+                decoration: BoxDecoration(
+                  color: colors.bg,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: colors.border),
+                ),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  padding: const EdgeInsets.all(8),
+                  itemCount: _groups.length,
+                  separatorBuilder: (_, __) => Divider(color: colors.border, height: 16),
+                  itemBuilder: (context, idx) {
+                    final group = _groups[idx];
+                    final files = group['files'] as List;
+                    final size = group['size_mb'] ?? 0.0;
+                    
+                    final winner = files.first;
+                    final losers = files.sublist(1);
+                    
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Título: ${winner['title'] ?? winner['filename']}',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Conservar: ${winner['filename']}',
+                          style: TextStyle(fontSize: 11, color: colors.success),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        ...losers.map((loser) => Padding(
+                          padding: const EdgeInsets.only(top: 2.0),
+                          child: Text(
+                            'Eliminar: ${loser['filename']} ($size MB)',
+                            style: TextStyle(fontSize: 11, color: colors.error),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        )),
+                      ],
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+      actions = [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancelar'),
+        ),
+        ElevatedButton(
+          onPressed: _clean,
+          style: ElevatedButton.styleFrom(
+            backgroundColor: colors.error,
+            foregroundColor: Colors.white,
+          ),
+          child: const Text('Limpiar Duplicados'),
+        ),
+      ];
+    } else if (_state == 'cleaning') {
+      title = const Text('Limpiando Biblioteca');
+      content = Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const CircularProgressIndicator(),
+          const SizedBox(height: 20),
+          Text(
+            'Eliminando archivos del disco y actualizando base de datos...',
+            style: TextStyle(color: colors.textSecondary),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      );
+    } else if (_state == 'success') {
+      title = const Text('Biblioteca Limpia');
+      content = Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.done_all_rounded, color: colors.success, size: 64),
+          const SizedBox(height: 20),
+          Text(
+            '¡Limpieza realizada con éxito!',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: colors.textPrimary),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Se eliminaron $_deletedCount archivos duplicados.\nEspacio liberado: $_spaceSavedMb MB.',
+            style: TextStyle(color: colors.textSecondary),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      );
+      actions = [
+        TextButton(
+          onPressed: () {
+            Navigator.pop(context);
+            try {
+              final libraryProvider = Provider.of<LibraryProvider>(widget.pageContext, listen: false);
+              final settingsProvider = Provider.of<SettingsProvider>(widget.pageContext, listen: false);
+              libraryProvider.loadTracks(settingsProvider.api);
+            } catch (_) {}
+          },
+          child: const Text('Cerrar'),
+        ),
+      ];
+    } else { // 'error'
+      title = const Text('Error en Limpieza');
+      content = Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.error_outline_rounded, color: colors.error, size: 64),
+          const SizedBox(height: 20),
+          Text(
+            'Ocurrió un error al procesar la limpieza:',
+            style: TextStyle(fontWeight: FontWeight.bold, color: colors.textPrimary),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _errorMessage,
+            style: TextStyle(color: colors.textSecondary, fontSize: 13),
+            textAlign: TextAlign.center,
+          ),
+        ],
+      );
+      actions = [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cerrar'),
+        ),
+      ];
+    }
+
+    return AlertDialog(
+      backgroundColor: colors.surfaceAlt,
+      title: title,
+      content: content,
+      actions: actions,
     );
   }
 }

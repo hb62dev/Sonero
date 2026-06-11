@@ -13,7 +13,8 @@ import '../widgets/track_cover_image.dart';
 import 'metadata_dialog.dart';
 
 class LibraryPage extends StatefulWidget {
-  const LibraryPage({super.key});
+  final Function(List<Track>)? onWiFiShare;
+  const LibraryPage({super.key, this.onWiFiShare});
 
   @override
   State<LibraryPage> createState() => _LibraryPageState();
@@ -216,8 +217,8 @@ class _LibraryPageState extends State<LibraryPage>
     return SafeArea(
       top: false,
       child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        margin: const EdgeInsets.fromLTRB(12, 8, 12, 12),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           color: context.colors.surfaceAlt,
           borderRadius: BorderRadius.circular(16),
@@ -234,6 +235,9 @@ class _LibraryPageState extends State<LibraryPage>
           children: [
             IconButton(
               icon: const Icon(Icons.close),
+              iconSize: 20,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
               onPressed: () {
                 setState(() {
                   _isMultiSelectMode = false;
@@ -241,40 +245,68 @@ class _LibraryPageState extends State<LibraryPage>
                 });
               },
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             Text(
               '${selectedTracks.length} seleccionados',
               style: TextStyle(
                 color: context.colors.textPrimary,
                 fontWeight: FontWeight.bold,
+                fontSize: 13,
               ),
             ),
             const Spacer(),
             // Actions
             IconButton(
               icon: const Icon(Icons.playlist_add),
+              iconSize: 20,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
               color: Theme.of(context).colorScheme.primary,
               tooltip: 'Añadir a playlist',
               onPressed: selectedTracks.isEmpty ? null : () => _onBatchAdd(context, library, settings, selectedTracks),
             ),
+            const SizedBox(width: 8),
             IconButton(
               icon: const Icon(Icons.drive_file_move_rounded),
+              iconSize: 20,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
               color: Colors.cyan,
               tooltip: 'Mover a playlist',
               onPressed: selectedTracks.isEmpty ? null : () => _onBatchMove(context, library, settings, selectedTracks),
             ),
+            const SizedBox(width: 8),
             IconButton(
               icon: const Icon(Icons.auto_awesome_rounded),
+              iconSize: 20,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
               color: Colors.orange,
               tooltip: 'Autocompletar metadatos (API)',
               onPressed: selectedTracks.isEmpty ? null : () => _onBatchAutocomplete(context, library, settings, selectedTracks),
             ),
+            const SizedBox(width: 8),
             IconButton(
               icon: const Icon(Icons.delete_rounded),
+              iconSize: 20,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
               color: context.colors.error,
               tooltip: 'Eliminar archivos',
               onPressed: selectedTracks.isEmpty ? null : () => _onBatchDelete(context, library, settings, selectedTracks),
             ),
+            if (widget.onWiFiShare != null) ...[
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.wifi_rounded),
+                iconSize: 20,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                color: Colors.lightGreen,
+                tooltip: 'Compartir vía WiFi',
+                onPressed: selectedTracks.isEmpty ? null : () => widget.onWiFiShare!(selectedTracks),
+              ),
+            ],
           ],
         ),
       ),

@@ -5,8 +5,10 @@ import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:path/path.dart' as p;
 import 'package:audiotags/audiotags.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:crypto/crypto.dart';
 import '../services/database_service.dart';
 import '../services/native_download_manager.dart';
+import '../services/lyrics_service.dart';
 
 class ApiClient {
   final String baseUrl;
@@ -14,6 +16,8 @@ class ApiClient {
   String? videoFolder;
   
   static final Map<String, Map<String, dynamic>> _nativeJobs = {};
+  DateTime? _lastSyncTime;
+  bool _isBackgroundSyncing = false;
 
   ApiClient({required this.baseUrl, this.musicFolder, this.videoFolder});
 
@@ -330,6 +334,115 @@ class ApiClient {
     return jsonDecode(res.body)['job_id'] as String;
   }
 
+  Future<Map<String, String>?> autofillSingleTrack(String filename) async {
+    try {
+      final fullPath = p.join(musicFolder ?? '', filename);
+      final file = File(fullPath);
+      if (!await file.exists()) return null;
+
+      // 1. Get current tag info if possible to guide the search
+      String artist = '';
+      String title = _cleanTitle(p.basenameWithoutExtension(filename));
+      try {
+        final tag = await AudioTags.read(fullPath);
+        if (tag != null) {
+          if (tag.trackArtist != null && tag.trackArtist!.trim().isNotEmpty) {
+            artist = tag.trackArtist!.trim();
+          }
+          if (tag.title != null && tag.title!.trim().isNotEmpty) {
+            title = tag.title!.trim();
+          }
+        }
+      } catch (_) {}
+
+      // Build query
+      final query = artist.isNotEmpty ? '$artist $title' : title;
+      final url = Uri.parse('https://itunes.apple.com/search?term=${Uri.encodeComponent(query)}&media=music&limit=1');
+      final response = await http.get(url).timeout(const Duration(seconds: 10));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final results = data['results'] as List;
+        if (results.isNotEmpty) {
+          final result = results.first as Map<String, dynamic>;
+          final matchTitle = result['trackName'] as String? ?? title;
+          final matchArtist = result['artistName'] as String? ?? artist;
+          final matchAlbum = result['collectionName'] as String? ?? '';
+          final matchGenre = result['primaryGenreName'] as String? ?? '';
+          final releaseDate = result['releaseDate'] as String? ?? '';
+          String matchYear = '';
+          if (releaseDate.length >= 4) {
+            matchYear = releaseDate.substring(0, 4);
+          }
+
+          // Cover Art URL (higher resolution)
+          final artworkUrl100 = result['artworkUrl100'] as String?;
+          String? coverUrl;
+          List<Picture> pictures = [];
+
+          if (artworkUrl100 != null && artworkUrl100.isNotEmpty) {
+            final artworkUrl600 = artworkUrl100.replaceAll('100x100bb.jpg', '600x600bb.jpg');
+            try {
+              final coverRes = await http.get(Uri.parse(artworkUrl600)).timeout(const Duration(seconds: 15));
+              if (coverRes.statusCode == 200) {
+                final supportDir = await getApplicationSupportDirectory();
+                final coversDir = Directory(p.join(supportDir.path, 'covers'));
+                if (!await coversDir.exists()) {
+                  await coversDir.create(recursive: true);
+                }
+                final filenameHash = filename.hashCode.toString();
+                final picExt = artworkUrl600.toLowerCase().contains('.png') ? 'png' : 'jpg';
+                final coverFile = File(p.join(coversDir.path, '$filenameHash.$picExt'));
+                await coverFile.writeAsBytes(coverRes.bodyBytes);
+                coverUrl = coverFile.path.replaceAll('\\', '/');
+
+                pictures = [
+                  Picture(
+                    pictureType: PictureType.coverFront,
+                    bytes: coverRes.bodyBytes,
+                    mimeType: artworkUrl600.toLowerCase().contains('.png') ? MimeType.png : MimeType.jpeg,
+                  )
+                ];
+              }
+            } catch (e) {
+              print("[autofillSingleTrack] Error downloading cover art: $e");
+            }
+          }
+
+          // Write tags to file
+          try {
+            final tag = Tag(
+              title: matchTitle,
+              trackArtist: matchArtist,
+              album: matchAlbum,
+              genre: matchGenre,
+              year: int.tryParse(matchYear),
+              pictures: pictures,
+            );
+            await AudioTags.write(fullPath, tag);
+          } catch (e) {
+            print("[autofillSingleTrack] Error writing tags to file: $e");
+          }
+
+          // Update local DB
+          await DatabaseService.instance.updateMediaMetadata(filename, {
+            'title': matchTitle,
+            'artist': matchArtist,
+            'album': matchAlbum,
+            'genre': matchGenre,
+            'year': matchYear,
+            if (coverUrl != null) 'cover_url': coverUrl,
+          });
+
+          return {'title': matchTitle, 'artist': matchArtist};
+        }
+      }
+    } catch (e) {
+      print("[autofillSingleTrack] Error: $e");
+    }
+    return null;
+  }
+
   Future<void> _runNativeAutofill(String jobId, List<String> filenames) async {
     final job = _nativeJobs[jobId]!;
     for (final filename in filenames) {
@@ -338,110 +451,20 @@ class ApiClient {
       job['current'] = 'Buscando: $basename';
       
       try {
-        final fullPath = p.join(musicFolder ?? '', filename);
-        final file = File(fullPath);
-        if (!await file.exists()) {
-          job['failed'] = (job['failed'] as int) + 1;
+        final res = await autofillSingleTrack(filename);
+        if (res != null) {
+          // Automatically download lyrics for this autofilled track
+          try {
+            await saveLyrics(
+              filename: filename,
+              title: res['title']!,
+              artist: res['artist']!,
+            );
+          } catch (e) {
+            print("[NativeAutofill] Error downloading lyrics for $basename: $e");
+          }
+          job['completed'] = (job['completed'] as int) + 1;
           continue;
-        }
-
-        // 1. Get current tag info if possible to guide the search
-        String artist = '';
-        String title = _cleanTitle(p.basenameWithoutExtension(filename));
-        try {
-          final tag = await AudioTags.read(fullPath);
-          if (tag != null) {
-            if (tag.trackArtist != null && tag.trackArtist!.trim().isNotEmpty) {
-              artist = tag.trackArtist!.trim();
-            }
-            if (tag.title != null && tag.title!.trim().isNotEmpty) {
-              title = tag.title!.trim();
-            }
-          }
-        } catch (_) {}
-
-        // Build query
-        final query = artist.isNotEmpty ? '$artist $title' : title;
-        final url = Uri.parse('https://itunes.apple.com/search?term=${Uri.encodeComponent(query)}&media=music&limit=1');
-        final response = await http.get(url).timeout(const Duration(seconds: 10));
-
-        if (response.statusCode == 200) {
-          final data = jsonDecode(response.body);
-          final results = data['results'] as List;
-          if (results.isNotEmpty) {
-            final result = results.first as Map<String, dynamic>;
-            final matchTitle = result['trackName'] as String? ?? title;
-            final matchArtist = result['artistName'] as String? ?? artist;
-            final matchAlbum = result['collectionName'] as String? ?? '';
-            final matchGenre = result['primaryGenreName'] as String? ?? '';
-            final releaseDate = result['releaseDate'] as String? ?? '';
-            String matchYear = '';
-            if (releaseDate.length >= 4) {
-              matchYear = releaseDate.substring(0, 4);
-            }
-
-            // Cover Art URL (higher resolution: replace 100x100bb.jpg with 600x600bb.jpg)
-            final artworkUrl100 = result['artworkUrl100'] as String?;
-            String? coverUrl;
-            List<Picture> pictures = [];
-
-            if (artworkUrl100 != null && artworkUrl100.isNotEmpty) {
-              final artworkUrl600 = artworkUrl100.replaceAll('100x100bb.jpg', '600x600bb.jpg');
-              try {
-                final coverRes = await http.get(Uri.parse(artworkUrl600)).timeout(const Duration(seconds: 15));
-                if (coverRes.statusCode == 200) {
-                  final supportDir = await getApplicationSupportDirectory();
-                  final coversDir = Directory(p.join(supportDir.path, 'covers'));
-                  if (!await coversDir.exists()) {
-                    await coversDir.create(recursive: true);
-                  }
-                  final filenameHash = filename.hashCode.toString();
-                  final picExt = artworkUrl600.toLowerCase().contains('.png') ? 'png' : 'jpg';
-                  final coverFile = File(p.join(coversDir.path, '$filenameHash.$picExt'));
-                  await coverFile.writeAsBytes(coverRes.bodyBytes);
-                  coverUrl = coverFile.path.replaceAll('\\', '/');
-
-                  pictures = [
-                    Picture(
-                      pictureType: PictureType.coverFront,
-                      bytes: coverRes.bodyBytes,
-                      mimeType: artworkUrl600.toLowerCase().contains('.png') ? MimeType.png : MimeType.jpeg,
-                    )
-                  ];
-                }
-              } catch (e) {
-                print("[NativeAutofill] Error downloading cover art: $e");
-              }
-            }
-
-            // Write tags to file
-            try {
-              final tag = Tag(
-                title: matchTitle,
-                trackArtist: matchArtist,
-                album: matchAlbum,
-                genre: matchGenre,
-                year: int.tryParse(matchYear),
-                pictures: pictures,
-              );
-              await AudioTags.write(fullPath, tag);
-            } catch (e) {
-              print("[NativeAutofill] Error writing tags to file: $e");
-            }
-
-            // Update local DB
-            await DatabaseService.instance.updateMediaMetadata(filename, {
-              'title': matchTitle,
-              'artist': matchArtist,
-              'album': matchAlbum,
-              'genre': matchGenre,
-              'year': matchYear,
-              if (coverUrl != null) 'cover_url': coverUrl,
-            });
-
-            job['completed'] = (job['completed'] as int) + 1;
-            continue;
-          }
         }
       } catch (e) {
         print("[NativeAutofill] Error processing track $filename: $e");
@@ -450,6 +473,97 @@ class ApiClient {
     }
     job['status'] = 'done';
     job['current'] = 'Completado';
+  }
+
+  Future<bool> backgroundSyncMetadataAndLyrics() async {
+    if (!isNative || _isBackgroundSyncing) return false;
+    
+    // Rate limit check: only run once every 5 minutes
+    final now = DateTime.now();
+    if (_lastSyncTime != null && now.difference(_lastSyncTime!) < const Duration(minutes: 5)) {
+      return false;
+    }
+    _lastSyncTime = now;
+    _isBackgroundSyncing = true;
+
+    print('[BackgroundSync] Checking WAN internet connectivity...');
+
+    // 1. Verify actual internet connectivity first by resolving google.com
+    bool hasInternet = false;
+    try {
+      final result = await InternetAddress.lookup('google.com')
+          .timeout(const Duration(seconds: 5));
+      hasInternet = result.isNotEmpty && result[0].rawAddress.isNotEmpty;
+    } catch (_) {
+      hasInternet = false;
+    }
+
+    if (!hasInternet) {
+      print('[BackgroundSync] No internet connection detected. Skipping sync.');
+      _isBackgroundSyncing = false;
+      return false;
+    }
+
+    print('[BackgroundSync] Internet connection detected. Starting background sync...');
+
+    try {
+      final rawTracks = await DatabaseService.instance.getAllDownloads();
+      int metadataAutofilled = 0;
+      int lyricsDownloaded = 0;
+      
+      for (final track in rawTracks) {
+        final filename = track['filename'] as String? ?? '';
+        String title = track['title'] as String? ?? '';
+        String artist = track['artist'] as String? ?? '';
+        final type = track['type'] as String? ?? 'music';
+
+        if (filename.isEmpty || type == 'video') continue;
+
+        final mFolder = musicFolder ?? '';
+        if (mFolder.isEmpty) continue;
+
+        // A candidate for metadata autofill if artist is empty/missing
+        final isMissingMetadata = artist.isEmpty || 
+                                  artist.trim().toLowerCase() == 'unknown' || 
+                                  artist.trim().toLowerCase() == 'artista desconocido';
+
+        if (isMissingMetadata) {
+          print('[BackgroundSync] Autocompleting metadata for: $filename');
+          final res = await autofillSingleTrack(filename);
+          if (res != null) {
+            title = res['title']!;
+            artist = res['artist']!;
+            metadataAutofilled++;
+          }
+        }
+
+        // Now, if we have title/artist, check and download lyrics
+        if (title.isNotEmpty && !LyricsService.hasLocal(mFolder, filename)) {
+          try {
+            print('[BackgroundSync] Downloading missing lyrics for: $title - $artist');
+            final res = await saveLyrics(
+              filename: filename,
+              title: title,
+              artist: artist,
+            );
+            if (res['saved'] == true) {
+              lyricsDownloaded++;
+            }
+          } catch (e) {
+            print('[BackgroundSync] Error downloading lyrics for $title: $e');
+          }
+        }
+      }
+
+      print('[BackgroundSync] Background sync finished. Autofilled: $metadataAutofilled, Lyrics downloaded: $lyricsDownloaded');
+      _isBackgroundSyncing = false;
+      return metadataAutofilled > 0;
+    } catch (e) {
+      print('[BackgroundSync] Error in background sync: $e');
+    } finally {
+      _isBackgroundSyncing = false;
+    }
+    return false;
   }
 
   Future<Map<String, dynamic>> getAutofillJobStatus(String jobId) async {
@@ -521,6 +635,17 @@ class ApiClient {
         'year': update['year'],
         'genre': update['genre'],
       });
+
+      // Download/update lyrics automatically
+      try {
+        await saveLyrics(
+          filename: filename,
+          title: update['title'] ?? '',
+          artist: update['artist'] ?? '',
+        );
+      } catch (e) {
+        print("[api_client] Error updating lyrics during metadata update: $e");
+      }
       return;
     }
     final res = await http.patch(
@@ -935,12 +1060,194 @@ class ApiClient {
         yt.close();
       }
     }
+
     final encodedUrl = Uri.encodeQueryComponent(url);
     final res = await http.get(Uri.parse('$baseUrl/api/v1/downloads/video/info?url=$encodedUrl'))
         .timeout(const Duration(seconds: 25));
     _check(res);
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
+
+  Future<Map<String, dynamic>> getPlaylistInfo(String url) async {
+    // Tier 1: Try backend API first if configured and not standalone 'native'
+    if (baseUrl != 'native' && baseUrl.startsWith('http')) {
+      try {
+        final encodedUrl = Uri.encodeQueryComponent(url);
+        final res = await http.get(Uri.parse('$baseUrl/api/v1/downloads/playlist/info?url=$encodedUrl'))
+            .timeout(const Duration(seconds: 8));
+        if (res.statusCode == 200) {
+          final decoded = jsonDecode(res.body) as Map<String, dynamic>;
+          final videos = decoded['videos'] as List?;
+          if (videos != null && videos.isNotEmpty) {
+            print('[getPlaylistInfo] Successfully fetched playlist via backend API.');
+            return decoded;
+          }
+        }
+      } catch (e) {
+        print('[getPlaylistInfo] Backend API fetch failed: $e. Trying native methods...');
+      }
+    }
+
+    // Tier 2: Try custom HTML scraper with desktop User-Agent
+    try {
+      final res = await _getPlaylistInfoCustomScraper(url);
+      print('[getPlaylistInfo] Successfully fetched playlist via custom HTML scraper.');
+      return res;
+    } catch (e) {
+      print('[getPlaylistInfo] Custom HTML scraper failed: $e. Trying youtube_explode fallback...');
+    }
+
+    // Tier 3: Fallback to youtube_explode_dart
+    final yt = YoutubeExplode();
+    try {
+      final uri = Uri.tryParse(url);
+      final playlistIdStr = uri?.queryParameters['list'] ?? url;
+      final playlistId = PlaylistId(playlistIdStr);
+      final playlist = await yt.playlists.get(playlistId);
+      
+      final videos = <Map<String, dynamic>>[];
+      await for (final video in yt.playlists.getVideos(playlist.id)) {
+        videos.add({
+          'url': video.url,
+          'title': video.title,
+          'duration': video.duration?.inSeconds,
+        });
+      }
+      
+      return {
+        'title': playlist.title,
+        'thumbnail': playlist.thumbnails.mediumResUrl,
+        'videos': videos,
+      };
+    } finally {
+      yt.close();
+    }
+  }
+
+  Future<Map<String, dynamic>> _getPlaylistInfoCustomScraper(String url) async {
+    final response = await http.get(Uri.parse(url), headers: {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      'Accept-Language': 'es-ES,es;q=0.9,en;q=0.8',
+      'Cookie': 'CONSENT=YES+cb.20210328-17-p0.en+FX+999; SOCS=CAESEwgDEgk0ODE3Nzk3MjQaAmVuIAEaBgiA_LyaBg',
+    }).timeout(const Duration(seconds: 15));
+
+    if (response.statusCode != 200) {
+      throw Exception('Failed to load playlist page: ${response.statusCode}');
+    }
+
+    final html = response.body;
+    final marker = 'ytInitialData =';
+    final index = html.indexOf(marker);
+    if (index == -1) {
+      throw Exception('ytInitialData not found');
+    }
+
+    final start = index + marker.length;
+    var braceCount = 0;
+    var end = -1;
+    var inString = false;
+    var escape = false;
+
+    for (var i = start; i < html.length; i++) {
+      final char = html[i];
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (char == '\\') {
+        escape = true;
+        continue;
+      }
+      if (char == '"') {
+        inString = !inString;
+        continue;
+      }
+      if (!inString) {
+        if (char == '{') {
+          braceCount++;
+        } else if (char == '}') {
+          braceCount--;
+          if (braceCount == 0) {
+            end = i + 1;
+            break;
+          }
+        }
+      }
+    }
+
+    if (end == -1) {
+      throw Exception('Failed to locate end of ytInitialData JSON');
+    }
+
+    final jsonStr = html.substring(start, end).trim().replaceAll(RegExp(r';$'), '');
+    final data = jsonDecode(jsonStr) as Map<String, dynamic>;
+
+    var playlistTitle = 'YouTube Playlist';
+    try {
+      playlistTitle = data['metadata']?['playlistMetadataRenderer']?['title'] ?? 'YouTube Playlist';
+    } catch (_) {}
+    
+    final videos = <Map<String, dynamic>>[];
+    
+    void findVideosRecursive(dynamic node) {
+      if (node is Map) {
+        // 1. Classic Layout
+        if (node.containsKey('playlistVideoRenderer')) {
+          final videoRenderer = node['playlistVideoRenderer'];
+          final videoId = videoRenderer['videoId'] as String?;
+          final title = videoRenderer['title']?['runs']?[0]?['text'] ?? videoRenderer['title']?['simpleText'];
+          final lengthSecondsText = videoRenderer['lengthSeconds'] as String?;
+          final lengthSecs = lengthSecondsText != null ? int.tryParse(lengthSecondsText) : null;
+          if (videoId != null && title != null) {
+            videos.add({
+              'url': 'https://www.youtube.com/watch?v=$videoId',
+              'title': title,
+              'duration': lengthSecs,
+            });
+          }
+        }
+        // 2. New Lockup Layout
+        if (node.containsKey('lockupViewModel')) {
+          final lockup = node['lockupViewModel'];
+          final contentId = lockup['contentId'] as String?;
+          final title = lockup['metadata']?['lockupMetadataViewModel']?['title']?['content'] as String?;
+          if (contentId != null && title != null) {
+            videos.add({
+              'url': 'https://www.youtube.com/watch?v=$contentId',
+              'title': title,
+              'duration': null,
+            });
+          }
+        }
+        for (var val in node.values) {
+          findVideosRecursive(val);
+        }
+      } else if (node is List) {
+        for (var val in node) {
+          findVideosRecursive(val);
+        }
+      }
+    }
+
+    findVideosRecursive(data);
+
+    if (videos.isEmpty) {
+      throw Exception('No videos found in parsed HTML data');
+    }
+
+    var playlistThumbnail = '';
+    if (videos.isNotEmpty) {
+      final firstId = videos.first['url'].toString().split('v=').last;
+      playlistThumbnail = 'https://img.youtube.com/vi/$firstId/mqdefault.jpg';
+    }
+
+    return {
+      'title': playlistTitle,
+      'thumbnail': playlistThumbnail,
+      'videos': videos,
+    };
+  }
+
 
   Future<String> downloadVideo(String url, String formatId) async {
     if (isNative) {
@@ -1210,6 +1517,258 @@ class ApiClient {
       body: jsonEncode(data),
     );
     _check(res);
+  }
+
+  // ── Duplicates Endpoints ───────────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> getDuplicates() async {
+    if (isNative) {
+      if (musicFolder == null || musicFolder!.isEmpty) {
+        return {'exact_duplicates': []};
+      }
+      
+      final musicDir = Directory(musicFolder!);
+      final videoDir = videoFolder != null && videoFolder!.isNotEmpty ? Directory(videoFolder!) : null;
+      
+      final allFiles = <File>[];
+      final seenPaths = <String>{};
+      
+      final validExtensions = {'.mp3', '.m4a', '.mp4', '.webm', '.mkv', '.avi', '.mov'};
+      
+      Future<void> scanDir(Directory dir) async {
+        if (!await dir.exists()) return;
+        await for (final entity in dir.list(recursive: true)) {
+          if (entity is File) {
+            final ext = p.extension(entity.path).toLowerCase();
+            if (validExtensions.contains(ext)) {
+              final normPath = p.normalize(entity.path);
+              if (!seenPaths.contains(normPath)) {
+                seenPaths.add(normPath);
+                allFiles.add(entity);
+              }
+            }
+          }
+        }
+      }
+      
+      try {
+        await scanDir(musicDir);
+      } catch (e) {
+        print("[ApiClient] Error scanning music folder for duplicates: $e");
+      }
+      
+      if (videoDir != null && p.normalize(videoDir.path) != p.normalize(musicDir.path)) {
+        try {
+          await scanDir(videoDir);
+        } catch (e) {
+          print("[ApiClient] Error scanning video folder for duplicates: $e");
+        }
+      }
+      
+      // Group by size
+      final filesBySize = <int, List<File>>{};
+      for (final file in allFiles) {
+        try {
+          final stat = await file.stat();
+          filesBySize.putIfAbsent(stat.size, () => []).add(file);
+        } catch (_) {}
+      }
+      
+      // Calculate MD5 for groups with multiple files
+      final duplicatesByHash = <String, List<File>>{};
+      for (final entry in filesBySize.entries) {
+        if (entry.value.length < 2) continue;
+        for (final file in entry.value) {
+          try {
+            final stream = file.openRead();
+            final digest = await md5.bind(stream).first;
+            final md5Hash = digest.toString();
+            duplicatesByHash.putIfAbsent(md5Hash, () => []).add(file);
+          } catch (_) {}
+        }
+      }
+      
+      // Construct return structure
+      final db = await DatabaseService.instance.database;
+      final exactGroups = <Map<String, dynamic>>[];
+      
+      for (final entry in duplicatesByHash.entries) {
+        final hash = entry.key;
+        final files = entry.value;
+        if (files.length < 2) continue;
+        
+        final groupFiles = <Map<String, dynamic>>[];
+        for (final file in files) {
+          String filename;
+          if (videoFolder != null && videoFolder!.isNotEmpty && p.normalize(file.path).startsWith(p.normalize(videoFolder!)) && videoFolder != musicFolder) {
+            filename = 'videos/${p.relative(file.path, from: videoFolder!).replaceAll('\\', '/')}';
+          } else {
+            filename = p.relative(file.path, from: musicFolder!).replaceAll('\\', '/');
+          }
+          
+          final mediaRows = await db.query('media', where: 'filename = ?', whereArgs: [filename]);
+          final inDb = mediaRows.isNotEmpty;
+          final stat = await file.stat();
+          
+          groupFiles.add({
+            'filename': filename,
+            'absolute_path': file.path.replaceAll('\\', '/'),
+            'in_db': inDb,
+            'size_mb': (stat.size / 1024 / 1024 * 100).round() / 100,
+            'created_at': stat.changed.millisecondsSinceEpoch / 1000,
+            'title': inDb ? (mediaRows.first['title'] ?? p.basenameWithoutExtension(file.path)) : p.basenameWithoutExtension(file.path),
+            'artist': inDb ? (mediaRows.first['artist'] ?? '') : '',
+          });
+        }
+        
+        final sizeMb = groupFiles.first['size_mb'];
+        exactGroups.add({
+          'hash': hash,
+          'size_mb': sizeMb,
+          'files': groupFiles,
+        });
+      }
+      
+      return {'exact_duplicates': exactGroups};
+    }
+    
+    final res = await http.get(Uri.parse('$baseUrl/api/v1/downloads/duplicates'));
+    _check(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> cleanDuplicates({bool dryRun = false}) async {
+    if (isNative) {
+      if (musicFolder == null || musicFolder!.isEmpty) {
+        return {
+          'dry_run': dryRun,
+          'deleted_count': 0,
+          'deleted_files': [],
+          'space_saved_mb': 0.0,
+        };
+      }
+      
+      final dupResult = await getDuplicates();
+      final exactDuplicates = dupResult['exact_duplicates'] as List;
+      
+      final deletedFiles = <String>[];
+      var spaceSavedBytes = 0;
+      
+      final db = await DatabaseService.instance.database;
+      
+      for (final groupObj in exactDuplicates) {
+        final group = groupObj as Map<String, dynamic>;
+        final files = group['files'] as List;
+        if (files.length < 2) continue;
+        
+        final groupItems = <Map<String, dynamic>>[];
+        for (final fileObj in files) {
+          final fileMap = fileObj as Map<String, dynamic>;
+          final filename = fileMap['filename'] as String;
+          final absolutePath = fileMap['absolute_path'] as String;
+          
+          final mediaRows = await db.query('media', where: 'filename = ?', whereArgs: [filename]);
+          final dbEntry = mediaRows.isNotEmpty ? mediaRows.first : null;
+          final file = File(absolutePath);
+          final stat = await file.stat();
+          final stem = p.basenameWithoutExtension(absolutePath);
+          
+          final hasDupSuffix = RegExp(r'\s*\(\d+\)$|\s*_\d+$').hasMatch(stem);
+          
+          groupItems.add({
+            'path': file,
+            'filename': filename,
+            'db_entry': dbEntry,
+            'ctime': stat.changed.millisecondsSinceEpoch / 1000,
+            'size': stat.size,
+            'has_dup_suffix': hasDupSuffix,
+          });
+        }
+        
+        // Prioritize winner
+        groupItems.sort((a, b) {
+          final hasDbA = a['db_entry'] != null;
+          final hasDbB = b['db_entry'] != null;
+          if (hasDbA && !hasDbB) return -1;
+          if (!hasDbA && hasDbB) return 1;
+          
+          final suffixA = a['has_dup_suffix'] as bool;
+          final suffixB = b['has_dup_suffix'] as bool;
+          if (!suffixA && suffixB) return -1;
+          if (suffixA && !suffixB) return 1;
+          
+          final num timeA = hasDbA ? (DateTime.tryParse(a['db_entry']['added_at'] as String)?.millisecondsSinceEpoch ?? 0) / 1000 : a['ctime'] as num;
+          final num timeB = hasDbB ? (DateTime.tryParse(b['db_entry']['added_at'] as String)?.millisecondsSinceEpoch ?? 0) / 1000 : b['ctime'] as num;
+          return timeA.compareTo(timeB);
+        });
+        
+        final winner = groupItems.first;
+        final losers = groupItems.sublist(1);
+        
+        final mediaWin = winner['db_entry'];
+        
+        for (final loser in losers) {
+          final mediaDel = loser['db_entry'];
+          
+          if (mediaDel != null && mediaWin != null) {
+            final winId = mediaWin['id'] as int;
+            final delId = mediaDel['id'] as int;
+            
+            // Reassociate playlist media in database
+            final playlistMedia = await db.query('playlist_media', where: 'media_id = ?', whereArgs: [delId]);
+            for (final pm in playlistMedia) {
+              final pmId = pm['id'] as int;
+              final playlistId = pm['playlist_id'] as int;
+              
+              final exists = await db.query('playlist_media', 
+                  where: 'playlist_id = ? AND media_id = ?', 
+                  whereArgs: [playlistId, winId]);
+                  
+              if (exists.isEmpty) {
+                await db.update('playlist_media', {'media_id': winId}, where: 'id = ?', whereArgs: [pmId]);
+              } else {
+                await db.delete('playlist_media', where: 'id = ?', whereArgs: [pmId]);
+              }
+            }
+            
+            await db.delete('media', where: 'id = ?', whereArgs: [delId]);
+          } else if (mediaDel != null) {
+            final delId = mediaDel['id'] as int;
+            await db.delete('media', where: 'id = ?', whereArgs: [delId]);
+          }
+          
+          // Delete file physically
+          if (!dryRun) {
+            try {
+              final file = loser['path'] as File;
+              if (await file.exists()) {
+                await file.delete();
+              }
+            } catch (e) {
+              print("[ApiClient] Error deleting duplicate file ${loser['filename']}: $e");
+            }
+          }
+          
+          deletedFiles.add(loser['filename'] as String);
+          spaceSavedBytes += loser['size'] as int;
+        }
+      }
+      
+      return {
+        'dry_run': dryRun,
+        'deleted_count': deletedFiles.length,
+        'deleted_files': deletedFiles,
+        'space_saved_mb': (spaceSavedBytes / 1024 / 1024 * 100).round() / 100,
+      };
+    }
+    
+    final res = await http.post(
+      Uri.parse('$baseUrl/api/v1/downloads/duplicates/clean'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'dry_run': dryRun}),
+    );
+    _check(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
   void _check(http.Response res) {

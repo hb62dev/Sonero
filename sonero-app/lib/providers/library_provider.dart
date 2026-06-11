@@ -73,7 +73,11 @@ class LibraryProvider extends ChangeNotifier {
         final dbPlaylists = await DatabaseService.instance.getPlaylists();
         _playlists = [
           Playlist.library,
-          ...dbPlaylists.map((e) => Playlist(name: e['name'], path: '')).toList(),
+          ...dbPlaylists.map((e) => Playlist(
+            name: e['name'],
+            path: '',
+            trackCount: e['track_count'] as int? ?? 0,
+          )).toList(),
         ];
       } else {
         final data = await api.getPlaylists();
@@ -108,6 +112,15 @@ class LibraryProvider extends ChangeNotifier {
           musicFolder: api.musicFolder,
           videoFolder: api.videoFolder,
         );
+        final dbPlaylists = await DatabaseService.instance.getPlaylists();
+        _playlists = [
+          Playlist.library,
+          ...dbPlaylists.map((e) => Playlist(
+            name: e['name'],
+            path: '',
+            trackCount: e['track_count'] as int? ?? 0,
+          )).toList(),
+        ];
         if (_selected.isLibrary) {
           final data = await DatabaseService.instance.getAllDownloads();
           _tracks = data
@@ -138,6 +151,19 @@ class LibraryProvider extends ChangeNotifier {
     } finally {
       _loading = false;
       notifyListeners();
+
+      if (api.isNative) {
+        Future.microtask(() async {
+          try {
+            final didChangeMetadata = await api.backgroundSyncMetadataAndLyrics();
+            if (didChangeMetadata) {
+              await loadTracks(api);
+            }
+          } catch (e) {
+            debugPrint('Error running background metadata/lyrics sync: $e');
+          }
+        });
+      }
     }
   }
 

@@ -9,6 +9,7 @@ import 'package:dio/dio.dart';
 import 'package:path_provider/path_provider.dart';
 import 'database_service.dart';
 import 'log_service.dart';
+import '../providers/settings_provider.dart';
 
 class NativeDownloadManager {
   static final NativeDownloadManager instance = NativeDownloadManager._();
@@ -19,6 +20,49 @@ class NativeDownloadManager {
   final Map<String, IOSink> _sinks = {};
   final Map<String, CancelToken> _cancelTokens = {};
   final Dio _dio = Dio();
+
+  bool _isProcessingQueue = false;
+
+  void _processQueue() {
+    if (_isProcessingQueue) return;
+    _isProcessingQueue = true;
+    _runNextJob();
+  }
+
+  Future<void> _runNextJob() async {
+    final pendingIndex = _jobs.indexWhere((j) => j['status'] == 'pending');
+    if (pendingIndex == -1) {
+      _isProcessingQueue = false;
+      return;
+    }
+
+    final job = _jobs[pendingIndex];
+    final jobId = job['job_id'] as String;
+
+    try {
+      if (job['is_mp3'] == true) {
+        await _runMp3Download(
+          jobId,
+          job['url'] as String,
+          job['title'] as String,
+          job['artist'] as String? ?? '',
+          job['playlist'] as String?,
+          job['music_folder'] as String,
+        );
+      } else {
+        await _runVideoDownload(
+          jobId,
+          job['url'] as String,
+          job['format_id'] as String,
+          job['video_folder'] as String,
+        );
+      }
+    } catch (e) {
+      LogService.log('Error executing job $jobId: $e');
+    }
+
+    _runNextJob();
+  }
 
   List<Map<String, dynamic>> getAllJobs() {
     return _jobs;
@@ -31,6 +75,12 @@ class NativeDownloadManager {
   Future<void> pauseJob(String jobId) async {
     final job = _jobs.firstWhere((j) => j['job_id'] == jobId, orElse: () => <String, dynamic>{});
     if (job.isNotEmpty && (job['status'] == 'pending' || job['status'] == 'downloading')) {
+      if (job['status'] == 'pending') {
+        job['status'] = 'paused';
+        job['step'] = '⏸️ Pausado';
+        LogService.log('Pending job $jobId paused');
+        return;
+      }
       final sub = _subscriptions[jobId];
       if (sub != null) {
         sub.pause();
@@ -57,6 +107,11 @@ class NativeDownloadManager {
         job['status'] = 'downloading';
         job['step'] = '⬇️ Descargando...';
         LogService.log('Job $jobId resumed');
+      } else {
+        job['status'] = 'pending';
+        job['step'] = '⏳ En cola...';
+        LogService.log('Job $jobId returned to queue');
+        _processQueue();
       }
     }
   }
@@ -188,12 +243,15 @@ class NativeDownloadManager {
       'step': '⏳ Preparando descarga...',
       'progress': 0,
       'url': url,
+      'title': title,
+      'artist': artist,
+      'playlist': playlist,
+      'music_folder': musicFolder,
       'is_mp3': true,
     };
     _jobs.add(job);
 
-    // Run asynchronously
-    _runMp3Download(jobId, url, title, artist, playlist, musicFolder);
+    _processQueue();
 
     return jobId;
   }
@@ -214,13 +272,13 @@ class NativeDownloadManager {
       job['step'] = '🔎 Obteniendo video...';
 
       LogService.log('[_runMp3Download] Fetching video metadata for $url...');
-      final video = await yt.videos.get(url).timeout(const Duration(seconds: 25));
+      final video = await yt.videos.get(url).timeout(const Duration(seconds: 60));
       LogService.log('[_runMp3Download] Metadata fetched. Title: "${video.title}", Author: "${video.author}"');
       
       final manifest = await yt.videos.streamsClient.getManifest(
         video.id,
         ytClients: [YoutubeApiClient.androidVr],
-      ).timeout(const Duration(seconds: 25));
+      ).timeout(const Duration(seconds: 60));
       final audioStreamInfo = manifest.audioOnly.withHighestBitrate();
 
       if (audioStreamInfo == null) {
@@ -329,6 +387,25 @@ class NativeDownloadManager {
         await DatabaseService.instance.addMediaToPlaylist(relativeFilename, playlist);
       }
 
+      // Download lyrics offline
+      try {
+        final settings = SettingsProvider();
+        await settings.load();
+        LogService.log('[_runMp3Download] Buscando y descargando letras para: $title...');
+        final lyricsRes = await settings.api.saveLyrics(
+          filename: filename,
+          title: title,
+          artist: artist,
+        );
+        if (lyricsRes['saved'] == true) {
+          LogService.log('[_runMp3Download] Letras descargadas con éxito en: ${lyricsRes['path']}');
+        } else {
+          LogService.log('[_runMp3Download] No se encontraron letras en este momento: ${lyricsRes['error']}');
+        }
+      } catch (e) {
+        LogService.log('[_runMp3Download] Error al descargar letras: $e');
+      }
+
       job['status'] = 'done';
       job['step'] = '✅ Guardado: $filename';
       job['progress'] = 100;
@@ -356,7 +433,6 @@ class NativeDownloadManager {
     }
   }
 
-  // Native Video download
   Future<String> downloadVideo({
     required String url,
     required String formatId,
@@ -364,17 +440,19 @@ class NativeDownloadManager {
   }) async {
     final jobId = const Uuid().v4();
     LogService.log('Registered Video download job: $jobId for URL: $url, formatId: $formatId');
-    _jobs.add({
+    final job = {
       'job_id': jobId,
       'url': url,
       'format_id': formatId,
       'status': 'pending',
       'step': '⏳ Preparando descarga...',
       'progress': 0,
+      'video_folder': videoFolder,
       'is_mp3': false,
-    });
+    };
+    _jobs.add(job);
 
-    _runVideoDownload(jobId, url, formatId, videoFolder);
+    _processQueue();
 
     return jobId;
   }
@@ -395,13 +473,13 @@ class NativeDownloadManager {
       job['step'] = '🔎 Obteniendo video...';
 
       LogService.log('[_runVideoDownload] Fetching video metadata for $url...');
-      final video = await yt.videos.get(url).timeout(const Duration(seconds: 25));
+      final video = await yt.videos.get(url).timeout(const Duration(seconds: 60));
       LogService.log('[_runVideoDownload] Metadata fetched. Title: "${video.title}"');
 
       final manifest = await yt.videos.streamsClient.getManifest(
         video.id,
         ytClients: [YoutubeApiClient.androidVr],
-      ).timeout(const Duration(seconds: 25));
+      ).timeout(const Duration(seconds: 60));
 
       final tagNum = int.tryParse(formatId);
       StreamInfo? streamInfo;
@@ -412,15 +490,41 @@ class NativeDownloadManager {
             break;
           }
         }
+      } else {
+        final targetRes = formatId.toLowerCase().replaceAll(RegExp(r'\D'), '');
+        if (targetRes.isNotEmpty) {
+          final resVal = int.parse(targetRes);
+          var minDiff = 99999;
+          for (final s in manifest.videoOnly) {
+            final label = s.videoQualityLabel.toLowerCase().replaceAll(RegExp(r'\D'), '');
+            final val = int.tryParse(label);
+            if (val != null) {
+              final diff = (val - resVal).abs();
+              if (diff < minDiff) {
+                minDiff = diff;
+                streamInfo = s;
+              }
+            }
+          }
+          for (final s in manifest.muxed) {
+            final label = s.videoQualityLabel.toLowerCase().replaceAll(RegExp(r'\D'), '');
+            final val = int.tryParse(label);
+            if (val != null) {
+              final diff = (val - resVal).abs();
+              if (diff < minDiff) {
+                minDiff = diff;
+                streamInfo = s;
+              }
+            }
+          }
+        }
       }
 
       if (streamInfo == null) {
-        LogService.log('[_runVideoDownload] Stream tag $formatId not found in manifest. Falling back to highest quality streams...');
-        streamInfo = manifest.videoOnly.withHighestBitrate();
+        LogService.log('[_runVideoDownload] Stream tag/format $formatId not found in manifest. Falling back to highest quality streams...');
+        streamInfo = manifest.videoOnly.withHighestBitrate() ?? manifest.muxed.withHighestBitrate();
       }
-      if (streamInfo == null) {
-        streamInfo = manifest.muxed.withHighestBitrate();
-      }
+
 
       if (streamInfo == null) {
         throw Exception('No suitable video stream found');

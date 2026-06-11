@@ -335,3 +335,49 @@ async def download_video(url: str, format_id: str, progress_callback=None, check
     _log_to_db(track_info, saved_filename, suggested_playlist, media_type="music" if is_audio else "video", fmt=final_ext)
     
     return dest_dir / f"{filename}.{final_ext}", logger.warning_msg
+
+
+async def get_playlist_info(url: str) -> dict:
+    ydl_opts = {
+        "quiet": True,
+        "no_warnings": True,
+        "socket_timeout": 15,
+        "extract_flat": True,
+        "nocheckcertificate": True,
+        "http_headers": {
+            "User-Agent": (
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) "
+                "Chrome/120.0.0.0 Safari/537.36"
+            )
+        },
+    }
+    ydl_opts.update(CookieManager.get_cookie_opts())
+
+    def _extract():
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            return ydl.extract_info(url, download=False)
+
+    info = await asyncio.to_thread(_extract)
+    if not info:
+        raise ValueError("No playlist info found")
+
+    entries = info.get("entries", [])
+    videos = []
+    for entry in entries:
+        if not entry:
+            continue
+        v_url = entry.get("url") or f"https://www.youtube.com/watch?v={entry.get('id')}"
+        duration = entry.get("duration")
+        videos.append({
+            "url": v_url,
+            "title": entry.get("title") or "Unknown Video",
+            "duration": int(duration) if duration is not None else None,
+        })
+
+    return {
+        "title": info.get("title") or "Unknown Playlist",
+        "thumbnail": info.get("thumbnail") or "",
+        "videos": videos
+    }
+

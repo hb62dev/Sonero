@@ -9,6 +9,8 @@ import '../../models/playlist.dart';
 import '../theme.dart';
 import '../widgets/track_cover_image.dart';
 import 'download_options_dialog.dart';
+import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+
 
 class SearchView extends StatefulWidget {
   final Function(int)? onNavigate;
@@ -82,12 +84,30 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
     });
     try {
       final settings = context.read<SettingsProvider>();
-      final results = await settings.api.searchOnline(query, limit: 20);
-      if (mounted) {
-        setState(() {
-          _onlineResults = results;
-          _isSearchingOnline = false;
-        });
+      if (query.contains('list=')) {
+        final info = await settings.api.getPlaylistInfo(query);
+        if (mounted) {
+          setState(() {
+            _onlineResults = [
+              {
+                'is_playlist': true,
+                'url': query,
+                'title': info['title'] ?? 'YouTube Playlist',
+                'thumbnail': info['thumbnail'],
+                'videos_count': info['videos']?.length ?? 0,
+              }
+            ];
+            _isSearchingOnline = false;
+          });
+        }
+      } else {
+        final results = await settings.api.searchOnline(query, limit: 20);
+        if (mounted) {
+          setState(() {
+            _onlineResults = results;
+            _isSearchingOnline = false;
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -98,6 +118,7 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
       }
     }
   }
+
 
   List<Track> _getFilteredLocalTracks(List<Track> allTracks) {
     if (_query.trim().isEmpty) return [];
@@ -126,9 +147,11 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
     final localPlaylists = _getFilteredPlaylists(library.playlists);
     final isMobile = MediaQuery.of(context).size.width < 600;
 
-    // Split online results into normal videos and shorts
-    final normalVideos = _onlineResults.where((r) => r['is_short'] != true).toList();
-    final shortVideos = _onlineResults.where((r) => r['is_short'] == true).toList();
+    // Split online results into playlists, normal videos, and shorts
+    final normalVideos = _onlineResults.where((r) => r['is_short'] != true && r['is_playlist'] != true).toList();
+    final shortVideos = _onlineResults.where((r) => r['is_short'] == true && r['is_playlist'] != true).toList();
+    final onlinePlaylists = _onlineResults.where((r) => r['is_playlist'] == true).toList();
+
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -207,6 +230,7 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
                           error: _onlineError,
                           normalVideos: normalVideos,
                           shortVideos: shortVideos,
+                          playlists: onlinePlaylists,
                         ),
                       ],
                     )
@@ -230,11 +254,13 @@ class _SearchViewState extends State<SearchView> with SingleTickerProviderStateM
                             error: _onlineError,
                             normalVideos: normalVideos,
                             shortVideos: shortVideos,
+                            playlists: onlinePlaylists,
                           ),
                         ),
                       ],
                     ),
         ),
+
       ],
     );
   }
@@ -322,12 +348,14 @@ class _YouTubeResultsColumn extends StatelessWidget {
   final String? error;
   final List<dynamic> normalVideos;
   final List<dynamic> shortVideos;
+  final List<dynamic> playlists;
 
   const _YouTubeResultsColumn({
     required this.isLoading,
     required this.error,
     required this.normalVideos,
     required this.shortVideos,
+    required this.playlists,
   });
 
   @override
@@ -338,16 +366,26 @@ class _YouTubeResultsColumn extends StatelessWidget {
     if (error != null) {
       return Center(child: Text('Error: $error', style: TextStyle(color: context.colors.error)));
     }
-    if (normalVideos.isEmpty && shortVideos.isEmpty) {
+    if (normalVideos.isEmpty && shortVideos.isEmpty && playlists.isEmpty) {
       return Center(child: Text('No hay resultados en YouTube', style: TextStyle(color: context.colors.textSecondary)));
     }
+
+    final l10n = AppLocalizations.of(context)!;
 
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        Text('YouTube', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: context.colors.textPrimary)),
-        const SizedBox(height: 16),
-        ...normalVideos.map((v) => _YouTubeResultItem(video: v)),
+        if (playlists.isNotEmpty) ...[
+          Text(l10n.playlistDetected, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: context.colors.textPrimary)),
+          const SizedBox(height: 16),
+          ...playlists.map((pl) => _YouTubePlaylistResultItem(playlist: pl)),
+          const SizedBox(height: 24),
+        ],
+        if (normalVideos.isNotEmpty) ...[
+          Text('YouTube', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: context.colors.textPrimary)),
+          const SizedBox(height: 16),
+          ...normalVideos.map((v) => _YouTubeResultItem(video: v)),
+        ],
         
         if (shortVideos.isNotEmpty) ...[
           const SizedBox(height: 24),
@@ -366,6 +404,168 @@ class _YouTubeResultsColumn extends StatelessWidget {
     );
   }
 }
+
+class _YouTubePlaylistResultItem extends StatelessWidget {
+  final dynamic playlist;
+  const _YouTubePlaylistResultItem({required this.playlist});
+
+  @override
+  Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context)!;
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: context.colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: context.colors.border),
+      ),
+      child: isMobile
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Row(
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: playlist['thumbnail'] != null && (playlist['thumbnail'] as String).isNotEmpty
+                          ? Image.network(
+                              playlist['thumbnail'],
+                              width: 100,
+                              height: 56,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                width: 100,
+                                height: 56,
+                                color: context.colors.border,
+                                child: Icon(Icons.playlist_play_rounded, color: context.colors.textSecondary, size: 28),
+                              ),
+                            )
+                          : Container(
+                              width: 100,
+                              height: 56,
+                              color: context.colors.border,
+                              child: Icon(Icons.playlist_play_rounded, color: context.colors.textSecondary, size: 28),
+                            ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            playlist['title'] ?? 'YouTube Playlist',
+                            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: context.colors.textPrimary),
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            l10n.playlistVideosCount(playlist['videos_count'] ?? 0),
+                            style: TextStyle(fontSize: 12, color: context.colors.textSecondary),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  icon: const Icon(Icons.download_rounded, size: 18),
+                  label: Text(l10n.downloadPlaylist),
+                  onPressed: () => _downloadPlaylist(context),
+                ),
+              ],
+            )
+          : Row(
+              children: [
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: playlist['thumbnail'] != null && (playlist['thumbnail'] as String).isNotEmpty
+                      ? Image.network(
+                          playlist['thumbnail'],
+                          width: 120,
+                          height: 68,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            width: 120,
+                            height: 68,
+                            color: context.colors.border,
+                            child: Icon(Icons.playlist_play_rounded, color: context.colors.textSecondary, size: 32),
+                          ),
+                        )
+                      : Container(
+                          width: 120,
+                          height: 68,
+                          color: context.colors.border,
+                          child: Icon(Icons.playlist_play_rounded, color: context.colors.textSecondary, size: 32),
+                        ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        playlist['title'] ?? 'YouTube Playlist',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: context.colors.textPrimary),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        l10n.playlistVideosCount(playlist['videos_count'] ?? 0),
+                        style: TextStyle(fontSize: 13, color: context.colors.textSecondary),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 16),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  icon: const Icon(Icons.download_rounded, size: 18),
+                  label: Text(l10n.downloadPlaylist),
+                  onPressed: () => _downloadPlaylist(context),
+                ),
+              ],
+            ),
+    );
+  }
+
+  void _downloadPlaylist(BuildContext context) async {
+    final result = await showDialog<dynamic>(
+      context: context,
+      builder: (_) => DownloadOptionsDialog(
+        videoUrl: playlist['url'],
+        title: playlist['title'],
+      ),
+    );
+    
+    if (result != null && context.mounted) {
+      if (result is Map && result['playlist'] == true) {
+        final count = result['count'] ?? 0;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.of(context)!.playlistEnqueued(count)),
+            backgroundColor: context.colors.success,
+          ),
+        );
+      }
+      final settings = context.read<SettingsProvider>();
+      context.read<LibraryProvider>().loadTracks(settings.api);
+    }
+  }
+}
+
 
 class _YouTubeResultItem extends StatelessWidget {
   final dynamic video;

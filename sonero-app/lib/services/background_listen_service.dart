@@ -187,6 +187,23 @@ Future<void> _startListeningFlow(
     });
     LogService.log('Registro en base de datos finalizado con éxito.');
 
+    // Download lyrics offline
+    try {
+      LogService.log('Buscando y descargando letras para: ${track.title}...');
+      final lyricsRes = await settings.api.saveLyrics(
+        filename: filename,
+        title: track.title,
+        artist: track.artist,
+      );
+      if (lyricsRes['saved'] == true) {
+        LogService.log('Letras descargadas con éxito en: ${lyricsRes['path']}');
+      } else {
+        LogService.log('No se pudieron descargar las letras en este momento: ${lyricsRes['error']}');
+      }
+    } catch (e) {
+      LogService.log('Error intentando descargar letras en background: $e');
+    }
+
     await _showSimpleNotification(
       notifications,
       '¡Canción Descargada!',
@@ -344,6 +361,20 @@ class BackgroundListenService {
         onForeground: onStart,
       ),
     );
+  }
+
+  static Future<void> start() async {
+    if (Platform.isAndroid) {
+      final hasMic = await Permission.microphone.isGranted;
+      if (!hasMic) {
+        debugPrint('[BackgroundListenService] Microphone permission not granted. Cannot start foreground service.');
+        return;
+      }
+    }
+    final service = FlutterBackgroundService();
+    if (!await service.isRunning()) {
+      await service.startService();
+    }
   }
 
   static Future<void> triggerListen() async {

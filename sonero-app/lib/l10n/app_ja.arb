@@ -1,40 +1,249 @@
 {
   "@@locale": "ja",
   "appTitle": "Sonero",
+
   "navHome": "ホーム",
   "navLibrary": "ライブラリ",
-  "navAnalytics": "アナリティクス",
+  "navAnalytics": "統計",
   "navDownload": "YouTubeからダウンロード",
-  "downloadComplete": "ダウンロードが完了しました",
+  "navSearch": "検索",
+
+  "downloadComplete": "ダウンロード完了",
   "librarySection": "ライブラリ",
+
   "newPlaylist": "新しいプレイリスト",
   "newPlaylistHint": "プレイリスト名",
   "create": "作成",
   "cancel": "キャンセル",
-  "renamePlaylist": "プレイリスト名を変更",
+  "close": "閉じる",
+  "save": "保存",
+  "confirm": "確認",
+  "change": "変更",
+  "delete": "削除",
+  "retry": "再試行",
+  "clear": "クリア",
+  "open": "開く",
+  "download": "ダウンロード",
+  "refresh": "更新",
+
+  "renamePlaylist": "プレイリスト名の変更",
   "newPlaylistName": "新しい名前",
   "rename": "名前を変更",
   "deletePlaylist": "プレイリストを削除",
   "deletePlaylistConfirm": "「{name}」を削除します。ファイルはライブラリに保持されます。",
   "@deletePlaylistConfirm": {
     "placeholders": {
-      "name": {
-        "type": "String"
-      }
+      "name": { "type": "String" }
     }
   },
-  "delete": "削除",
+
   "settings": "設定",
   "welcomeHome": "Soneroへようこそ",
   "play": "再生",
-  "moreInfo": "詳細",
+  "moreInfo": "詳細情報",
   "continueWatching": "再生を続ける",
   "yourSmartPlaylists": "スマートプレイリスト",
+
   "language": "言語",
   "languageSpanish": "スペイン語",
   "languageEnglish": "英語",
   "languageJapanese": "日本語",
   "appearance": "外観",
-  "apiConnection": "API接続（ローカル/リモート）",
-  "musicFolder": "メディアフォルダ"
+  "apiConnection": "API接続 (ローカル/リモート)",
+  "musicFolder": "メディアフォルダ",
+
+  "playerShuffle": "シャッフル",
+  "playerPrevious": "前へ",
+  "playerNext": "次へ",
+  "playerRepeat": "リピート",
+  "playerShowVideo": "ビデオを表示",
+  "playerGridView": "グリッド表示",
+  "playerListView": "リスト表示",
+
+  "trackCount": "{count} 曲",
+  "@trackCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+
+  "autoFillMetadata": "メタデータを自動入力",
+  "exportCsv": "CSVエクスポート",
+  "csvSaved": "CSVが保存されました: {path}",
+  "@csvSaved": {
+    "placeholders": {
+      "path": { "type": "String" }
+    }
+  },
+
+  "editMetadata": "メタデータの編集",
+  "autoFillMetadataApi": "メタデータを自動入力 (API)",
+  "deleteFile": "ファイルを削除",
+  "moveTo": "移動先...",
+  "libraryRoot": "ライブラリ (ルート)",
+  "deleteSong": "曲を削除",
+  "deleteSongConfirm": "「{name}」をディスクから削除してもよろしいですか？",
+  "@deleteSongConfirm": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "fileDeleted": "ファイルを削除しました",
+  "movedTo": "{destination} へ移動しました",
+  "@movedTo": {
+    "placeholders": {
+      "destination": { "type": "String" }
+    }
+  },
+
+  "emptyLibrary": "ライブラリは空です",
+  "emptyPlaylist": "「{name}」は空です",
+  "@emptyPlaylist": {
+    "placeholders": {
+      "name": { "type": "String" }
+    }
+  },
+  "emptyLibraryHint": "キーボードショートカットを押して曲を認識します",
+
+  "scanningMetadata": "メタデータをスキャン中",
+  "startingScan": "スキャンを開始しています...",
+  "starting": "起動中...",
+  "unknownError": "不明なエラー",
+
+  "analyticsTitle": "利用統計情報",
+  "yourHabits": "再生傾向",
+  "playbackHours": "再生時間",
+  "videosCompleted": "完了したビデオ",
+  "musicListened": "聴いた音楽",
+  "recentHistory": "最近の履歴 (Benrio)",
+  "analyticsPlaceholder": "Benrioとの接続が実装された後、ここにバックエンドからのデータが統合されます。",
+
+  "searchHint": "曲、アーティスト、またはYouTubeを検索...",
+  "typeToSearch": "入力して検索...",
+  "noLocalResults": "ローカルの結果はありません",
+  "localLibraryCount": "ローカルライブラリ ({count})",
+  "@localLibraryCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "noYouTubeResults": "YouTubeの結果はありません",
+
+  "downloadMedia": "メディアをダウンロード",
+  "format": "形式:",
+  "formatLoadError": "形式の読み込みエラー: {error}",
+  "@formatLoadError": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+  "destinationPlaylist": "宛先 (プレイリスト):",
+
+  "downloadYouTubeVideo": "YouTubeビデオのダウンロード",
+  "fetchInfo": "情報を取得",
+  "selectFormat": "形式を選択:",
+
+  "videoFolder": "ビデオフォルダ",
+  "notSelected": "未選択",
+  "selectFolder": "フォルダを選択",
+  "selectMusicFolderDialog": "音楽の保存先フォルダを選択してください",
+  "selectVideoFolderDialog": "ビデオの保存先フォルダを選択してください",
+
+  "authentication": "認証 (アンチボット)",
+  "authDescription": "ダウンロード時のブロックを防ぐため、YouTubeのCookieを使用します。",
+  "syncBenrio": "同期する (Benrio)",
+  "cookiesSynced": "Cookieが正常に同期されました。",
+  "loadCookiesFile": "cookies.txtを読み込む",
+  "selectCookiesDialog": "cookies.txtファイルを選択してください",
+  "fileLoaded": "ファイルが正常に読み込まれました。",
+
+  "themeMode": "テーマモード",
+  "themeSystem": "システム",
+  "themeLight": "ライト",
+  "themeDark": "ダーク",
+  "primaryColor": "メインカラー",
+  "sidebarColor": "サイドバーの色",
+  "defaultColor": "デフォルト",
+  "selectColor": "色を選択",
+
+  "saveUrl": "URLを保存",
+  "refetchTest": "再取得 / テスト",
+  "connectionSuccess": "✅ バックエンドへの接続に成功しました。",
+  "connectionFailed": "❌ バックエンドに接続できませんでした。",
+
+  "listenDuration": "試聴時間",
+  "durationSaved": "試聴時間を保存しました",
+  "durationRange": "5秒から60秒の間。",
+  "secondsSuffix": "秒",
+
+  "globalHotkeys": "グローバルキーボードショートカット",
+  "hotkeysDescription": "ウィンドウが最小化されていても動作します。",
+  "hotkeyMic": "🎙️ マイクで聴く",
+  "hotkeySystem": "🖥️ システム音声を聴く",
+  "hotkeyVideo": "📺 ビデオをダウンロード (クリップボード)",
+  "hotkeyShow": "👀 ウィンドウを表示",
+  "hotkeyHide": "👻 ウィンドウを非表示",
+  "hotkeySaved": "ショートカットを保存しました",
+  "hotkeyTitleMic": "🎙️ ショートカット — マイク",
+  "hotkeyTitleSystem": "🖥️ ショートカット — システム",
+  "hotkeyTitleVideo": "📺 ショートカット — ビデオ",
+  "hotkeyTitleShow": "👀 ショートカット — ウィンドウを表示",
+  "hotkeyTitleHide": "👻 ショートカット — ウィンドウを非表示",
+  "hotkeyRecordPrompt": "使用したいキーの組み合わせを押してください。",
+
+  "micDevice": "マイクデバイス",
+  "deviceNumber": "デバイス #{index}",
+  "@deviceNumber": {
+    "placeholders": {
+      "index": { "type": "int" }
+    }
+  },
+  "systemDefault": "システムデフォルト",
+  "detectDevices": "デバイスを検出",
+  "useDefault": "デフォルトを使用",
+  "audioDevices": "オーディオデバイス",
+
+  "editMetadataTitle": "メタデータの編集",
+  "fieldTitle": "タイトル",
+  "fieldArtist": "アーティスト",
+  "fieldAlbum": "アルバム",
+  "fieldYear": "年",
+  "fieldGenre": "ジャンル",
+  "errorSaving": "保存エラー: {error}",
+  "@errorSaving": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+
+  "errorPrefix": "エラー: {error}",
+  "@errorPrefix": {
+    "placeholders": {
+      "error": { "type": "String" }
+    }
+  },
+
+  "playlistDetected": "YouTubeプレイリストが検出されました",
+  "downloadPlaylist": "プレイリストをダウンロード",
+  "playlistDownloadOptions": "プレイリストダウンロードオプション",
+  "loadingPlaylistInfo": "プレイリスト情報を読み込んでいます...",
+  "playlistVideosCount": "{count} 個のビデオが見つかりました",
+  "@playlistVideosCount": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "enqueuingDownloads": "{count} 件のダウンロードをキューに追加しています...",
+  "@enqueuingDownloads": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  },
+  "playlistEnqueued": "{count} 件のダウンロードがマネージャーに追加されました。",
+  "@playlistEnqueued": {
+    "placeholders": {
+      "count": { "type": "int" }
+    }
+  }
 }
+

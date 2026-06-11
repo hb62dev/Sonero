@@ -7,6 +7,7 @@ import '../providers/library_provider.dart';
 import '../providers/listen_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
+import '../models/track.dart';
 import 'sidebar/sidebar_widget.dart';
 import 'library/library_page.dart';
 import 'home/home_view.dart';
@@ -21,7 +22,10 @@ import 'downloads/downloads_page.dart';
 import 'search/search_view.dart';
 import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 import 'setup_modal.dart';
-import 'settings/settings_page.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:path/path.dart' as p;
+import 'wifi_transfer/wifi_transfer_page.dart';
+import '../services/background_listen_service.dart';
 
 class AppShell extends StatefulWidget {
   const AppShell({super.key});
@@ -31,8 +35,9 @@ class AppShell extends StatefulWidget {
 }
 
 class _AppShellState extends State<AppShell> {
-  int _currentViewIndex = 0;
+  int _currentViewIndex = 1;
   final TextEditingController _searchController = TextEditingController();
+  List<Map<String, dynamic>>? _wifiFilesToSend;
 
   @override
   void initState() {
@@ -253,10 +258,77 @@ class _AppShellState extends State<AppShell> {
         barrierDismissible: false,
         builder: (_) => const SetupModal(),
       );
+    } else {
+      // Already set up, but let's check/request permissions sequentially just in case
+      if (!kIsWeb && Platform.isAndroid) {
+        try {
+          await [
+            Permission.audio,
+            Permission.videos,
+            Permission.storage,
+            Permission.manageExternalStorage,
+            Permission.notification,
+            Permission.microphone,
+          ].request();
+          await settings.refreshFolders();
+        } catch (e) {
+          debugPrint('Error requesting permissions in app_shell: $e');
+        }
+      }
     }
     
     await library.loadPlaylists(settings.api);
     await library.loadTracks(settings.api);
+
+    if (!kIsWeb && (Platform.isAndroid || Platform.isIOS)) {
+      try {
+        await BackgroundListenService.start();
+      } catch (e) {
+        debugPrint('Error starting BackgroundListenService: $e');
+      }
+    }
+  }
+
+  List<Map<String, dynamic>> _prepareWifiUploadQueue(List<Track> selectedTracks, SettingsProvider settings) {
+    final List<Map<String, dynamic>> queue = [];
+    for (var track in selectedTracks) {
+      final audioPath = p.join(settings.musicFolder, track.filename);
+      
+      final relativePath = track.filename;
+      final hasFolder = relativePath.contains('/');
+      final playlist = hasFolder ? p.dirname(relativePath) : null;
+      final filename = p.basename(relativePath);
+
+      String? coverFilename;
+      if (track.coverUrl != null && track.coverUrl!.isNotEmpty && !track.coverUrl!.startsWith('http')) {
+        final coverFile = File(track.coverUrl!);
+        if (coverFile.existsSync()) {
+          coverFilename = p.basename(track.coverUrl!);
+          queue.add({
+            'filePath': coverFile.path,
+            'type': 'cover',
+            'filename': coverFilename,
+            'playlist': null,
+            'title': '',
+            'artist': '',
+          });
+        }
+      }
+
+      queue.add({
+        'filePath': audioPath,
+        'type': 'music',
+        'filename': filename,
+        'playlist': playlist,
+        'title': track.title,
+        'artist': track.artist,
+        'album': track.album,
+        'genre': track.genre,
+        'year': track.year,
+        'cover_url': coverFilename,
+      });
+    }
+    return queue;
   }
 
 
@@ -299,7 +371,16 @@ class _AppShellState extends State<AppShell> {
         currentView = HomeView(onNavigate: (i) => setState(() => _currentViewIndex = i));
         break;
       case 1:
-        currentView = const LibraryPage();
+        currentView = LibraryPage(
+          onWiFiShare: (selectedTracks) {
+            final settings = context.read<SettingsProvider>();
+            final queue = _prepareWifiUploadQueue(selectedTracks, settings);
+            setState(() {
+              _wifiFilesToSend = queue;
+              _currentViewIndex = 5;
+            });
+          },
+        );
         break;
       case 2:
         currentView = const AnalyticsView();
@@ -313,6 +394,16 @@ class _AppShellState extends State<AppShell> {
       case 4:
         currentView = const DownloadsPage();
         break;
+      case 5:
+        currentView = WifiTransferPage(
+          initialFilesToSend: _wifiFilesToSend,
+          onClearFiles: () {
+            setState(() {
+              _wifiFilesToSend = null;
+            });
+          },
+        );
+        break;
       default:
         currentView = HomeView(onNavigate: (i) => setState(() => _currentViewIndex = i));
     }
@@ -321,6 +412,20 @@ class _AppShellState extends State<AppShell> {
       children: [
         Scaffold(
           backgroundColor: context.colors.bg,
+          drawer: isMobile
+              ? Drawer(
+                  backgroundColor: context.colors.bg,
+                  child: SidebarWidget(
+                    currentIndex: _currentViewIndex,
+                    isCollapsed: false,
+                    onToggle: () => Navigator.pop(context),
+                    onNavigate: (index) {
+                      setState(() => _currentViewIndex = index);
+                      Navigator.pop(context); // Close the drawer
+                    },
+                  ),
+                )
+              : null,
           appBar: isMobile
               ? AppBar(
                   backgroundColor: context.colors.bg,
@@ -373,36 +478,17 @@ class _AppShellState extends State<AppShell> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      PopupMenuButton<int>(
-                        icon: Icon(
-                          Icons.menu_rounded,
-                          color: context.colors.textSecondary,
-                          size: 20,
+                      Builder(
+                        builder: (context) => IconButton(
+                          icon: Icon(
+                            Icons.menu_rounded,
+                            color: context.colors.textSecondary,
+                            size: 20,
+                          ),
+                          onPressed: () {
+                            Scaffold.of(context).openDrawer();
+                          },
                         ),
-                        offset: const Offset(0, 44),
-                        color: context.colors.bg,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                        onSelected: (index) {
-                          if (index == 5) {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(builder: (_) => const SettingsPage()),
-                            );
-                          } else {
-                            if (index != 3) {
-                              _searchController.clear();
-                            }
-                            setState(() => _currentViewIndex = index);
-                          }
-                        },
-                        itemBuilder: (context) => [
-                          _buildPopupMenuItem(0, Icons.home_rounded, 'Inicio'),
-                          _buildPopupMenuItem(1, Icons.library_music_rounded, 'Biblioteca'),
-                          _buildPopupMenuItem(2, Icons.analytics_rounded, 'Análisis'),
-                          _buildPopupMenuItem(3, Icons.search_rounded, 'Buscar'),
-                          _buildPopupMenuItem(4, Icons.download_rounded, 'Descargas'),
-                          const PopupMenuDivider(),
-                          _buildPopupMenuItem(5, Icons.settings_rounded, 'Configuración'),
-                        ],
                       ),
                     ],
                   ),

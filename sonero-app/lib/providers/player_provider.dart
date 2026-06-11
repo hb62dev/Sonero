@@ -96,6 +96,10 @@ class PlayerProvider extends ChangeNotifier {
   List<Track> _queue = [];
   List<Track> get queue => _queue;
 
+  List<Track> _originalQueue = [];
+  List<Media> _originalMedias = [];
+  List<Media> _medias = [];
+
   PlayerProvider() {
     player = Player();
     videoController = VideoController(player);
@@ -158,18 +162,9 @@ class PlayerProvider extends ChangeNotifier {
   }
 
   Future<void> playTrack(Track track, List<Track> queue, SettingsProvider settings) async {
-    _queue = queue;
-    int startIndex = queue.indexOf(track);
-    if (startIndex == -1) startIndex = 0;
-
-    _currentTrack = track;
-    _isVideo = _isVideoExt(track.filename);
-    if (_isVideo) _isVideoMode = true; // auto-open video overlay
-    _position = Duration.zero;
-    _duration = Duration.zero;
-    notifyListeners();
-
-    final medias = <Media>[];
+    final List<Track> resolvedTracks = [];
+    final List<Media> resolvedMedias = [];
+    
     for (var t in queue) {
       String uri = t.filename;
       if (!uri.startsWith('http')) {
@@ -192,12 +187,41 @@ class PlayerProvider extends ChangeNotifier {
               'El archivo no existe en el disco: $uri\nVerifica tu "Directorio de Música" en Ajustes.');
         }
       }
-      medias.add(Media(uri));
+      resolvedTracks.add(t);
+      resolvedMedias.add(Media(uri));
     }
+
+    _originalQueue = List<Track>.from(resolvedTracks);
+    _originalMedias = List<Media>.from(resolvedMedias);
+
+    int startIndex = resolvedTracks.indexOf(track);
+    if (startIndex == -1) startIndex = 0;
+
+    if (_isShuffle) {
+      final indices = List<int>.generate(resolvedTracks.length, (i) => i)..remove(startIndex);
+      indices.shuffle();
+      final playIndices = [startIndex, ...indices];
+      
+      _queue = playIndices.map((i) => _originalQueue[i]).toList();
+      _medias = playIndices.map((i) => _originalMedias[i]).toList();
+      startIndex = 0;
+    } else {
+      _queue = List<Track>.from(_originalQueue);
+      _medias = List<Media>.from(_originalMedias);
+    }
+
+    _currentTrack = track;
+    _isVideo = _isVideoExt(track.filename);
+    if (_isVideo) _isVideoMode = true; // auto-open video overlay
+    _position = Duration.zero;
+    _duration = Duration.zero;
+    notifyListeners();
 
     try {
       debugPrint('Attempting to play playlist, starting at: $startIndex');
-      await player.open(Playlist(medias, index: startIndex));
+      await player.open(Playlist(_medias, index: startIndex));
+      await player.setPlaylistMode(_repeatMode);
+      await player.setShuffle(false);
       await player.play();
     } catch (e) {
       debugPrint('Error playing media: $e');
@@ -225,7 +249,41 @@ class PlayerProvider extends ChangeNotifier {
 
   void toggleShuffle() {
     _isShuffle = !_isShuffle;
-    player.setShuffle(_isShuffle);
+    
+    if (_currentTrack != null && _queue.isNotEmpty && _originalQueue.isNotEmpty) {
+      final currentPosition = player.state.position;
+      final wasPlaying = player.state.playing;
+      
+      int newIndex;
+      if (_isShuffle) {
+        final currentInOriginal = _originalQueue.indexOf(_currentTrack!);
+        if (currentInOriginal != -1) {
+          final indices = List<int>.generate(_originalQueue.length, (i) => i)..remove(currentInOriginal);
+          indices.shuffle();
+          final playIndices = [currentInOriginal, ...indices];
+          
+          _queue = playIndices.map((i) => _originalQueue[i]).toList();
+          _medias = playIndices.map((i) => _originalMedias[i]).toList();
+          newIndex = 0;
+        } else {
+          newIndex = 0;
+        }
+      } else {
+        _queue = List<Track>.from(_originalQueue);
+        _medias = List<Media>.from(_originalMedias);
+        newIndex = _originalQueue.indexOf(_currentTrack!);
+        if (newIndex == -1) newIndex = 0;
+      }
+      
+      player.open(Playlist(_medias, index: newIndex), play: wasPlaying).then((_) {
+        player.seek(currentPosition);
+        player.setPlaylistMode(_repeatMode);
+        player.setShuffle(false);
+      }).catchError((e) {
+        debugPrint('Error updating playlist on shuffle toggle: $e');
+      });
+    }
+    
     notifyListeners();
   }
 

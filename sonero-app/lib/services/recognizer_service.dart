@@ -120,7 +120,7 @@ class RecognizerService {
       }
 
       if (track == null) {
-        final service = prefs.getString('recognition_service') ?? 'gemini';
+        final service = prefs.getString('recognition_service') ?? 'shazam_proxy';
         LogService.log('Servicio configurado (fallback): $service');
 
         if (service == 'gemini') {
@@ -547,6 +547,36 @@ class RecognizerService {
       });
 
       var url = proxyUrl.trim();
+
+      // Normalize Hugging Face Space URL to API metadata URL if needed
+      if (url.contains('huggingface.co/')) {
+        if (url.endsWith('/recognize')) {
+          url = url.substring(0, url.length - 10);
+        }
+        if (url.endsWith('/')) {
+          url = url.substring(0, url.length - 1);
+        }
+        if (url.contains('huggingface.co/spaces/') && !url.contains('/api/spaces/')) {
+          url = url.replaceAll('huggingface.co/spaces/', 'huggingface.co/api/spaces/');
+        }
+      }
+
+      if (url.contains('huggingface.co/api/spaces/')) {
+        LogService.log('Detectada URL de API de Hugging Face. Resolviendo host real...');
+        try {
+          final res = await dio.get(url);
+          if (res.statusCode == 200 && res.data != null) {
+            final host = res.data['host'] as String?;
+            if (host != null && host.isNotEmpty) {
+              url = host;
+              LogService.log('Host real resuelto: $url');
+            }
+          }
+        } catch (e) {
+          LogService.log('Error al resolver host de Hugging Face Space: $e');
+        }
+      }
+
       if (!url.endsWith('/recognize')) {
         if (url.endsWith('/')) {
           url = '${url}recognize';

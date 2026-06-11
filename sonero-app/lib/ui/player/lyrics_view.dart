@@ -118,7 +118,6 @@ class _LyricsViewState extends State<LyricsView> {
 
     // 1. Try local file first (works without internet)
     if (_currentFilename != null) {
-      final settings = context.read<SettingsProvider>();
       final isVideo = _isVideoExt(_currentFilename!);
       final activeFolder = isVideo ? settings.videoFolder : settings.musicFolder;
       if (activeFolder.isNotEmpty) {
@@ -203,10 +202,10 @@ class _LyricsViewState extends State<LyricsView> {
       // ── Auto-save to disk ────────────────────────────────────────────────
       if (_currentFilename != null && activeFolder.isNotEmpty) {
         try {
-          if (hasSynced) {
-            await LyricsService.saveLrc(activeFolder, _currentFilename!, synced!);
-          } else if (hasPlain) {
-            await LyricsService.saveTxt(activeFolder, _currentFilename!, plain!);
+          if (hasSynced && synced != null) {
+            await LyricsService.saveLrc(activeFolder, _currentFilename!, synced);
+          } else if (hasPlain && plain != null) {
+            await LyricsService.saveTxt(activeFolder, _currentFilename!, plain);
           }
         } catch (_) {
           // Saving failed silently — lyrics still displayed from memory
@@ -215,7 +214,7 @@ class _LyricsViewState extends State<LyricsView> {
 
       setState(() {
         _syncedLyrics = hasSynced ? parsed : null;
-        _plainLyrics  = hasPlain  ? plain!.trim() : null;
+        _plainLyrics  = (hasPlain && plain != null) ? plain.trim() : null;
         // Mark as local since we just saved it (next open will read from disk)
         _source    = LyricsSource.local;
         _isLoading = false;
@@ -317,13 +316,17 @@ class _LyricsViewState extends State<LyricsView> {
           filter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
           child: Container(
             color: context.colors.bg.withValues(alpha: 0.88),
-            child: Column(
-              children: [
-                _buildHeader(),
-                if (_source == LyricsSource.local) _buildLocalBadge(),
-                if (_syncedLyrics != null && _syncedLyrics!.isNotEmpty) _buildSyncControls(),
-                Expanded(child: _buildContent()),
-              ],
+            child: SafeArea(
+              top: false,
+              bottom: true,
+              child: Column(
+                children: [
+                  _buildHeader(),
+                  if (_source == LyricsSource.local) _buildLocalBadge(),
+                  if (_syncedLyrics != null && _syncedLyrics!.isNotEmpty) _buildSyncControls(),
+                  Expanded(child: _buildContent()),
+                ],
+              ),
             ),
           ),
         ),
@@ -472,7 +475,6 @@ class _LyricsViewState extends State<LyricsView> {
   }
 
   Widget _buildLocalBadge() {
-    final isMobile = context.isMobile;
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(

@@ -60,7 +60,7 @@ class SettingsProvider extends ChangeNotifier {
 
   // Mobile fields
   int _lyricsOffset = 0;
-  String _recognitionService = 'gemini';
+  String _recognitionService = 'shazam_proxy';
   String _geminiApiKey = '';
   String _auddApiToken = '';
   String _rapidApiKey = '';
@@ -132,7 +132,7 @@ class SettingsProvider extends ChangeNotifier {
     _deviceIndex = prefs.getInt(_keyDeviceIndex);
     _listenDuration = prefs.getInt(_keyListenDuration) ?? 15;
     _lyricsOffset = prefs.getInt(_keyLyricsOffset) ?? 0;
-    _recognitionService = prefs.getString(_keyRecognitionService) ?? 'gemini';
+    _recognitionService = prefs.getString(_keyRecognitionService) ?? 'shazam_proxy';
     _geminiApiKey = prefs.getString(_keyGeminiApiKey) ?? '';
     _auddApiToken = prefs.getString(_keyAudDApiToken) ?? '';
     _rapidApiKey = prefs.getString(_keyRapidApiKey) ?? '';
