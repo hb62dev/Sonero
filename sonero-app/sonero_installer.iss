@@ -2,15 +2,15 @@
 ; Identificador unico para la aplicacion
 AppId={{5D53DF73-B5DF-4A17-8BEE-C68C9F8A8893}
 AppName=Sonero
-AppVersion=1.0.0
+AppVersion=1.1.0
 AppPublisher=Sonero Inc.
 DefaultDirName={localappdata}\Sonero
 PrivilegesRequired=lowest
 DisableProgramGroupPage=yes
 ; Carpeta donde se guardara el "Setup.exe" final
-OutputDir=C:\Users\hbriceno\Desktop\sonero\sonero-app\installers
+OutputDir=installers
 OutputBaseFilename=Sonero_Setup
-SetupIconFile=C:\Users\hbriceno\Desktop\sonero\sonero-app\windows\runner\resources\app_icon.ico
+SetupIconFile=windows\runner\resources\app_icon.ico
 Compression=lzma
 SolidCompression=yes
 WizardStyle=modern
@@ -23,7 +23,7 @@ Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{
 
 [Files]
 ; Toda la carpeta Release (Flutter app + DLLs + data + backend)
-Source: "C:\Users\hbriceno\Desktop\sonero\sonero-app\build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "build\windows\x64\runner\Release\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
 Name: "{autoprograms}\Sonero"; Filename: "{app}\sonero_app.exe"

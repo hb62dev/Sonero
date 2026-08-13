@@ -25,9 +25,35 @@ if %errorlevel% neq 0 (
   exit /b 1
 )
 
-echo [3/4] Copiando Backend compilado a la carpeta Release...
+echo [3/4] Copiando Backend compilado, DLLs de C++ y FFmpeg a la carpeta Release...
 mkdir "build\windows\x64\runner\Release\sonero_backend" 2>nul
 xcopy "..\sonero-api\dist\sonero_backend" "build\windows\x64\runner\Release\sonero_backend" /E /I /Y
+
+echo Copiando DLLs de C++ para la aplicacion y el backend...
+copy "C:\Windows\System32\vcruntime140.dll" "build\windows\x64\runner\Release\" /Y
+copy "C:\Windows\System32\vcruntime140_1.dll" "build\windows\x64\runner\Release\" /Y
+copy "C:\Windows\System32\msvcp140.dll" "build\windows\x64\runner\Release\" /Y
+copy "C:\Windows\System32\vcruntime140.dll" "build\windows\x64\runner\Release\sonero_backend\" /Y
+copy "C:\Windows\System32\vcruntime140_1.dll" "build\windows\x64\runner\Release\sonero_backend\" /Y
+copy "C:\Windows\System32\msvcp140.dll" "build\windows\x64\runner\Release\sonero_backend\" /Y
+
+echo Buscando y copiando FFmpeg...
+for /f "delims=" %%i in ('where.exe ffmpeg 2^>nul') do set FFMPEG_PATH=%%i
+for /f "delims=" %%i in ('where.exe ffprobe 2^>nul') do set FFPROBE_PATH=%%i
+
+if not "%FFMPEG_PATH%"=="" (
+  echo Copiando ffmpeg.exe desde %FFMPEG_PATH%...
+  copy "%FFMPEG_PATH%" "build\windows\x64\runner\Release\sonero_backend\" /Y
+) else (
+  echo WARNING: ffmpeg.exe no se encontro en el PATH.
+)
+if not "%FFPROBE_PATH%"=="" (
+  echo Copiando ffprobe.exe desde %FFPROBE_PATH%...
+  copy "%FFPROBE_PATH%" "build\windows\x64\runner\Release\sonero_backend\" /Y
+) else (
+  echo WARNING: ffprobe.exe no se encontro en el PATH.
+)
+
 
 echo [4/4] Creando instalador (Inno Setup)...
 :: Asume que iscc está en el PATH de Inno Setup
