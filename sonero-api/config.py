@@ -42,6 +42,10 @@ class Settings(BaseSettings):
     # WiFi transfer receiver (bound to 0.0.0.0 only while receiving is enabled)
     TRANSFER_PORT: int = 8090
 
+    # Sonero TV: streaming API for Android TV (0.0.0.0, only while enabled) + UDP discovery
+    TV_PORT: int = 8091
+    TV_DISCOVERY_PORT: int = 8092
+
     # MCP server for AI agents (read-only usage statistics) at http://127.0.0.1:PORT/mcp
     MCP_ENABLED: bool = True
     # Optional: require "Authorization: Bearer <MCP_TOKEN>" from MCP clients

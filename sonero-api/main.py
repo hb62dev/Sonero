@@ -25,9 +25,10 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
-from routers import listen, batch, downloads, devices, playlists, metadata, analytics, search, settings as settings_router, smart_music, auth, sync, transfer
+from routers import listen, batch, downloads, devices, playlists, metadata, analytics, search, settings as settings_router, smart_music, auth, sync, transfer, tv
 from services import wifi_transfer
 from services import mcp_server
+from services import tv_server
 from init_db import init_db
 
 
@@ -45,8 +46,10 @@ async def lifespan(app: FastAPI):
     async with contextlib.AsyncExitStack() as stack:
         if settings.MCP_ENABLED:
             await stack.enter_async_context(mcp_server.mcp.session_manager.run())
+        await tv_server.start_if_enabled()
         yield
         await wifi_transfer.stop_receiver()
+        await tv_server.stop()
 
 
 # ── App ───────────────────────────────────────────────────────────────────────
@@ -97,6 +100,7 @@ app.include_router(smart_music.router, prefix="/api/v1", tags=["🧠 Smart Music
 app.include_router(auth.router, prefix="/api/v1", tags=["🔒 Authentication"])
 app.include_router(sync.router, prefix="/api/v1", tags=["🔄 Sync"])
 app.include_router(transfer.router, prefix="/api/v1", tags=["📶 WiFi Transfer"])
+app.include_router(tv.router, prefix="/api/v1", tags=["📺 Sonero TV"])
 
 # ── MCP (read-only usage statistics for AI agents) ───────────────────────────
 if settings.MCP_ENABLED:

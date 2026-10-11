@@ -633,4 +633,97 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get wifiUnknownError => 'Error desconocido';
+
+  @override
+  String get tvTab => 'TV';
+
+  @override
+  String get tvIntro =>
+      'Escucha tu biblioteca en una Android TV conectada a la misma red WiFi. No necesita internet.';
+
+  @override
+  String get tvEnable => 'Activar Sonero TV';
+
+  @override
+  String tvActiveOn(String ip) {
+    return 'Activo en $ip';
+  }
+
+  @override
+  String get tvOff => 'Desactivado: ninguna TV puede conectarse.';
+
+  @override
+  String get tvPairButton => 'Emparejar TV';
+
+  @override
+  String get tvPinTitle => 'Escribe este PIN en la TV';
+
+  @override
+  String tvPinExpires(int seconds) {
+    return 'Caduca en $seconds s · sirve para una sola TV';
+  }
+
+  @override
+  String get tvCancel => 'Cancelar';
+
+  @override
+  String get tvDevices => 'TVs emparejadas';
+
+  @override
+  String get tvNoDevices => 'Todavía no hay TVs emparejadas.';
+
+  @override
+  String get tvRevoke => 'Quitar';
+
+  @override
+  String tvLastSeen(String date) {
+    return 'Última conexión: $date';
+  }
+
+  @override
+  String get tvNeverSeen => 'Aún no se ha conectado';
+
+  @override
+  String get tvGetApp =>
+      'En la TV, instala y abre la app Sonero TV: encontrará esta computadora sola.';
+
+  @override
+  String tvError(String error) {
+    return 'Sonero TV: $error';
+  }
+
+  @override
+  String get tvNeedsServer =>
+      'Sonero TV necesita el servidor de Sonero en una computadora.';
+
+  @override
+  String get tvRemoteTitle => 'Control desde el celular';
+
+  @override
+  String get tvRemoteHint =>
+      'Abre esta dirección en el navegador del celular (misma red WiFi) y empareja con un PIN.';
+
+  @override
+  String get tvOnline => 'Conectada';
+
+  @override
+  String get tvKindRemote => 'Control remoto';
+
+  @override
+  String get tvNothingPlaying => 'Nada en reproducción';
+
+  @override
+  String get castToTv => 'Reproducir en TV';
+
+  @override
+  String get castPickTv => 'Elige una TV';
+
+  @override
+  String get castNoTvs =>
+      'No hay ninguna TV conectada. Abre Sonero TV en el televisor y activa Sonero TV en Compartir → TV.';
+
+  @override
+  String castSent(String name) {
+    return 'Reproduciendo en $name';
+  }
 }

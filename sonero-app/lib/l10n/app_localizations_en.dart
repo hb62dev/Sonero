@@ -631,4 +631,97 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get wifiUnknownError => 'Unknown error';
+
+  @override
+  String get tvTab => 'TV';
+
+  @override
+  String get tvIntro =>
+      'Listen to your library on an Android TV on the same WiFi network. No internet needed.';
+
+  @override
+  String get tvEnable => 'Enable Sonero TV';
+
+  @override
+  String tvActiveOn(String ip) {
+    return 'Active on $ip';
+  }
+
+  @override
+  String get tvOff => 'Off: no TV can connect.';
+
+  @override
+  String get tvPairButton => 'Pair a TV';
+
+  @override
+  String get tvPinTitle => 'Enter this PIN on the TV';
+
+  @override
+  String tvPinExpires(int seconds) {
+    return 'Expires in $seconds s · works for one TV';
+  }
+
+  @override
+  String get tvCancel => 'Cancel';
+
+  @override
+  String get tvDevices => 'Paired TVs';
+
+  @override
+  String get tvNoDevices => 'No paired TVs yet.';
+
+  @override
+  String get tvRevoke => 'Remove';
+
+  @override
+  String tvLastSeen(String date) {
+    return 'Last seen: $date';
+  }
+
+  @override
+  String get tvNeverSeen => 'Hasn\'t connected yet';
+
+  @override
+  String get tvGetApp =>
+      'On the TV, install and open the Sonero TV app: it will find this computer by itself.';
+
+  @override
+  String tvError(String error) {
+    return 'Sonero TV: $error';
+  }
+
+  @override
+  String get tvNeedsServer =>
+      'Sonero TV needs the Sonero server running on a computer.';
+
+  @override
+  String get tvRemoteTitle => 'Control from your phone';
+
+  @override
+  String get tvRemoteHint =>
+      'Open this address in your phone\'s browser (same WiFi) and pair with a PIN.';
+
+  @override
+  String get tvOnline => 'Connected';
+
+  @override
+  String get tvKindRemote => 'Remote';
+
+  @override
+  String get tvNothingPlaying => 'Nothing playing';
+
+  @override
+  String get castToTv => 'Play on TV';
+
+  @override
+  String get castPickTv => 'Choose a TV';
+
+  @override
+  String get castNoTvs =>
+      'No TV is connected. Open Sonero TV on the television and turn on Sonero TV in Share → TV.';
+
+  @override
+  String castSent(String name) {
+    return 'Playing on $name';
+  }
 }

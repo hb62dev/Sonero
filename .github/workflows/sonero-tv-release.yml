@@ -1,0 +1,77 @@
+name: Sonero TV release
+
+# Push a tag like `tv-v1.0.0` to build a signed APK and publish it as a GitHub Release.
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   TV_KEYSTORE_BASE64   base64 of the release .jks   (base64 -i sonero-tv-release.jks | pbcopy)
+#   TV_KEYSTORE_PASSWORD keystore password
+#   TV_KEY_ALIAS         key alias (e.g. sonero-tv)
+#   TV_KEY_PASSWORD      key password
+on:
+  push:
+    tags: ["tv-v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sonero-tv
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Check version matches tag
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#tv-v}"
+          PUBSPEC_VERSION="$(grep '^version:' pubspec.yaml | sed 's/version: //; s/+.*//')"
+          if [ "$TAG_VERSION" != "$PUBSPEC_VERSION" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match pubspec version $PUBSPEC_VERSION" >&2
+            exit 1
+          fi
+
+      - name: Restore signing key
+        env:
+          TV_KEYSTORE_BASE64: ${{ secrets.TV_KEYSTORE_BASE64 }}
+          TV_KEYSTORE_PASSWORD: ${{ secrets.TV_KEYSTORE_PASSWORD }}
+          TV_KEY_ALIAS: ${{ secrets.TV_KEY_ALIAS }}
+          TV_KEY_PASSWORD: ${{ secrets.TV_KEY_PASSWORD }}
+        run: |
+          if [ -z "$TV_KEYSTORE_BASE64" ]; then
+            echo "Missing TV_KEYSTORE_BASE64 secret: refusing to publish a debug-signed APK" >&2
+            exit 1
+          fi
+          echo "$TV_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/release.jks"
+          cat > android/key.properties <<EOF
+          storeFile=$RUNNER_TEMP/release.jks
+          storePassword=$TV_KEYSTORE_PASSWORD
+          keyAlias=$TV_KEY_ALIAS
+          keyPassword=$TV_KEY_PASSWORD
+          EOF
+
+      - run: flutter pub get
+      - run: flutter analyze
+      - run: flutter build apk --release
+
+      - name: Rename APK
+        run: cp build/app/outputs/flutter-apk/app-release.apk "build/sonero-tv-${GITHUB_REF_NAME#tv-v}.apk"
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Sonero TV ${{ github.ref_name }}
+          files: sonero-tv/build/sonero-tv-*.apk
+          body: |
+            App para Android TV. Instálala una vez en el televisor y conéctala a Sonero en tu computadora (Compartir → TV).
+            Cómo instalarla: ver sonero-tv/README.md.

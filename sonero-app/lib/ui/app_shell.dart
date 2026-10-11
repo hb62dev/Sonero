@@ -28,6 +28,7 @@ import 'setup_modal.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:path/path.dart' as p;
 import 'wifi_transfer/wifi_transfer_page.dart';
+import 'wifi_transfer/cast_to_tv.dart';
 import '../services/background_listen_service.dart';
 import '../providers/downloads_provider.dart';
 import 'settings/settings_page.dart' as settings_page;
@@ -556,6 +557,19 @@ class _AppShellState extends State<AppShell> {
                         const SizedBox(width: 12),
                         _BarIconBtn(icon: Icons.stop_rounded, size: 16, color: Colors.red.shade300, onTap: player.stop),
                         const SizedBox(width: 16),
+                        // ── Play on TV (continues where it is, pauses here) ──
+                        if (!context.read<SettingsProvider>().api.isNative && player.currentTrack != null) ...[
+                          Tooltip(
+                            message: AppLocalizations.of(context)!.castToTv,
+                            child: _BarIconBtn(
+                              icon: Icons.cast_rounded,
+                              size: 16,
+                              color: context.colors.textSecondary,
+                              onTap: () => _castCurrentToTv(context, player),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                        ],
                         // ── Volume ──
                         _BarIconBtn(
                           icon: player.volume <= 0 ? Icons.volume_off_rounded : Icons.volume_up_rounded,
@@ -593,6 +607,21 @@ class _AppShellState extends State<AppShell> {
       ),
     );
   }
+  Future<void> _castCurrentToTv(BuildContext context, PlayerProvider player) async {
+    final current = player.currentTrack;
+    if (current == null) return;
+    final queue = player.queue.isNotEmpty ? player.queue : [current];
+    final index = queue.indexWhere((t) => t.filename == current.filename);
+    final sent = await showCastToTvDialog(
+      context,
+      apiUrl: context.read<SettingsProvider>().apiUrl,
+      filenames: [for (final t in queue) t.filename],
+      index: index < 0 ? 0 : index,
+      position: player.position.inMilliseconds / 1000,
+    );
+    if (sent) player.pause();
+  }
+
   List<Widget> _buildNavTabs(BuildContext context, int downloadsCount) {
     return [
       _DesktopNavTab(

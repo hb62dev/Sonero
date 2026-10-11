@@ -617,4 +617,93 @@ class AppLocalizationsJa extends AppLocalizations {
 
   @override
   String get wifiUnknownError => '不明なエラー';
+
+  @override
+  String get tvTab => 'TV';
+
+  @override
+  String get tvIntro => '同じWi-Fiに接続したAndroid TVでライブラリを再生できます。インターネットは不要です。';
+
+  @override
+  String get tvEnable => 'Sonero TVを有効にする';
+
+  @override
+  String tvActiveOn(String ip) {
+    return '$ip で有効';
+  }
+
+  @override
+  String get tvOff => 'オフ: テレビは接続できません。';
+
+  @override
+  String get tvPairButton => 'テレビをペアリング';
+
+  @override
+  String get tvPinTitle => 'テレビでこのPINを入力してください';
+
+  @override
+  String tvPinExpires(int seconds) {
+    return '$seconds 秒で期限切れ・1台のテレビのみ';
+  }
+
+  @override
+  String get tvCancel => 'キャンセル';
+
+  @override
+  String get tvDevices => 'ペアリング済みのテレビ';
+
+  @override
+  String get tvNoDevices => 'ペアリング済みのテレビはまだありません。';
+
+  @override
+  String get tvRevoke => '削除';
+
+  @override
+  String tvLastSeen(String date) {
+    return '最終接続: $date';
+  }
+
+  @override
+  String get tvNeverSeen => 'まだ接続していません';
+
+  @override
+  String get tvGetApp => 'テレビにSonero TVアプリをインストールして開くと、このコンピューターが自動で見つかります。';
+
+  @override
+  String tvError(String error) {
+    return 'Sonero TV: $error';
+  }
+
+  @override
+  String get tvNeedsServer => 'Sonero TVにはコンピューター上のSoneroサーバーが必要です。';
+
+  @override
+  String get tvRemoteTitle => 'スマホから操作';
+
+  @override
+  String get tvRemoteHint => 'スマホのブラウザでこのアドレスを開き（同じWi-Fi）、PINでペアリングしてください。';
+
+  @override
+  String get tvOnline => '接続中';
+
+  @override
+  String get tvKindRemote => 'リモコン';
+
+  @override
+  String get tvNothingPlaying => '再生していません';
+
+  @override
+  String get castToTv => 'テレビで再生';
+
+  @override
+  String get castPickTv => 'テレビを選択';
+
+  @override
+  String get castNoTvs =>
+      '接続中のテレビがありません。テレビでSonero TVを開き、共有 → TVでSonero TVをオンにしてください。';
+
+  @override
+  String castSent(String name) {
+    return '$nameで再生中';
+  }
 }

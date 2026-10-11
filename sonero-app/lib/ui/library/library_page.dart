@@ -13,6 +13,7 @@ import '../theme.dart';
 import '../widgets/track_cover_image.dart';
 import '../settings/settings_page.dart';
 import 'metadata_dialog.dart';
+import '../wifi_transfer/cast_to_tv.dart';
 import 'package:file_picker/file_picker.dart';
 
 class LibraryPage extends StatefulWidget {
@@ -594,6 +595,24 @@ class _LibraryPageState extends State<LibraryPage>
                           color: Colors.lightGreen,
                           tooltip: AppLocalizations.of(context)!.wifiTitle,
                           onPressed: selectedTracks.isEmpty ? null : () => widget.onWiFiShare!(selectedTracks),
+                        ),
+                      ],
+                      if (!settings.api.isNative) ...[
+                        const SizedBox(width: 12),
+                        IconButton(
+                          icon: const Icon(Icons.cast_rounded),
+                          iconSize: 26,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+                          color: Theme.of(context).colorScheme.primary,
+                          tooltip: AppLocalizations.of(context)!.castToTv,
+                          onPressed: selectedTracks.isEmpty
+                              ? null
+                              : () => showCastToTvDialog(
+                                    context,
+                                    apiUrl: settings.apiUrl,
+                                    filenames: [for (final t in selectedTracks) t.filename],
+                                  ),
                         ),
                       ],
                     ],

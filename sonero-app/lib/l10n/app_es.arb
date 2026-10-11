@@ -305,5 +305,48 @@
   "@wifiStatusFailed": {
     "placeholders": { "error": { "type": "String" } }
   },
-  "wifiUnknownError": "Error desconocido"
+  "wifiUnknownError": "Error desconocido",
+
+  "tvTab": "TV",
+  "tvIntro": "Escucha tu biblioteca en una Android TV conectada a la misma red WiFi. No necesita internet.",
+  "tvEnable": "Activar Sonero TV",
+  "tvActiveOn": "Activo en {ip}",
+  "@tvActiveOn": {
+    "placeholders": { "ip": { "type": "String" } }
+  },
+  "tvOff": "Desactivado: ninguna TV puede conectarse.",
+  "tvPairButton": "Emparejar TV",
+  "tvPinTitle": "Escribe este PIN en la TV",
+  "tvPinExpires": "Caduca en {seconds} s · sirve para una sola TV",
+  "@tvPinExpires": {
+    "placeholders": { "seconds": { "type": "int" } }
+  },
+  "tvCancel": "Cancelar",
+  "tvDevices": "TVs emparejadas",
+  "tvNoDevices": "Todavía no hay TVs emparejadas.",
+  "tvRevoke": "Quitar",
+  "tvLastSeen": "Última conexión: {date}",
+  "@tvLastSeen": {
+    "placeholders": { "date": { "type": "String" } }
+  },
+  "tvNeverSeen": "Aún no se ha conectado",
+  "tvGetApp": "En la TV, instala y abre la app Sonero TV: encontrará esta computadora sola.",
+  "tvError": "Sonero TV: {error}",
+  "@tvError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "tvNeedsServer": "Sonero TV necesita el servidor de Sonero en una computadora.",
+
+  "tvRemoteTitle": "Control desde el celular",
+  "tvRemoteHint": "Abre esta dirección en el navegador del celular (misma red WiFi) y empareja con un PIN.",
+  "tvOnline": "Conectada",
+  "tvKindRemote": "Control remoto",
+  "tvNothingPlaying": "Nada en reproducción",
+  "castToTv": "Reproducir en TV",
+  "castPickTv": "Elige una TV",
+  "castNoTvs": "No hay ninguna TV conectada. Abre Sonero TV en el televisor y activa Sonero TV en Compartir → TV.",
+  "castSent": "Reproduciendo en {name}",
+  "@castSent": {
+    "placeholders": { "name": { "type": "String" } }
+  }
 }

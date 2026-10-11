@@ -9,6 +9,7 @@ import '../../providers/library_provider.dart';
 import '../../services/wifi_transfer_backend.dart';
 import '../../services/wifi_transfer_service.dart';
 import '../theme.dart';
+import 'tv_tab.dart';
 
 /// Share music/videos with other Sonero devices on the same WiFi network.
 ///
@@ -62,7 +63,7 @@ class _WifiTransferPageState extends State<WifiTransferPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
 
     if (widget.initialFilesToSend != null) {
       _filesToSend = List.from(widget.initialFilesToSend!);
@@ -320,6 +321,7 @@ class _WifiTransferPageState extends State<WifiTransferPage>
           tabs: [
             Tab(text: l10n.wifiTabSend),
             Tab(text: l10n.wifiTabReceive),
+            Tab(text: l10n.tvTab),
           ],
         ),
       ),
@@ -333,6 +335,16 @@ class _WifiTransferPageState extends State<WifiTransferPage>
               children: [
                 _buildSendTab(isMobile),
                 _buildReceiveTab(settings, library, isMobile),
+                _useBackend
+                    ? TvTab(apiUrl: settings.apiUrl)
+                    : Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(24),
+                          child: Text(l10n.tvNeedsServer,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(color: context.colors.textSecondary)),
+                        ),
+                      ),
               ],
             ),
           ),

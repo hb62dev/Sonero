@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Sonero TV talks to the Sonero server on the home network over plain HTTP
+     (LAN, no internet, no domain name to get a certificate for). -->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

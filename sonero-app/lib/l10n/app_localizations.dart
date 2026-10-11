@@ -1227,6 +1227,162 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'Error desconocido'**
   String get wifiUnknownError;
+
+  /// No description provided for @tvTab.
+  ///
+  /// In es, this message translates to:
+  /// **'TV'**
+  String get tvTab;
+
+  /// No description provided for @tvIntro.
+  ///
+  /// In es, this message translates to:
+  /// **'Escucha tu biblioteca en una Android TV conectada a la misma red WiFi. No necesita internet.'**
+  String get tvIntro;
+
+  /// No description provided for @tvEnable.
+  ///
+  /// In es, this message translates to:
+  /// **'Activar Sonero TV'**
+  String get tvEnable;
+
+  /// No description provided for @tvActiveOn.
+  ///
+  /// In es, this message translates to:
+  /// **'Activo en {ip}'**
+  String tvActiveOn(String ip);
+
+  /// No description provided for @tvOff.
+  ///
+  /// In es, this message translates to:
+  /// **'Desactivado: ninguna TV puede conectarse.'**
+  String get tvOff;
+
+  /// No description provided for @tvPairButton.
+  ///
+  /// In es, this message translates to:
+  /// **'Emparejar TV'**
+  String get tvPairButton;
+
+  /// No description provided for @tvPinTitle.
+  ///
+  /// In es, this message translates to:
+  /// **'Escribe este PIN en la TV'**
+  String get tvPinTitle;
+
+  /// No description provided for @tvPinExpires.
+  ///
+  /// In es, this message translates to:
+  /// **'Caduca en {seconds} s · sirve para una sola TV'**
+  String tvPinExpires(int seconds);
+
+  /// No description provided for @tvCancel.
+  ///
+  /// In es, this message translates to:
+  /// **'Cancelar'**
+  String get tvCancel;
+
+  /// No description provided for @tvDevices.
+  ///
+  /// In es, this message translates to:
+  /// **'TVs emparejadas'**
+  String get tvDevices;
+
+  /// No description provided for @tvNoDevices.
+  ///
+  /// In es, this message translates to:
+  /// **'Todavía no hay TVs emparejadas.'**
+  String get tvNoDevices;
+
+  /// No description provided for @tvRevoke.
+  ///
+  /// In es, this message translates to:
+  /// **'Quitar'**
+  String get tvRevoke;
+
+  /// No description provided for @tvLastSeen.
+  ///
+  /// In es, this message translates to:
+  /// **'Última conexión: {date}'**
+  String tvLastSeen(String date);
+
+  /// No description provided for @tvNeverSeen.
+  ///
+  /// In es, this message translates to:
+  /// **'Aún no se ha conectado'**
+  String get tvNeverSeen;
+
+  /// No description provided for @tvGetApp.
+  ///
+  /// In es, this message translates to:
+  /// **'En la TV, instala y abre la app Sonero TV: encontrará esta computadora sola.'**
+  String get tvGetApp;
+
+  /// No description provided for @tvError.
+  ///
+  /// In es, this message translates to:
+  /// **'Sonero TV: {error}'**
+  String tvError(String error);
+
+  /// No description provided for @tvNeedsServer.
+  ///
+  /// In es, this message translates to:
+  /// **'Sonero TV necesita el servidor de Sonero en una computadora.'**
+  String get tvNeedsServer;
+
+  /// No description provided for @tvRemoteTitle.
+  ///
+  /// In es, this message translates to:
+  /// **'Control desde el celular'**
+  String get tvRemoteTitle;
+
+  /// No description provided for @tvRemoteHint.
+  ///
+  /// In es, this message translates to:
+  /// **'Abre esta dirección en el navegador del celular (misma red WiFi) y empareja con un PIN.'**
+  String get tvRemoteHint;
+
+  /// No description provided for @tvOnline.
+  ///
+  /// In es, this message translates to:
+  /// **'Conectada'**
+  String get tvOnline;
+
+  /// No description provided for @tvKindRemote.
+  ///
+  /// In es, this message translates to:
+  /// **'Control remoto'**
+  String get tvKindRemote;
+
+  /// No description provided for @tvNothingPlaying.
+  ///
+  /// In es, this message translates to:
+  /// **'Nada en reproducción'**
+  String get tvNothingPlaying;
+
+  /// No description provided for @castToTv.
+  ///
+  /// In es, this message translates to:
+  /// **'Reproducir en TV'**
+  String get castToTv;
+
+  /// No description provided for @castPickTv.
+  ///
+  /// In es, this message translates to:
+  /// **'Elige una TV'**
+  String get castPickTv;
+
+  /// No description provided for @castNoTvs.
+  ///
+  /// In es, this message translates to:
+  /// **'No hay ninguna TV conectada. Abre Sonero TV en el televisor y activa Sonero TV en Compartir → TV.'**
+  String get castNoTvs;
+
+  /// No description provided for @castSent.
+  ///
+  /// In es, this message translates to:
+  /// **'Reproduciendo en {name}'**
+  String castSent(String name);
 }
 
 class _AppLocalizationsDelegate
