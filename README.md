@@ -83,6 +83,46 @@ To use account synchronization and Google Drive backup in your local build or fo
 
 ---
 
+## 🤖 MCP Server for AI Agents
+
+The Python backend exposes Sonero's **usage statistics** over the [Model Context Protocol](https://modelcontextprotocol.io), so agents (Claude Code, Claude Desktop, or any MCP client) can analyze your listening habits. All tools are **read-only**: agents can't play, download, edit or delete anything.
+
+| Tool | What it returns |
+|---|---|
+| `get_listening_summary` | Plays, minutes, completion rate, unique tracks/artists, peak hour/weekday, streak |
+| `get_top_tracks` / `get_top_artists` / `get_top_genres` | Rankings for a period (by plays or minutes) |
+| `get_listening_timeline` | Listening per day, hour of day or weekday |
+| `get_playback_history` | Most recent plays |
+| `get_library_overview` | Library size, formats, playlists, never-played count |
+| `search_library` | Search by title, artist, album or genre, with play counts |
+| `get_focus_stats` | Focus sessions, skips and Focus Score |
+| `get_dashboard_stats` | Everything the in-app Statistics screen shows |
+
+It also provides the resource `sonero://stats/summary` (30-day summary).
+
+**HTTP (backend running):** `http://127.0.0.1:8000/mcp` — local only (not reachable from the network, DNS-rebinding protection).
+
+```bash
+claude mcp add --transport http sonero http://127.0.0.1:8000/mcp
+```
+
+**stdio (client launches it, backend not required):**
+
+```json
+{
+  "mcpServers": {
+    "sonero": {
+      "command": "/path/to/sonero-api/venv/bin/python",
+      "args": ["/path/to/sonero-api/mcp_stdio.py"]
+    }
+  }
+}
+```
+
+Options in `sonero-api/.env`: `MCP_ENABLED=false` disables the HTTP endpoint; `MCP_TOKEN=<secret>` requires `Authorization: Bearer <secret>` (e.g. `claude mcp add --transport http sonero http://127.0.0.1:8000/mcp --header "Authorization: Bearer <secret>"`).
+
+---
+
 ## 🛠️ Build Instructions (Developers)
 
 ### 🧹 Project Cleanup
@@ -202,6 +242,46 @@ Para usar la sincronización de cuenta y respaldo en Google Drive en tu compilac
 5. Crea credenciales de **ID de cliente de OAuth** para **Aplicación de escritorio** (Desktop App, para Windows) y/o **Aplicación de Android** (para Android).
 6. Copia tu **Client ID** y **Client Secret**.
 7. Abre la aplicación Sonero, navega a **Ajustes > Integración con Google Cloud** e introduce tus claves.
+
+---
+
+## 🤖 Servidor MCP para Agentes de IA
+
+El backend de Python expone las **estadísticas de uso** de Sonero mediante el [Model Context Protocol](https://modelcontextprotocol.io), para que agentes (Claude Code, Claude Desktop o cualquier cliente MCP) puedan analizar tus hábitos de escucha. Todas las herramientas son de **solo lectura**: los agentes no pueden reproducir, descargar, editar ni borrar nada.
+
+| Herramienta | Qué devuelve |
+|---|---|
+| `get_listening_summary` | Reproducciones, minutos, tasa de canciones terminadas, canciones/artistas distintos, hora y día pico, racha |
+| `get_top_tracks` / `get_top_artists` / `get_top_genres` | Rankings de un periodo (por reproducciones o minutos) |
+| `get_listening_timeline` | Escucha por día, hora del día o día de la semana |
+| `get_playback_history` | Últimas reproducciones |
+| `get_library_overview` | Tamaño de la biblioteca, formatos, playlists, canciones nunca escuchadas |
+| `search_library` | Búsqueda por título, artista, álbum o género, con número de reproducciones |
+| `get_focus_stats` | Sesiones de concentración, saltos y Focus Score |
+| `get_dashboard_stats` | Todo lo que muestra la pantalla de Estadísticas de la app |
+
+También ofrece el recurso `sonero://stats/summary` (resumen de 30 días).
+
+**HTTP (con el backend en ejecución):** `http://127.0.0.1:8000/mcp` — solo local (no accesible desde la red, con protección contra DNS rebinding).
+
+```bash
+claude mcp add --transport http sonero http://127.0.0.1:8000/mcp
+```
+
+**stdio (el cliente lo lanza; no requiere el backend):**
+
+```json
+{
+  "mcpServers": {
+    "sonero": {
+      "command": "/ruta/a/sonero-api/venv/bin/python",
+      "args": ["/ruta/a/sonero-api/mcp_stdio.py"]
+    }
+  }
+}
+```
+
+Opciones en `sonero-api/.env`: `MCP_ENABLED=false` desactiva el endpoint HTTP; `MCP_TOKEN=<secreto>` exige `Authorization: Bearer <secreto>` (p. ej. `claude mcp add --transport http sonero http://127.0.0.1:8000/mcp --header "Authorization: Bearer <secreto>"`).
 
 ---
 

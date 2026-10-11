@@ -493,4 +493,142 @@ class AppLocalizationsEn extends AppLocalizations {
   String playlistEnqueued(int count) {
     return '$count downloads have been enqueued in the manager.';
   }
+
+  @override
+  String get navShare => 'Share';
+
+  @override
+  String get navActiveDownloads => 'Downloads';
+
+  @override
+  String get wifiTitle => 'Share via WiFi';
+
+  @override
+  String get wifiTabSend => 'Send';
+
+  @override
+  String get wifiTabReceive => 'Receive';
+
+  @override
+  String get wifiNoFilesTitle => 'No files selected';
+
+  @override
+  String get wifiNoFilesHint =>
+      'Go to your Library, long-press a song or video to start selecting, check what you want to send and tap the WiFi icon.';
+
+  @override
+  String wifiSendCount(int count) {
+    return 'Send $count file(s)';
+  }
+
+  @override
+  String get wifiClear => 'Clear';
+
+  @override
+  String get wifiReceiverIp => 'Receiver IP';
+
+  @override
+  String get wifiReceiverIpHint => 'e.g. 192.168.1.50';
+
+  @override
+  String get wifiSend => 'Send';
+
+  @override
+  String get wifiSending => 'Sending';
+
+  @override
+  String get wifiQueue => 'Send queue';
+
+  @override
+  String wifiCompleted(int done, int total) {
+    return '$done / $total completed';
+  }
+
+  @override
+  String get wifiEnterIp => 'Enter the receiver\'s IP.';
+
+  @override
+  String get wifiSendFinished => 'Transfer finished.';
+
+  @override
+  String wifiSendError(String error) {
+    return 'Transfer error: $error';
+  }
+
+  @override
+  String get wifiReady => 'Ready to receive files';
+
+  @override
+  String get wifiEnterIpOnSender =>
+      'Enter this IP in the Sonero app on the other device.';
+
+  @override
+  String wifiOtherIps(String ips) {
+    return 'Other networks: $ips';
+  }
+
+  @override
+  String get wifiOrOpenInBrowser =>
+      'No app? Open this in your phone\'s browser:';
+
+  @override
+  String get wifiCopied => 'Copied to clipboard.';
+
+  @override
+  String get wifiCopy => 'Copy';
+
+  @override
+  String get wifiReceiveOff => 'Receiving is off';
+
+  @override
+  String get wifiReceiveOffHint =>
+      'Turn on receiving to get music or videos from other devices on the same WiFi network.';
+
+  @override
+  String get wifiStartReceiving => 'Start receiving';
+
+  @override
+  String get wifiStopReceiving => 'Stop receiving';
+
+  @override
+  String wifiStartError(String error) {
+    return 'Couldn\'t start receiving: $error';
+  }
+
+  @override
+  String get wifiReceivedList => 'Received / in progress';
+
+  @override
+  String get wifiNoNetwork =>
+      'No WiFi or LAN network found. Connect to a network to share.';
+
+  @override
+  String get wifiSameNetworkTip =>
+      'Both devices must be on the same WiFi network. An active VPN may block the connection, and your computer may ask permission to accept incoming connections.';
+
+  @override
+  String get wifiBackendUnavailable =>
+      'Can\'t reach the Sonero server. Make sure it\'s running.';
+
+  @override
+  String get wifiStatusWaiting => 'Waiting…';
+
+  @override
+  String wifiStatusTransferring(int pct) {
+    return 'Transferring… $pct%';
+  }
+
+  @override
+  String get wifiStatusDone => 'Completed';
+
+  @override
+  String get wifiStatusDuplicate => 'Already there, skipped';
+
+  @override
+  String wifiStatusFailed(String error) {
+    return 'Failed: $error';
+  }
+
+  @override
+  String get wifiUnknownError => 'Unknown error';
 }

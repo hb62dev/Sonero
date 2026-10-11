@@ -495,4 +495,142 @@ class AppLocalizationsEs extends AppLocalizations {
   String playlistEnqueued(int count) {
     return 'Se han encolado $count descargas en el gestor.';
   }
+
+  @override
+  String get navShare => 'Compartir';
+
+  @override
+  String get navActiveDownloads => 'Descargas';
+
+  @override
+  String get wifiTitle => 'Compartir vía WiFi';
+
+  @override
+  String get wifiTabSend => 'Enviar';
+
+  @override
+  String get wifiTabReceive => 'Recibir';
+
+  @override
+  String get wifiNoFilesTitle => 'Sin archivos seleccionados';
+
+  @override
+  String get wifiNoFilesHint =>
+      'Ve a tu Biblioteca, mantén presionada una canción o video para activar la selección, marca lo que quieras enviar y toca el icono de WiFi.';
+
+  @override
+  String wifiSendCount(int count) {
+    return 'Enviar $count archivo(s)';
+  }
+
+  @override
+  String get wifiClear => 'Limpiar';
+
+  @override
+  String get wifiReceiverIp => 'IP del receptor';
+
+  @override
+  String get wifiReceiverIpHint => 'Ej. 192.168.1.50';
+
+  @override
+  String get wifiSend => 'Enviar';
+
+  @override
+  String get wifiSending => 'Enviando';
+
+  @override
+  String get wifiQueue => 'Cola de envío';
+
+  @override
+  String wifiCompleted(int done, int total) {
+    return '$done / $total completados';
+  }
+
+  @override
+  String get wifiEnterIp => 'Ingresa la IP del receptor.';
+
+  @override
+  String get wifiSendFinished => 'Envío finalizado.';
+
+  @override
+  String wifiSendError(String error) {
+    return 'Error en el envío: $error';
+  }
+
+  @override
+  String get wifiReady => 'Listo para recibir archivos';
+
+  @override
+  String get wifiEnterIpOnSender =>
+      'Ingresa esta IP en la app Sonero del otro dispositivo.';
+
+  @override
+  String wifiOtherIps(String ips) {
+    return 'Otras redes: $ips';
+  }
+
+  @override
+  String get wifiOrOpenInBrowser =>
+      '¿Sin la app? Abre esto en el navegador del celular:';
+
+  @override
+  String get wifiCopied => 'Copiado al portapapeles.';
+
+  @override
+  String get wifiCopy => 'Copiar';
+
+  @override
+  String get wifiReceiveOff => 'Recepción desactivada';
+
+  @override
+  String get wifiReceiveOffHint =>
+      'Activa la recepción para recibir música o videos desde otros dispositivos en la misma red WiFi.';
+
+  @override
+  String get wifiStartReceiving => 'Iniciar recepción';
+
+  @override
+  String get wifiStopReceiving => 'Detener recepción';
+
+  @override
+  String wifiStartError(String error) {
+    return 'No se pudo iniciar la recepción: $error';
+  }
+
+  @override
+  String get wifiReceivedList => 'Recibidos / en progreso';
+
+  @override
+  String get wifiNoNetwork =>
+      'No se encontró una red WiFi o LAN. Conéctate a una red para compartir.';
+
+  @override
+  String get wifiSameNetworkTip =>
+      'Ambos dispositivos deben estar en la misma red WiFi. Una VPN activa puede bloquear la conexión, y tu computadora puede pedir permiso para aceptar conexiones entrantes.';
+
+  @override
+  String get wifiBackendUnavailable =>
+      'No hay conexión con el servidor de Sonero. Revisa que esté en ejecución.';
+
+  @override
+  String get wifiStatusWaiting => 'Esperando…';
+
+  @override
+  String wifiStatusTransferring(int pct) {
+    return 'Transfiriendo… $pct%';
+  }
+
+  @override
+  String get wifiStatusDone => 'Completado';
+
+  @override
+  String get wifiStatusDuplicate => 'Ya existía, omitido';
+
+  @override
+  String wifiStatusFailed(String error) {
+    return 'Falló: $error';
+  }
+
+  @override
+  String get wifiUnknownError => 'Error desconocido';
 }

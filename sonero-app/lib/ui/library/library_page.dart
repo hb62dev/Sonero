@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:sonero_app/l10n/app_localizations.dart';
 import 'package:provider/provider.dart';
 import '../../models/track.dart';
 import '../../models/playlist.dart';
@@ -591,7 +592,7 @@ class _LibraryPageState extends State<LibraryPage>
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
                           color: Colors.lightGreen,
-                          tooltip: 'Compartir vía WiFi',
+                          tooltip: AppLocalizations.of(context)!.wifiTitle,
                           onPressed: selectedTracks.isEmpty ? null : () => widget.onWiFiShare!(selectedTracks),
                         ),
                       ],

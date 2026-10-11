@@ -3,6 +3,8 @@ import sys
 from fastapi import APIRouter, File, UploadFile, HTTPException, Query
 from pathlib import Path
 from config import settings
+from pydantic import BaseModel
+from services import cookies
 from services.benrio_client import benrio_client
 
 router = APIRouter()
@@ -42,6 +44,45 @@ async def pick_folder(
     selected = await loop.run_in_executor(None, _open_dialog)
 
     return {"path": selected}
+
+class CookieBrowserUpdate(BaseModel):
+    browser: str | None = None  # None / "" disables reading browser cookies
+
+
+@router.get(
+    "/settings/cookies",
+    summary="Current YouTube cookie source",
+)
+async def get_cookie_settings() -> dict:
+    return {
+        "browser": cookies.get_cookie_browser(),
+        "has_cookie_file": (settings.TMP_DIR / "cookies.txt").exists(),
+        "supported_browsers": list(cookies.SUPPORTED_BROWSERS),
+    }
+
+
+@router.put(
+    "/settings/cookies/browser",
+    summary="Opt in/out of reading YouTube cookies from a browser",
+    description="Off by default. Enabling tests the browser once; on macOS this is "
+                "when the system asks for keychain access.",
+)
+async def set_cookie_browser(body: CookieBrowserUpdate) -> dict:
+    browser = (body.browser or "").strip().lower() or None
+    if browser is not None:
+        if browser not in cookies.SUPPORTED_BROWSERS:
+            raise HTTPException(status_code=400, detail=f"Navegador no soportado: {browser}")
+        loop = asyncio.get_running_loop()
+        try:
+            await loop.run_in_executor(None, cookies.test_browser_cookies, browser)
+        except Exception as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No se pudieron leer las cookies de {browser}: {e}",
+            )
+    cookies.set_cookie_browser(browser)
+    return await get_cookie_settings()
+
 
 @router.post(
     "/settings/cookies/benrio",

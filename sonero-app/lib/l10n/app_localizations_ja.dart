@@ -483,4 +483,138 @@ class AppLocalizationsJa extends AppLocalizations {
   String playlistEnqueued(int count) {
     return '$count 件のダウンロードがマネージャーに追加されました。';
   }
+
+  @override
+  String get navShare => '共有';
+
+  @override
+  String get navActiveDownloads => 'ダウンロード';
+
+  @override
+  String get wifiTitle => 'Wi-Fiで共有';
+
+  @override
+  String get wifiTabSend => '送信';
+
+  @override
+  String get wifiTabReceive => '受信';
+
+  @override
+  String get wifiNoFilesTitle => 'ファイルが選択されていません';
+
+  @override
+  String get wifiNoFilesHint =>
+      'ライブラリで曲や動画を長押しして選択モードにし、送信したいものにチェックを入れてWi-Fiアイコンをタップしてください。';
+
+  @override
+  String wifiSendCount(int count) {
+    return '$count 件のファイルを送信';
+  }
+
+  @override
+  String get wifiClear => 'クリア';
+
+  @override
+  String get wifiReceiverIp => '受信側のIP';
+
+  @override
+  String get wifiReceiverIpHint => '例: 192.168.1.50';
+
+  @override
+  String get wifiSend => '送信';
+
+  @override
+  String get wifiSending => '送信中';
+
+  @override
+  String get wifiQueue => '送信キュー';
+
+  @override
+  String wifiCompleted(int done, int total) {
+    return '$done / $total 完了';
+  }
+
+  @override
+  String get wifiEnterIp => '受信側のIPを入力してください。';
+
+  @override
+  String get wifiSendFinished => '送信が完了しました。';
+
+  @override
+  String wifiSendError(String error) {
+    return '送信エラー: $error';
+  }
+
+  @override
+  String get wifiReady => 'ファイルを受信できます';
+
+  @override
+  String get wifiEnterIpOnSender => '相手の端末のSoneroアプリにこのIPを入力してください。';
+
+  @override
+  String wifiOtherIps(String ips) {
+    return 'その他のネットワーク: $ips';
+  }
+
+  @override
+  String get wifiOrOpenInBrowser => 'アプリがない場合は、スマホのブラウザでこちらを開いてください:';
+
+  @override
+  String get wifiCopied => 'クリップボードにコピーしました。';
+
+  @override
+  String get wifiCopy => 'コピー';
+
+  @override
+  String get wifiReceiveOff => '受信はオフです';
+
+  @override
+  String get wifiReceiveOffHint =>
+      '同じWi-Fiネットワーク上の他の端末から音楽や動画を受け取るには、受信をオンにしてください。';
+
+  @override
+  String get wifiStartReceiving => '受信を開始';
+
+  @override
+  String get wifiStopReceiving => '受信を停止';
+
+  @override
+  String wifiStartError(String error) {
+    return '受信を開始できませんでした: $error';
+  }
+
+  @override
+  String get wifiReceivedList => '受信済み / 進行中';
+
+  @override
+  String get wifiNoNetwork => 'Wi-FiまたはLANが見つかりません。共有するにはネットワークに接続してください。';
+
+  @override
+  String get wifiSameNetworkTip =>
+      '両方の端末が同じWi-Fiに接続している必要があります。VPNが有効だと接続できない場合があり、コンピューターが受信接続の許可を求めることがあります。';
+
+  @override
+  String get wifiBackendUnavailable => 'Soneroサーバーに接続できません。起動しているか確認してください。';
+
+  @override
+  String get wifiStatusWaiting => '待機中…';
+
+  @override
+  String wifiStatusTransferring(int pct) {
+    return '転送中… $pct%';
+  }
+
+  @override
+  String get wifiStatusDone => '完了';
+
+  @override
+  String get wifiStatusDuplicate => '既に存在するためスキップ';
+
+  @override
+  String wifiStatusFailed(String error) {
+    return '失敗: $error';
+  }
+
+  @override
+  String get wifiUnknownError => '不明なエラー';
 }

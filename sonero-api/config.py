@@ -39,6 +39,14 @@ class Settings(BaseSettings):
     HOST: str = "127.0.0.1"
     PORT: int = 8000
 
+    # WiFi transfer receiver (bound to 0.0.0.0 only while receiving is enabled)
+    TRANSFER_PORT: int = 8090
+
+    # MCP server for AI agents (read-only usage statistics) at http://127.0.0.1:PORT/mcp
+    MCP_ENABLED: bool = True
+    # Optional: require "Authorization: Bearer <MCP_TOKEN>" from MCP clients
+    MCP_TOKEN: str | None = None
+
     # Download format preference (no FFmpeg needed)
     AUDIO_FORMAT: str = "m4a"  # m4a = AAC, no conversion required
 

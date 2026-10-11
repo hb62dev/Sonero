@@ -754,6 +754,10 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ],
               ),
+              if (!settings.api.isNative) ...[
+                const SizedBox(height: 16),
+                const _BrowserCookiesTile(),
+              ],
             ],
           ),
 
@@ -2163,6 +2167,110 @@ class _DuplicatesDialogState extends State<_DuplicatesDialog> {
       title: title,
       content: content,
       actions: actions,
+    );
+  }
+}
+
+
+/// Opt-in for letting the backend read YouTube cookies from one browser.
+/// Off by default: reading a browser's cookie store exposes all of its cookies
+/// to the backend process and, on macOS, needs keychain access.
+class _BrowserCookiesTile extends StatefulWidget {
+  const _BrowserCookiesTile();
+
+  @override
+  State<_BrowserCookiesTile> createState() => _BrowserCookiesTileState();
+}
+
+class _BrowserCookiesTileState extends State<_BrowserCookiesTile> {
+  static const _browsers = {
+    'chrome': 'Chrome',
+    'brave': 'Brave',
+    'edge': 'Edge',
+    'firefox': 'Firefox',
+    'opera': 'Opera',
+    'safari': 'Safari',
+    'vivaldi': 'Vivaldi',
+    'chromium': 'Chromium',
+  };
+
+  String? _browser;
+  bool _loading = true;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final api = context.read<SettingsProvider>().api;
+    api.getCookieBrowser().then((value) {
+      if (mounted) setState(() { _browser = value; _loading = false; });
+    }).catchError((_) {
+      if (mounted) setState(() => _loading = false);
+    });
+  }
+
+  Future<void> _change(String? browser) async {
+    if (browser == _browser) return;
+    if (browser != null) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text('¿Usar cookies de ${_browsers[browser]}?'),
+          content: const Text(
+            'Sonero leerá las cookies de ese navegador para que YouTube no bloquee las descargas. '
+            'Solo se envían a YouTube, pero el servidor de Sonero tendrá acceso a todas las cookies del navegador.\n\n'
+            'En macOS el sistema te pedirá permiso para acceder al Llavero.',
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+            ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Permitir')),
+          ],
+        ),
+      );
+      if (ok != true) return;
+    }
+
+    setState(() => _saving = true);
+    try {
+      final saved = await context.read<SettingsProvider>().api.setCookieBrowser(browser);
+      if (mounted) setState(() => _browser = saved);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: context.colors.error,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(Icons.cookie_outlined, size: 18, color: context.colors.textSecondary),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            'Leer cookies de un navegador',
+            style: TextStyle(color: context.colors.textPrimary, fontSize: 13),
+          ),
+        ),
+        if (_loading || _saving)
+          const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+        else
+          DropdownButton<String?>(
+            value: _browser,
+            underline: const SizedBox.shrink(),
+            items: [
+              const DropdownMenuItem<String?>(value: null, child: Text('Desactivado')),
+              ..._browsers.entries.map((e) => DropdownMenuItem<String?>(value: e.key, child: Text(e.value))),
+            ],
+            onChanged: _change,
+          ),
+      ],
     );
   }
 }

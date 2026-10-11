@@ -1417,6 +1417,33 @@ class ApiClient {
     _check(res);
   }
 
+  /// Browser the backend may read YouTube cookies from (null = disabled, the default).
+  Future<String?> getCookieBrowser() async {
+    if (isNative) return null;
+    final res = await http.get(Uri.parse('$baseUrl/api/v1/settings/cookies'));
+    _check(res);
+    return (jsonDecode(res.body) as Map<String, dynamic>)['browser'] as String?;
+  }
+
+  /// Opt in (browser name) or out (null). Enabling makes the backend read the
+  /// browser's cookie store once; on macOS the system asks for keychain access.
+  Future<String?> setCookieBrowser(String? browser) async {
+    if (isNative) return null;
+    final res = await http.put(
+      Uri.parse('$baseUrl/api/v1/settings/cookies/browser'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'browser': browser}),
+    );
+    if (res.statusCode >= 400) {
+      String message = res.body;
+      try {
+        message = (jsonDecode(res.body) as Map<String, dynamic>)['detail']?.toString() ?? message;
+      } catch (_) {}
+      throw Exception(message);
+    }
+    return (jsonDecode(res.body) as Map<String, dynamic>)['browser'] as String?;
+  }
+
   // ── Health ───────────────────────────────────────────────────────────────
 
   Future<bool> checkHealth() async {

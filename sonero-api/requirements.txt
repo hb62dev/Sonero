@@ -26,3 +26,13 @@ sqlalchemy>=2.0.0
 
 # HTTP Client
 httpx>=0.25.0
+
+# Auth (routers/auth.py)
+passlib>=1.7.4
+bcrypt>=4.0.0
+
+# WiFi transfer: LAN interface detection
+psutil>=5.9.0
+
+# MCP server for AI agents (services/mcp_server.py)
+mcp>=2.3,<3

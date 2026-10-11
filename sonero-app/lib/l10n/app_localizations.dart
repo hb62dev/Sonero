@@ -993,6 +993,240 @@ abstract class AppLocalizations {
   /// In es, this message translates to:
   /// **'Se han encolado {count} descargas en el gestor.'**
   String playlistEnqueued(int count);
+
+  /// No description provided for @navShare.
+  ///
+  /// In es, this message translates to:
+  /// **'Compartir'**
+  String get navShare;
+
+  /// No description provided for @navActiveDownloads.
+  ///
+  /// In es, this message translates to:
+  /// **'Descargas'**
+  String get navActiveDownloads;
+
+  /// No description provided for @wifiTitle.
+  ///
+  /// In es, this message translates to:
+  /// **'Compartir vía WiFi'**
+  String get wifiTitle;
+
+  /// No description provided for @wifiTabSend.
+  ///
+  /// In es, this message translates to:
+  /// **'Enviar'**
+  String get wifiTabSend;
+
+  /// No description provided for @wifiTabReceive.
+  ///
+  /// In es, this message translates to:
+  /// **'Recibir'**
+  String get wifiTabReceive;
+
+  /// No description provided for @wifiNoFilesTitle.
+  ///
+  /// In es, this message translates to:
+  /// **'Sin archivos seleccionados'**
+  String get wifiNoFilesTitle;
+
+  /// No description provided for @wifiNoFilesHint.
+  ///
+  /// In es, this message translates to:
+  /// **'Ve a tu Biblioteca, mantén presionada una canción o video para activar la selección, marca lo que quieras enviar y toca el icono de WiFi.'**
+  String get wifiNoFilesHint;
+
+  /// No description provided for @wifiSendCount.
+  ///
+  /// In es, this message translates to:
+  /// **'Enviar {count} archivo(s)'**
+  String wifiSendCount(int count);
+
+  /// No description provided for @wifiClear.
+  ///
+  /// In es, this message translates to:
+  /// **'Limpiar'**
+  String get wifiClear;
+
+  /// No description provided for @wifiReceiverIp.
+  ///
+  /// In es, this message translates to:
+  /// **'IP del receptor'**
+  String get wifiReceiverIp;
+
+  /// No description provided for @wifiReceiverIpHint.
+  ///
+  /// In es, this message translates to:
+  /// **'Ej. 192.168.1.50'**
+  String get wifiReceiverIpHint;
+
+  /// No description provided for @wifiSend.
+  ///
+  /// In es, this message translates to:
+  /// **'Enviar'**
+  String get wifiSend;
+
+  /// No description provided for @wifiSending.
+  ///
+  /// In es, this message translates to:
+  /// **'Enviando'**
+  String get wifiSending;
+
+  /// No description provided for @wifiQueue.
+  ///
+  /// In es, this message translates to:
+  /// **'Cola de envío'**
+  String get wifiQueue;
+
+  /// No description provided for @wifiCompleted.
+  ///
+  /// In es, this message translates to:
+  /// **'{done} / {total} completados'**
+  String wifiCompleted(int done, int total);
+
+  /// No description provided for @wifiEnterIp.
+  ///
+  /// In es, this message translates to:
+  /// **'Ingresa la IP del receptor.'**
+  String get wifiEnterIp;
+
+  /// No description provided for @wifiSendFinished.
+  ///
+  /// In es, this message translates to:
+  /// **'Envío finalizado.'**
+  String get wifiSendFinished;
+
+  /// No description provided for @wifiSendError.
+  ///
+  /// In es, this message translates to:
+  /// **'Error en el envío: {error}'**
+  String wifiSendError(String error);
+
+  /// No description provided for @wifiReady.
+  ///
+  /// In es, this message translates to:
+  /// **'Listo para recibir archivos'**
+  String get wifiReady;
+
+  /// No description provided for @wifiEnterIpOnSender.
+  ///
+  /// In es, this message translates to:
+  /// **'Ingresa esta IP en la app Sonero del otro dispositivo.'**
+  String get wifiEnterIpOnSender;
+
+  /// No description provided for @wifiOtherIps.
+  ///
+  /// In es, this message translates to:
+  /// **'Otras redes: {ips}'**
+  String wifiOtherIps(String ips);
+
+  /// No description provided for @wifiOrOpenInBrowser.
+  ///
+  /// In es, this message translates to:
+  /// **'¿Sin la app? Abre esto en el navegador del celular:'**
+  String get wifiOrOpenInBrowser;
+
+  /// No description provided for @wifiCopied.
+  ///
+  /// In es, this message translates to:
+  /// **'Copiado al portapapeles.'**
+  String get wifiCopied;
+
+  /// No description provided for @wifiCopy.
+  ///
+  /// In es, this message translates to:
+  /// **'Copiar'**
+  String get wifiCopy;
+
+  /// No description provided for @wifiReceiveOff.
+  ///
+  /// In es, this message translates to:
+  /// **'Recepción desactivada'**
+  String get wifiReceiveOff;
+
+  /// No description provided for @wifiReceiveOffHint.
+  ///
+  /// In es, this message translates to:
+  /// **'Activa la recepción para recibir música o videos desde otros dispositivos en la misma red WiFi.'**
+  String get wifiReceiveOffHint;
+
+  /// No description provided for @wifiStartReceiving.
+  ///
+  /// In es, this message translates to:
+  /// **'Iniciar recepción'**
+  String get wifiStartReceiving;
+
+  /// No description provided for @wifiStopReceiving.
+  ///
+  /// In es, this message translates to:
+  /// **'Detener recepción'**
+  String get wifiStopReceiving;
+
+  /// No description provided for @wifiStartError.
+  ///
+  /// In es, this message translates to:
+  /// **'No se pudo iniciar la recepción: {error}'**
+  String wifiStartError(String error);
+
+  /// No description provided for @wifiReceivedList.
+  ///
+  /// In es, this message translates to:
+  /// **'Recibidos / en progreso'**
+  String get wifiReceivedList;
+
+  /// No description provided for @wifiNoNetwork.
+  ///
+  /// In es, this message translates to:
+  /// **'No se encontró una red WiFi o LAN. Conéctate a una red para compartir.'**
+  String get wifiNoNetwork;
+
+  /// No description provided for @wifiSameNetworkTip.
+  ///
+  /// In es, this message translates to:
+  /// **'Ambos dispositivos deben estar en la misma red WiFi. Una VPN activa puede bloquear la conexión, y tu computadora puede pedir permiso para aceptar conexiones entrantes.'**
+  String get wifiSameNetworkTip;
+
+  /// No description provided for @wifiBackendUnavailable.
+  ///
+  /// In es, this message translates to:
+  /// **'No hay conexión con el servidor de Sonero. Revisa que esté en ejecución.'**
+  String get wifiBackendUnavailable;
+
+  /// No description provided for @wifiStatusWaiting.
+  ///
+  /// In es, this message translates to:
+  /// **'Esperando…'**
+  String get wifiStatusWaiting;
+
+  /// No description provided for @wifiStatusTransferring.
+  ///
+  /// In es, this message translates to:
+  /// **'Transfiriendo… {pct}%'**
+  String wifiStatusTransferring(int pct);
+
+  /// No description provided for @wifiStatusDone.
+  ///
+  /// In es, this message translates to:
+  /// **'Completado'**
+  String get wifiStatusDone;
+
+  /// No description provided for @wifiStatusDuplicate.
+  ///
+  /// In es, this message translates to:
+  /// **'Ya existía, omitido'**
+  String get wifiStatusDuplicate;
+
+  /// No description provided for @wifiStatusFailed.
+  ///
+  /// In es, this message translates to:
+  /// **'Falló: {error}'**
+  String wifiStatusFailed(String error);
+
+  /// No description provided for @wifiUnknownError.
+  ///
+  /// In es, this message translates to:
+  /// **'Error desconocido'**
+  String get wifiUnknownError;
 }
 
 class _AppLocalizationsDelegate

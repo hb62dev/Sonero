@@ -10,6 +10,7 @@ if sys.stderr.encoding and sys.stderr.encoding.lower() != "utf-8":
     sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 os.environ["PYTHONIOENCODING"] = "utf-8"
 
+import contextlib
 from contextlib import asynccontextmanager
 
 # ── PyInstaller SSL fix ───────────────────────────────────────────────────────
@@ -24,7 +25,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
-from routers import listen, batch, downloads, devices, playlists, metadata, analytics, search, settings as settings_router, smart_music, auth, sync
+from routers import listen, batch, downloads, devices, playlists, metadata, analytics, search, settings as settings_router, smart_music, auth, sync, transfer
+from services import wifi_transfer
+from services import mcp_server
 from init_db import init_db
 
 
@@ -39,7 +42,11 @@ async def lifespan(app: FastAPI):
     settings.RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     # Initialize DB (creates tables and migrates if needed)
     init_db()
-    yield
+    async with contextlib.AsyncExitStack() as stack:
+        if settings.MCP_ENABLED:
+            await stack.enter_async_context(mcp_server.mcp.session_manager.run())
+        yield
+        await wifi_transfer.stop_receiver()
 
 
 # ── App ───────────────────────────────────────────────────────────────────────
@@ -89,6 +96,11 @@ app.include_router(search.router,       prefix="/api/v1", tags=["🔍 Search"])
 app.include_router(smart_music.router, prefix="/api/v1", tags=["🧠 Smart Music"])
 app.include_router(auth.router, prefix="/api/v1", tags=["🔒 Authentication"])
 app.include_router(sync.router, prefix="/api/v1", tags=["🔄 Sync"])
+app.include_router(transfer.router, prefix="/api/v1", tags=["📶 WiFi Transfer"])
+
+# ── MCP (read-only usage statistics for AI agents) ───────────────────────────
+if settings.MCP_ENABLED:
+    app.router.routes.append(mcp_server.build_http_route())
 
 
 # ── Health ────────────────────────────────────────────────────────────────────

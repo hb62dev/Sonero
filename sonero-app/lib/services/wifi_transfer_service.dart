@@ -13,13 +13,44 @@ class TransferProgress {
   final int progress; // 0 to 100
   final String status; // 'preparing', 'transferring', 'done', 'failed'
   final String? error;
+  final bool duplicate; // receiver already had an identical file
 
   TransferProgress({
     required this.filename,
     required this.progress,
     required this.status,
     this.error,
+    this.duplicate = false,
   });
+}
+
+const _audioExts = {'.mp3', '.m4a', '.opus', '.ogg', '.wav', '.aac', '.flac', '.wma', '.webm'};
+const _videoExts = {'.mp4', '.webm', '.mkv', '.mov'};
+const _coverExts = {'.jpg', '.jpeg', '.png', '.webp'};
+const _allowedExts = {'music': _audioExts, 'video': _videoExts, 'cover': _coverExts};
+const _maxFileBytes = 4 * 1024 * 1024 * 1024; // 4 GB
+
+/// Reduces a name received from the network to a single safe path component,
+/// so a sender can't write outside the music folder (e.g. "../../x.mp3").
+String? sanitizeTransferName(String? name) {
+  if (name == null) return null;
+  var clean = name.split(RegExp(r'[\\/]')).last;
+  clean = clean.replaceAll(RegExp(r'[\\/:*?"<>|\x00-\x1f]'), '_').trim();
+  clean = clean.replaceAll(RegExp(r'^\.+|\.+$'), '');
+  if (clean.isEmpty) return null;
+  return clean.length > 200 ? clean.substring(0, 200) : clean;
+}
+
+Future<String> _uniquePath(String path) async {
+  if (!await File(path).exists()) return path;
+  final dir = p.dirname(path);
+  final stem = p.basenameWithoutExtension(path);
+  final ext = p.extension(path);
+  for (var i = 1; i < 1000; i++) {
+    final candidate = p.join(dir, '$stem ($i)$ext');
+    if (!await File(candidate).exists()) return candidate;
+  }
+  return p.join(dir, '$stem (${DateTime.now().millisecondsSinceEpoch})$ext');
 }
 
 class WifiTransferService {
@@ -101,10 +132,24 @@ class WifiTransferService {
           try {
             final body = await utf8.decoder.bind(request).join();
             final data = jsonDecode(body) as Map<String, dynamic>;
-            final filename = data['filename'] as String;
-            final type = data['type'] as String; // 'music', 'video', 'cover'
-            final playlist = data['playlist'] as String?;
-            final size = data['size'] as int;
+            final filename = sanitizeTransferName(data['filename'] as String?);
+            final type = data['type'] as String? ?? ''; // 'music', 'video', 'cover'
+            final playlist = type == 'music' ? sanitizeTransferName(data['playlist'] as String?) : null;
+            final size = (data['size'] as num?)?.toInt() ?? 0;
+
+            if (filename == null ||
+                !(_allowedExts[type]?.contains(p.extension(filename).toLowerCase()) ?? false)) {
+              request.response.statusCode = HttpStatus.badRequest;
+              request.response.write(jsonEncode({'detail': 'Archivo o tipo no permitido.'}));
+              await request.response.close();
+              return;
+            }
+            if (size < 0 || size > _maxFileBytes) {
+              request.response.statusCode = HttpStatus.requestEntityTooLarge;
+              request.response.write(jsonEncode({'detail': 'Archivo demasiado grande.'}));
+              await request.response.close();
+              return;
+            }
             final title = data['title'] as String? ?? '';
             final artist = data['artist'] as String? ?? '';
             final album = data['album'] as String? ?? '';
@@ -139,7 +184,7 @@ class WifiTransferService {
 
         // 2. Upload endpoint
         if (request.method == 'POST' && request.uri.path == '/upload') {
-          final filename = request.uri.queryParameters['filename'];
+          final filename = sanitizeTransferName(request.uri.queryParameters['filename']);
           if (filename == null || !pendingUploads.containsKey(filename)) {
             LogService.log('[WifiTransfer] Error: Subida no preparada o nombre de archivo faltante: $filename');
             request.response.statusCode = HttpStatus.badRequest;
@@ -173,11 +218,11 @@ class WifiTransferService {
                   ? Directory(p.join(musicFolder, playlist))
                   : Directory(musicFolder);
               if (!await destDir.exists()) await destDir.create(recursive: true);
-              targetPath = p.join(destDir.path, filename);
+              targetPath = await _uniquePath(p.join(destDir.path, filename));
             } else if (type == 'video') {
               final destDir = Directory(videoFolder);
               if (!await destDir.exists()) await destDir.create(recursive: true);
-              targetPath = p.join(destDir.path, filename);
+              targetPath = await _uniquePath(p.join(destDir.path, filename));
             } else if (type == 'cover') {
               final supportDir = await getApplicationSupportDirectory();
               final coversDir = Directory(p.join(supportDir.path, 'covers'));
@@ -207,15 +252,17 @@ class WifiTransferService {
                 await sink.close();
 
                 // Register file in DB
+                final savedName = p.basename(targetPath);
+                final format = p.extension(savedName).replaceFirst('.', '').toLowerCase();
                 if (type == 'music') {
                   final relativeFilename = playlist != null && playlist.isNotEmpty
-                      ? p.join(playlist, filename)
-                      : filename;
+                      ? p.join(playlist, savedName)
+                      : savedName;
 
                   String? dbCoverUrl;
                   if (coverUrl != null && coverUrl.isNotEmpty) {
                     final expectedCoverFile = File(p.join(
-                      (await getApplicationSupportDirectory()).path, 'covers', coverUrl
+                      (await getApplicationSupportDirectory()).path, 'covers', sanitizeTransferName(coverUrl) ?? ''
                     ));
                     if (expectedCoverFile.existsSync()) {
                       dbCoverUrl = expectedCoverFile.path.replaceAll('\\', '/');
@@ -230,7 +277,7 @@ class WifiTransferService {
                     'genre': genre,
                     'year': year,
                     'filename': relativeFilename,
-                    'format': 'mp3',
+                    'format': format,
                     'cover_url': dbCoverUrl,
                   });
 
@@ -251,13 +298,13 @@ class WifiTransferService {
                     LogService.log('[WifiTransfer] Omitiendo descarga inmediata de letras (dispositivo offline o error): $e');
                   }
                 } else if (type == 'video') {
-                  final relativeFilename = p.join('videos', filename);
+                  final relativeFilename = p.join('videos', savedName);
                   await DatabaseService.instance.insertMedia({
                     'type': 'video',
                     'title': title.isNotEmpty ? title : p.basenameWithoutExtension(filename),
                     'artist': artist,
                     'filename': relativeFilename,
-                    'format': 'mp4',
+                    'format': format,
                   });
                 }
 

@@ -297,15 +297,52 @@ class _AppShellState extends State<AppShell> {
     }
   }
 
+  static final _videoExt = RegExp(r'\.(mp4|mkv|mov)$', caseSensitive: false);
+
   List<Map<String, dynamic>> _prepareWifiUploadQueue(List<Track> selectedTracks, SettingsProvider settings) {
     final List<Map<String, dynamic>> queue = [];
     for (var track in selectedTracks) {
-      final audioPath = p.join(settings.musicFolder, track.filename);
-      
       final relativePath = track.filename;
-      final hasFolder = relativePath.contains('/');
-      final playlist = hasFolder ? p.dirname(relativePath) : null;
+      final isVideo = relativePath.startsWith('videos/') || _videoExt.hasMatch(relativePath);
       final filename = p.basename(relativePath);
+
+      // Backend mode (desktop/web): the backend reads the file from its own
+      // library, so only the library filename and metadata are needed.
+      if (!settings.api.isNative) {
+        queue.add({
+          'source': relativePath,
+          'type': isVideo ? 'video' : 'music',
+          'filename': filename,
+          'title': track.title,
+          'artist': track.artist,
+          'album': track.album,
+          'genre': track.genre,
+          'year': track.year,
+        });
+        continue;
+      }
+
+      final String filePath;
+      String? playlist;
+      if (isVideo) {
+        final inVideos = relativePath.startsWith('videos/');
+        filePath = p.join(settings.videoFolder, inVideos ? relativePath.substring('videos/'.length) : relativePath);
+      } else {
+        filePath = p.join(settings.musicFolder, relativePath);
+        playlist = relativePath.contains('/') ? p.dirname(relativePath) : null;
+      }
+
+      if (isVideo) {
+        queue.add({
+          'filePath': filePath,
+          'type': 'video',
+          'filename': filename,
+          'playlist': null,
+          'title': track.title,
+          'artist': track.artist,
+        });
+        continue;
+      }
 
       String? coverFilename;
       if (track.coverUrl != null && track.coverUrl!.isNotEmpty && !track.coverUrl!.startsWith('http')) {
@@ -324,7 +361,7 @@ class _AppShellState extends State<AppShell> {
       }
 
       queue.add({
-        'filePath': audioPath,
+        'filePath': filePath,
         'type': 'music',
         'filename': filename,
         'playlist': playlist,
@@ -586,6 +623,12 @@ class _AppShellState extends State<AppShell> {
         isSelected: _currentViewIndex == 3,
         onTap: () => setState(() => _currentViewIndex = 3),
       ),
+      _DesktopNavTab(
+        icon: Icons.wifi_tethering_rounded,
+        label: AppLocalizations.of(context)!.navShare,
+        isSelected: _currentViewIndex == 5,
+        onTap: () => setState(() => _currentViewIndex = 5),
+      ),
     ];
   }
 
@@ -633,7 +676,7 @@ class _AppShellState extends State<AppShell> {
             final queue = _prepareWifiUploadQueue(selectedTracks, settings);
             setState(() {
               _wifiFilesToSend = queue;
-              _currentViewIndex = 4;
+              _currentViewIndex = 5;
             });
           },
         );
@@ -648,6 +691,9 @@ class _AppShellState extends State<AppShell> {
         );
         break;
       case 4:
+        currentView = const DownloadsPage();
+        break;
+      case 5:
         currentView = WifiTransferPage(
           initialFilesToSend: _wifiFilesToSend,
           onClearFiles: () {
@@ -817,6 +863,12 @@ class _AppShellState extends State<AppShell> {
                     label: 'Buscar',
                     isSelected: _currentViewIndex == 3,
                     onTap: () => setState(() => _currentViewIndex = 3),
+                  ),
+                  _MobilePillNavItem(
+                    icon: Icons.wifi_tethering_rounded,
+                    label: AppLocalizations.of(context)!.navShare,
+                    isSelected: _currentViewIndex == 5,
+                    onTap: () => setState(() => _currentViewIndex = 5),
                   ),
                 ],
               ),

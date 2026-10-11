@@ -244,6 +244,66 @@
     "placeholders": {
       "count": { "type": "int" }
     }
-  }
-}
+  },
 
+  "navShare": "Compartir",
+  "navActiveDownloads": "Descargas",
+  "wifiTitle": "Compartir vía WiFi",
+  "wifiTabSend": "Enviar",
+  "wifiTabReceive": "Recibir",
+  "wifiNoFilesTitle": "Sin archivos seleccionados",
+  "wifiNoFilesHint": "Ve a tu Biblioteca, mantén presionada una canción o video para activar la selección, marca lo que quieras enviar y toca el icono de WiFi.",
+  "wifiSendCount": "Enviar {count} archivo(s)",
+  "@wifiSendCount": {
+    "placeholders": { "count": { "type": "int" } }
+  },
+  "wifiClear": "Limpiar",
+  "wifiReceiverIp": "IP del receptor",
+  "wifiReceiverIpHint": "Ej. 192.168.1.50",
+  "wifiSend": "Enviar",
+  "wifiSending": "Enviando",
+  "wifiQueue": "Cola de envío",
+  "wifiCompleted": "{done} / {total} completados",
+  "@wifiCompleted": {
+    "placeholders": { "done": { "type": "int" }, "total": { "type": "int" } }
+  },
+  "wifiEnterIp": "Ingresa la IP del receptor.",
+  "wifiSendFinished": "Envío finalizado.",
+  "wifiSendError": "Error en el envío: {error}",
+  "@wifiSendError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "wifiReady": "Listo para recibir archivos",
+  "wifiEnterIpOnSender": "Ingresa esta IP en la app Sonero del otro dispositivo.",
+  "wifiOtherIps": "Otras redes: {ips}",
+  "@wifiOtherIps": {
+    "placeholders": { "ips": { "type": "String" } }
+  },
+  "wifiOrOpenInBrowser": "¿Sin la app? Abre esto en el navegador del celular:",
+  "wifiCopied": "Copiado al portapapeles.",
+  "wifiCopy": "Copiar",
+  "wifiReceiveOff": "Recepción desactivada",
+  "wifiReceiveOffHint": "Activa la recepción para recibir música o videos desde otros dispositivos en la misma red WiFi.",
+  "wifiStartReceiving": "Iniciar recepción",
+  "wifiStopReceiving": "Detener recepción",
+  "wifiStartError": "No se pudo iniciar la recepción: {error}",
+  "@wifiStartError": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "wifiReceivedList": "Recibidos / en progreso",
+  "wifiNoNetwork": "No se encontró una red WiFi o LAN. Conéctate a una red para compartir.",
+  "wifiSameNetworkTip": "Ambos dispositivos deben estar en la misma red WiFi. Una VPN activa puede bloquear la conexión, y tu computadora puede pedir permiso para aceptar conexiones entrantes.",
+  "wifiBackendUnavailable": "No hay conexión con el servidor de Sonero. Revisa que esté en ejecución.",
+  "wifiStatusWaiting": "Esperando…",
+  "wifiStatusTransferring": "Transfiriendo… {pct}%",
+  "@wifiStatusTransferring": {
+    "placeholders": { "pct": { "type": "int" } }
+  },
+  "wifiStatusDone": "Completado",
+  "wifiStatusDuplicate": "Ya existía, omitido",
+  "wifiStatusFailed": "Falló: {error}",
+  "@wifiStatusFailed": {
+    "placeholders": { "error": { "type": "String" } }
+  },
+  "wifiUnknownError": "Error desconocido"
+}

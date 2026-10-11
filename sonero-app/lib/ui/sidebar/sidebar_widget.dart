@@ -122,7 +122,7 @@ class SidebarWidget extends StatelessWidget {
             _NavItem(
               key: const ValueKey('nav_active_downloads'),
               icon: downloads.activeJobsCount > 0 ? Icons.downloading_rounded : Icons.download_done_rounded,
-              label: 'Descargas',
+              label: AppLocalizations.of(context)!.navActiveDownloads,
               isSelected: currentIndex == 4,
               isCollapsed: isCollapsed,
               badgeCount: downloads.activeJobsCount,
@@ -131,7 +131,7 @@ class SidebarWidget extends StatelessWidget {
             _NavItem(
               key: const ValueKey('nav_wifi_share'),
               icon: Icons.wifi_tethering_rounded,
-              label: 'Compartir',
+              label: AppLocalizations.of(context)!.navShare,
               isSelected: currentIndex == 5,
               isCollapsed: isCollapsed,
               onTap: () => onNavigate(5),
