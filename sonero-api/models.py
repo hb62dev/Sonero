@@ -143,3 +143,63 @@ class SystemSetting(Base):
     
     key = Column(String, primary_key=True, index=True)
     value = Column(String, nullable=True)
+
+
+class Mix(Base):
+    """
+    A recommended playlist shown in Biblioteca → Para ti. Unlike folder
+    playlists, a mix can hold library songs and songs found online, and a
+    song can be in any number of mixes.
+    source: "auto" (Sonero's own algorithm, regenerated on demand) or
+            "agent" (created by an AI agent through the MCP server).
+    """
+    __tablename__ = "mixes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, nullable=False)
+    description = Column(Text, nullable=True)
+    reason = Column(Text, nullable=True)  # why it was made, shown to the user
+    source = Column(String, index=True, default="auto")
+    author = Column(String, nullable=True)  # agent/client name for source="agent"
+    kind = Column(String, nullable=True)  # e.g. favorites, discovery, artist_radio
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    items = relationship("MixItem", back_populates="mix", cascade="all, delete-orphan",
+                         order_by="MixItem.position")
+
+
+class MixItem(Base):
+    """A song in a mix: either a library file (media_id) or an online track."""
+    __tablename__ = "mix_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    mix_id = Column(Integer, ForeignKey("mixes.id"), index=True)
+    position = Column(Integer, default=0)
+    media_id = Column(Integer, ForeignKey("media.id"), nullable=True)
+    # Online track (not in the library)
+    title = Column(String, nullable=True)
+    artist = Column(String, nullable=True)
+    album = Column(String, nullable=True)
+    cover_url = Column(String, nullable=True)
+    preview_url = Column(String, nullable=True)  # ~30 s clip, playable without downloading
+    external_id = Column(String, nullable=True)  # e.g. "deezer:3135556"
+    note = Column(String, nullable=True)  # per-song reason, e.g. "Similar a Yeat"
+
+    mix = relationship("Mix", back_populates="items")
+    media = relationship("Media")
+
+
+class AudioFeatures(Base):
+    """Locally computed audio analysis of a library file."""
+    __tablename__ = "audio_features"
+
+    media_id = Column(Integer, ForeignKey("media.id"), primary_key=True)
+    bpm = Column(Float, nullable=True)
+    energy = Column(Float, nullable=True)  # 0-1, loudness/intensity
+    brightness = Column(Float, nullable=True)  # 0-1, spectral centroid
+    danceability = Column(Float, nullable=True)  # 0-1, beat regularity × strength
+    duration = Column(Float, nullable=True)  # seconds
+    analyzed_at = Column(DateTime, default=datetime.utcnow)
+
+    media = relationship("Media")

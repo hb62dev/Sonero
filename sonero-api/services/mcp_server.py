@@ -26,20 +26,29 @@ from database import SessionLocal
 from models import FocusSession, ListeningHistory, Media, PlaybackEvent, Playlist
 
 READ_ONLY = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False)
+# Queries public music catalogs on the internet
+ONLINE = ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=True)
+# Writes only to Sonero's mixes (never touches music files)
+WRITES_MIXES = ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False, openWorldHint=False)
 WEEKDAYS = ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"]
 
 mcp = MCPServer(
     name="sonero",
     title="Sonero",
-    description="Estadísticas de uso de Sonero: biblioteca musical y hábitos de escucha.",
+    description="Estadísticas de uso de Sonero y creación de playlists recomendadas (mixes).",
     instructions=(
-        "Herramientas de solo lectura sobre la biblioteca y el historial de escucha de Sonero. "
-        "Empieza por get_listening_summary para una visión general; usa get_top_tracks, "
-        "get_top_artists y get_listening_timeline para el detalle. Los periodos se indican en "
-        "días hacia atrás desde ahora. Las horas y días de la semana están en la zona horaria "
-        "local de la computadora donde corre Sonero."
+        "Sonero es un reproductor de música. Estas herramientas te dan su biblioteca, el historial de "
+        "escucha y búsqueda en catálogos públicos, para que crees playlists recomendadas (mixes) que el "
+        "usuario verá en Biblioteca → Para ti.\n"
+        "Flujo sugerido: get_taste_profile → list_library_songs → find_similar_artists / "
+        "get_artist_top_tracks / search_music_catalog para descubrir música nueva → create_mix (varias "
+        "veces, con títulos y razones claras). Mezcla canciones de la biblioteca (media_id) con "
+        "descubrimientos online (title + artist + preview_url de los resultados del catálogo).\n"
+        "Las estadísticas y el historial son de solo lectura; create_mix y delete_mix solo afectan a los "
+        "mixes, nunca a los archivos de música. Los periodos se indican en días hacia atrás desde ahora. "
+        "Las horas y días de la semana están en la zona horaria local de la computadora donde corre Sonero."
     ),
-    version="1.0.0",
+    version="1.1.0",
 )
 
 
@@ -395,6 +404,246 @@ async def get_dashboard_stats() -> dict:
 
     with _db() as db:
         return await get_advanced_stats(db=db)
+
+
+# ── Recommendations: library, discovery and mixes ─────────────────────────────
+
+from models import Mix  # noqa: E402
+from services import mixes as mix_service, music_catalog  # noqa: E402
+from services.library_data import load_library, taste_profile  # noqa: E402
+
+
+def _catalog_error(e: Exception) -> dict:
+    return {"error": "Catálogo no disponible (¿hay internet en la computadora de Sonero?)", "detail": str(e)}
+
+
+@mcp.tool(annotations=READ_ONLY)
+def get_taste_profile() -> dict:
+    """
+    Perfil musical del usuario: artistas y géneros que más escucha (ponderado por tiempo),
+    artistas con más canciones en la biblioteca, promedios de audio (BPM, energía) de lo que
+    escucha, en qué momentos del día escucha, y cuánta información hay disponible.
+    Úsalo primero para decidir qué mixes crear.
+    """
+    with _db() as db:
+        songs = load_library(db)
+    played = [s for s in songs if s.plays]
+
+    def weighted(attr: str) -> float | None:
+        rows = [(getattr(s, attr), s.seconds) for s in played if getattr(s, attr) is not None]
+        total = sum(w for _, w in rows)
+        return round(sum(v * w for v, w in rows) / total, 2) if total else None
+
+    periods: Counter = Counter()
+    for s in played:
+        for hour, n in s.hours.items():
+            periods["mañana" if 6 <= hour < 12 else "tarde" if 12 <= hour < 19 else "noche"] += n
+    return {
+        **taste_profile(songs),
+        "listening_by_period": dict(periods),
+        "avg_bpm_listened": weighted("bpm"),
+        "avg_energy_listened": weighted("energy"),
+        "data_coverage": {
+            "songs": len(songs),
+            "with_artist": sum(1 for s in songs if s.artist),
+            "with_genre": sum(1 for s in songs if s.genre),
+            "with_year": sum(1 for s in songs if s.year),
+            "with_audio_analysis": sum(1 for s in songs if s.bpm),
+            "played_songs": len(played),
+            "total_plays": sum(s.plays for s in songs),
+        },
+        "hint": "Si faltan género/año o análisis de audio, sugiere al usuario 'Completar metadatos' y "
+                "'Analizar audio' en Biblioteca → Para ti.",
+    }
+
+
+@mcp.tool(annotations=READ_ONLY)
+def list_library_songs(
+    sort_by: Literal["affinity", "plays", "minutes", "recently_played", "recently_added", "title"] = "affinity",
+    limit: int = 150,
+    artist: str | None = None,
+    genre: str | None = None,
+    min_bpm: float | None = None,
+    max_bpm: float | None = None,
+    min_energy: float | None = None,
+    max_energy: float | None = None,
+    only_unplayed: bool = False,
+) -> dict:
+    """
+    Canciones de la biblioteca con sus metadatos, uso (reproducciones, minutos, % terminado,
+    % saltada, última vez, horas favoritas) y análisis de audio (bpm, energy 0-1, brightness 0-1,
+    danceability 0-1; null si no se ha analizado). Usa media_id para incluirlas en create_mix.
+    'affinity' ordena por cuánto le gusta al usuario (tiempo, terminadas, sin saltos, recencia).
+    """
+    limit = _clamp(limit, 1, 500)
+    now = datetime.utcnow()
+    with _db() as db:
+        songs = load_library(db)
+
+    def keep(s) -> bool:
+        if artist and music_catalog.similarity(artist, s.artist) < 0.8 and artist.lower() not in s.artist.lower():
+            return False
+        if genre and music_catalog.similarity(genre, s.genre) < 0.8:
+            return False
+        if only_unplayed and s.plays:
+            return False
+        for value, lo, hi in ((s.bpm, min_bpm, max_bpm), (s.energy, min_energy, max_energy)):
+            if (lo is not None or hi is not None) and value is None:
+                return False
+            if (lo is not None and value < lo) or (hi is not None and value > hi):
+                return False
+        return True
+
+    keys = {
+        "affinity": lambda s: mix_service._affinity(s, now),
+        "plays": lambda s: s.plays,
+        "minutes": lambda s: s.seconds,
+        "recently_played": lambda s: s.last_played or datetime.min,
+        "recently_added": lambda s: s.added_at or datetime.min,
+        "title": lambda s: s.title.lower(),
+    }
+    chosen = sorted(filter(keep, songs), key=keys[sort_by], reverse=sort_by != "title")
+    return {"total_matching": len(chosen), "songs": [s.to_dict() for s in chosen[:limit]]}
+
+
+def _mark_owned(tracks: list[dict]) -> list[dict]:
+    with _db() as db:
+        songs = load_library(db)
+    out = []
+    for t in tracks:
+        owned = mix_service._match_library(t["title"], t["artist"], songs)
+        out.append({**t, "in_library": owned is not None, "media_id": owned.media_id if owned else None})
+    return out
+
+
+@mcp.tool(annotations=ONLINE)
+async def find_similar_artists(artist: str, limit: int = 10) -> dict:
+    """Artistas similares a `artist` según Deezer, marcando cuáles ya están en la biblioteca."""
+    try:
+        related = await music_catalog.related_artists(artist, limit=_clamp(limit, 1, 25))
+    except music_catalog.CatalogUnavailable as e:
+        return _catalog_error(e)
+    with _db() as db:
+        own = {music_catalog.normalize(s.artist) for s in load_library(db) if s.artist}
+    return {"artist": artist, "similar": [
+        {**r, "in_library": any(music_catalog.normalize(r["name"]) in o for o in own)} for r in related]}
+
+
+@mcp.tool(annotations=ONLINE)
+async def get_artist_top_tracks(artist: str, limit: int = 10) -> dict:
+    """
+    Canciones más populares de un artista (Deezer), con preview_url de 30 s y portada.
+    Las que el usuario ya tiene vienen con in_library=true y su media_id.
+    """
+    try:
+        tracks = await music_catalog.artist_top_tracks(artist, limit=_clamp(limit, 1, 25))
+    except music_catalog.CatalogUnavailable as e:
+        return _catalog_error(e)
+    return {"artist": artist, "tracks": _mark_owned(tracks)}
+
+
+@mcp.tool(annotations=ONLINE)
+async def search_music_catalog(query: str, limit: int = 10) -> dict:
+    """
+    Busca canciones en el catálogo de Deezer. Admite filtros: artist:"Nombre" track:"Título"
+    album:"Álbum". Devuelve preview_url de 30 s, portada y si ya está en la biblioteca.
+    """
+    try:
+        tracks = await music_catalog.search_tracks(query, limit=_clamp(limit, 1, 25))
+    except music_catalog.CatalogUnavailable as e:
+        return _catalog_error(e)
+    return {"query": query, "tracks": _mark_owned(tracks)}
+
+
+@mcp.tool(annotations=ONLINE)
+async def get_genre_chart(genre: str, limit: int = 20) -> dict:
+    """Éxitos actuales de un género en Deezer (p. ej. "Rap/Hip Hop", "Reggaeton", "Rock", "Pop", "R&B")."""
+    try:
+        tracks = await music_catalog.genre_chart(genre, limit=_clamp(limit, 1, 50))
+    except music_catalog.CatalogUnavailable as e:
+        return _catalog_error(e)
+    if not tracks:
+        return {"genre": genre, "tracks": [], "note": "Género no encontrado en Deezer."}
+    return {"genre": genre, "tracks": _mark_owned(tracks)}
+
+
+@mcp.tool(annotations=READ_ONLY)
+def list_mixes(include_songs: bool = False) -> dict:
+    """Mixes existentes: los automáticos de Sonero (source=auto) y los creados por agentes (source=agent)."""
+    with _db() as db:
+        songs = {s.media_id: s for s in load_library(db)} if include_songs else None
+        rows = db.query(Mix).order_by(Mix.updated_at.desc()).all()
+        return {"mixes": [mix_service.serialize(m, songs, with_items=include_songs) for m in rows]}
+
+
+@mcp.tool(annotations=WRITES_MIXES)
+def create_mix(
+    title: str,
+    songs: list[dict],
+    description: str = "",
+    reason: str = "",
+    author: str = "Agente IA",
+    replace_mix_id: int | None = None,
+) -> dict:
+    """
+    Crea (o reemplaza, con replace_mix_id) un mix que el usuario verá en Biblioteca → Para ti.
+
+    songs: lista ordenada (máx. 100) donde cada elemento es
+      - una canción de la biblioteca: {"media_id": 12, "note": "opcional"}
+      - o una canción online: {"title": "...", "artist": "...", "preview_url": "...",
+        "cover_url": "...", "album": "...", "external_id": "...", "note": "opcional"}
+        (copia esos campos de get_artist_top_tracks / search_music_catalog).
+    Las canciones online que el usuario ya tiene se enlazan solas con su archivo.
+    description: una frase para la tarjeta. reason: por qué se la recomiendas, en base a sus datos.
+    author: tu nombre como agente (p. ej. "Claude"); se muestra en la app.
+    """
+    if not songs:
+        return {"error": "El mix necesita al menos una canción."}
+    with _db() as db:
+        if replace_mix_id is not None:
+            old = db.get(Mix, replace_mix_id)
+            if old is None or old.source != "agent":
+                return {"error": "Solo puedes reemplazar mixes creados por agentes (source=agent)."}
+        mix = mix_service.save_mix(db, title=title, items=songs, description=description, reason=reason,
+                                   source="agent", author=(author or "Agente IA")[:60], kind="agent",
+                                   replace_id=replace_mix_id)
+        if not mix.items:
+            db.delete(mix)
+            db.commit()
+            return {"error": "Ninguna canción era válida (revisa media_id o title/artist)."}
+        data = mix_service.serialize(mix, with_items=False)
+    return {"created": data, "message": f"Mix '{data['title']}' guardado con {data['count']} canciones "
+                                        f"({data['in_library']} de la biblioteca)."}
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True,
+                                      openWorldHint=False))
+def delete_mix(mix_id: int) -> dict:
+    """Borra un mix creado por un agente (los archivos de música no se tocan)."""
+    with _db() as db:
+        mix = db.get(Mix, mix_id)
+        if mix is None:
+            return {"error": "Mix no encontrado."}
+        if mix.source != "agent":
+            return {"error": "Solo se pueden borrar mixes de agentes; los automáticos se regeneran solos."}
+        db.delete(mix)
+        db.commit()
+    return {"deleted": mix_id}
+
+
+@mcp.prompt(title="Crear mis mixes recomendados")
+def recommend_mixes(how_many: int = 4) -> str:
+    """Pide al agente que analice tus datos y cree varios mixes al estilo Spotify/YouTube."""
+    return (
+        f"Analiza mis datos de Sonero y crea {how_many} mixes recomendados, como los de Spotify o YouTube Music.\n"
+        "1. Llama a get_taste_profile y list_library_songs (sort_by=affinity) para entender mis gustos, "
+        "cuándo escucho y qué salto.\n"
+        "2. Usa find_similar_artists y get_artist_top_tracks para descubrir música que no tengo.\n"
+        "3. Crea mixes variados con create_mix: por ejemplo uno de favoritas, uno de descubrimiento, uno según "
+        "el momento del día o la energía, y uno sorpresa. Cada mix de 15 a 30 canciones, mezclando mi biblioteca "
+        "con descubrimientos, con un título atractivo, una descripción corta y una razón basada en mis datos.\n"
+        "4. Al final resume qué creaste y por qué."
+    )
 
 
 # ── Resource ──────────────────────────────────────────────────────────────────
