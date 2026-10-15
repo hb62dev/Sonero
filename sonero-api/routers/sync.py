@@ -59,7 +59,6 @@ async def export_sync_data(user_id: str, db: Session = Depends(get_db)) -> dict:
             "id": u.id,
             "name": u.name,
             "email": u.email,
-            "password_hash": u.password_hash,
             "preferences": u.preferences,
         })
 

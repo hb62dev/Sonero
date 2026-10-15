@@ -10,6 +10,31 @@ import 'package:google_sign_in/google_sign_in.dart';
 import 'package:path_provider/path_provider.dart';
 import '../core/api_client.dart';
 
+class CoverAdjustment {
+  final double scale;
+  final double offsetX;
+  final double offsetY;
+
+  const CoverAdjustment({
+    required this.scale,
+    required this.offsetX,
+    required this.offsetY,
+  });
+
+  Map<String, dynamic> toJson() => {
+        's': scale,
+        'x': offsetX,
+        'y': offsetY,
+      };
+
+  factory CoverAdjustment.fromJson(Map<String, dynamic> json) =>
+      CoverAdjustment(
+        scale: (json['s'] as num?)?.toDouble() ?? 1.0,
+        offsetX: (json['x'] as num?)?.toDouble() ?? 0.0,
+        offsetY: (json['y'] as num?)?.toDouble() ?? 0.0,
+      );
+}
+
 class SettingsProvider extends ChangeNotifier {
   static const _keyApiUrl = 'api_url';
   static const _keyMusicFolder = 'music_folder';
@@ -33,6 +58,9 @@ class SettingsProvider extends ChangeNotifier {
   static const _keyRapidApiKey = 'rapidapi_key';
   static const _keyRapidApiHost = 'rapidapi_host';
   static const _keyShazamProxyUrl = 'shazam_proxy_url';
+  static const _keyCustomLogoPath = 'custom_logo_path';
+  static const _keySetupComplete = 'setup_complete';
+  static const _keyCoverAdjustments = 'cover_adjustments';
 
   String _apiUrl = 'http://127.0.0.1:8000';
   String _musicFolder = '';
@@ -40,6 +68,7 @@ class SettingsProvider extends ChangeNotifier {
   int? _deviceIndex;
   int _listenDuration = 15;
   bool _isLoaded = false;
+  bool _setupComplete = false;
 
   ThemeMode _themeMode = ThemeMode.dark;
   Color _accentColor = const Color(0xFF7B2FFF);
@@ -58,6 +87,8 @@ class SettingsProvider extends ChangeNotifier {
   String? _syncError;
   DateTime? _lastSyncTime;
 
+  Map<String, CoverAdjustment> _coverAdjustments = {};
+  
   // Mobile fields
   int _lyricsOffset = 0;
   String _recognitionService = 'shazam_proxy';
@@ -66,6 +97,7 @@ class SettingsProvider extends ChangeNotifier {
   String _rapidApiKey = '';
   String _rapidApiHost = 'shazam-song-recognizer.p.rapidapi.com';
   String _shazamProxyUrl = '';
+  String _customLogoPath = '';
 
   String _defaultMusicFolder = '';
   String _defaultVideoFolder = '';
@@ -81,11 +113,13 @@ class SettingsProvider extends ChangeNotifier {
   bool get isLoaded => _isLoaded;
   bool get hasMusicFolder => _musicFolder.isNotEmpty;
   bool get hasVideoFolder => _videoFolder.isNotEmpty;
+  bool get isFirstLaunch => !_setupComplete;
 
   ThemeMode get themeMode => _themeMode;
   Color get accentColor => _accentColor;
   Color? get sidebarColor => _sidebarColor;
   String get locale => _locale;
+  String get customLogoPath => _customLogoPath;
 
   String get currentUserId => _currentUserId;
   String? get currentUserName => _currentUserName;
@@ -151,6 +185,7 @@ class SettingsProvider extends ChangeNotifier {
     if (sidebarVal != null) _sidebarColor = Color(sidebarVal);
 
     _locale = prefs.getString(_keyLocale) ?? 'es';
+    _customLogoPath = prefs.getString(_keyCustomLogoPath) ?? '';
 
     _googleClientId = prefs.getString(_keyGoogleClientId) ?? '';
     _googleClientSecret = prefs.getString(_keyGoogleClientSecret) ?? '';
@@ -158,10 +193,20 @@ class SettingsProvider extends ChangeNotifier {
     _currentUserName = prefs.getString(_keyUserName);
     _currentUserEmail = prefs.getString(_keyUserEmail);
     _isLoggedIn = prefs.getBool(_keyIsLoggedIn) ?? false;
+    _setupComplete = prefs.getBool(_keySetupComplete) ?? false;
     _googleAccessToken = prefs.getString('google_access_token');
     final lastSyncMs = prefs.getInt('last_sync_time');
     if (lastSyncMs != null) {
       _lastSyncTime = DateTime.fromMillisecondsSinceEpoch(lastSyncMs);
+    }
+    final coverAdjStr = prefs.getString(_keyCoverAdjustments);
+    if (coverAdjStr != null) {
+      try {
+        final decoded = jsonDecode(coverAdjStr) as Map<String, dynamic>;
+        _coverAdjustments = decoded.map(
+          (k, v) => MapEntry(k, CoverAdjustment.fromJson(v as Map<String, dynamic>)),
+        );
+      } catch (_) {}
     }
 
     await _resolveEffectiveFolders();
@@ -172,13 +217,42 @@ class SettingsProvider extends ChangeNotifier {
       videoFolder: videoFolder,
     );
     
-    // Sync paths with backend
-    try {
-      await _api.updatePaths(
+    if (kIsWeb) {
+      // On web, fetch the real paths from the backend (source of truth)
+      try {
+        final response = await http.get(
+          Uri.parse('$_apiUrl/health'),
+        ).timeout(const Duration(seconds: 3));
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          final backendMusic = data['music_dir'] as String? ?? '';
+          final backendVideo = data['video_dir'] as String? ?? '';
+          if (backendMusic.isNotEmpty && !backendMusic.contains('/web/')) {
+            _musicFolder = backendMusic;
+            _effectiveMusicFolder = backendMusic;
+            _api.musicFolder = backendMusic;
+            await prefs.setString(_keyMusicFolder, backendMusic);
+          }
+          if (backendVideo.isNotEmpty && !backendVideo.contains('/web/')) {
+            _videoFolder = backendVideo;
+            _effectiveVideoFolder = backendVideo;
+            _api.videoFolder = backendVideo;
+            await prefs.setString(_keyVideoFolder, backendVideo);
+          }
+          // Backend already has folders configured → skip setup dialog
+          if (_effectiveMusicFolder.isNotEmpty && _effectiveVideoFolder.isNotEmpty) {
+            _setupComplete = true;
+            await prefs.setBool(_keySetupComplete, true);
+          }
+        }
+      } catch (_) {}
+    } else {
+      // Native: sync local paths to backend (non-blocking)
+      _api.updatePaths(
         music: musicFolder, 
         video: videoFolder,
-      );
-    } catch (_) {}
+      ).timeout(const Duration(seconds: 3)).catchError((_) {});
+    }
     
     _isLoaded = true;
     notifyListeners();
@@ -265,6 +339,13 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> completeSetup() async {
+    _setupComplete = true;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_keySetupComplete, true);
+    notifyListeners();
+  }
+
   Future<void> setMusicFolder(String folder) async {
     _musicFolder = folder;
     await _resolveEffectiveFolders();
@@ -343,6 +424,20 @@ class SettingsProvider extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> setCustomLogoPath(String path) async {
+    _customLogoPath = path;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyCustomLogoPath, path);
+    notifyListeners();
+  }
+
+  Future<void> clearCustomLogo() async {
+    _customLogoPath = '';
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.remove(_keyCustomLogoPath);
+    notifyListeners();
+  }
+
   Future<void> setGoogleClientId(String value) async {
     _googleClientId = value.trim();
     final prefs = await SharedPreferences.getInstance();
@@ -390,6 +485,9 @@ class SettingsProvider extends ChangeNotifier {
   }
 
   Future<void> loginWithGoogle() async {
+    if (kIsWeb) {
+      throw Exception('Google Sign-In no está disponible en la versión web.');
+    }
     if (Platform.isAndroid) {
       try {
         final googleSignIn = GoogleSignIn(
@@ -736,6 +834,29 @@ class SettingsProvider extends ChangeNotifier {
     _shazamProxyUrl = url;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyShazamProxyUrl, url);
+    notifyListeners();
+  }
+
+  CoverAdjustment? getCoverAdjustment(String? coverUrl) {
+    if (coverUrl == null || coverUrl.isEmpty) return null;
+    return _coverAdjustments[coverUrl];
+  }
+
+  Future<void> setCoverAdjustment(String coverUrl, double scale, double offsetX, double offsetY) async {
+    if (coverUrl.isEmpty) return;
+    if (scale == 1.0 && offsetX == 0.0 && offsetY == 0.0) {
+      _coverAdjustments.remove(coverUrl);
+    } else {
+      _coverAdjustments[coverUrl] = CoverAdjustment(
+        scale: scale,
+        offsetX: offsetX,
+        offsetY: offsetY,
+      );
+    }
+    
+    final prefs = await SharedPreferences.getInstance();
+    final jsonStr = jsonEncode(_coverAdjustments.map((k, v) => MapEntry(k, v.toJson())));
+    await prefs.setString(_keyCoverAdjustments, jsonStr);
     notifyListeners();
   }
 

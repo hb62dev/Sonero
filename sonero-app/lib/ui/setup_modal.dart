@@ -1,10 +1,15 @@
-import 'dart:io';
+import 'dart:convert';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:permission_handler/permission_handler.dart';
+import 'package:http/http.dart' as http;
 import '../providers/settings_provider.dart';
 import '../ui/theme.dart';
+
+// Conditionally import dart:io and permission_handler only on non-web
+import 'setup_modal_platform_stub.dart'
+    if (dart.library.io) 'setup_modal_platform_io.dart';
 
 class SetupModal extends StatefulWidget {
   const SetupModal({super.key});
@@ -19,34 +24,39 @@ class _SetupModalState extends State<SetupModal> {
   @override
   void initState() {
     super.initState();
-    _requestPermissions();
+    if (kIsWeb) {
+      // On web, just close this modal — FolderSetupDialog handles folder selection
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) Navigator.pop(context);
+      });
+    } else {
+      requestPlatformPermissions(context);
+    }
   }
 
-  Future<void> _requestPermissions() async {
-    if (Platform.isAndroid) {
-      try {
-        await [
-          Permission.audio,
-          Permission.videos,
-          Permission.storage,
-          Permission.manageExternalStorage,
-          Permission.notification,
-          Permission.microphone,
-        ].request();
-        
-        if (mounted) {
-          await context.read<SettingsProvider>().refreshFolders();
-          setState(() {});
-        }
-      } catch (e) {
-        debugPrint('Error requesting permissions in SetupModal: $e');
+  /// Calls the backend to open the native OS folder picker dialog.
+  Future<String?> _pickFolderViaBackend(String title) async {
+    try {
+      final uri = Uri.parse(
+        'http://127.0.0.1:8000/api/v1/settings/pick-folder?title=${Uri.encodeComponent(title)}',
+      );
+      final response = await http.get(uri).timeout(const Duration(seconds: 120));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final path = data['path'] as String?;
+        if (path != null && path.isNotEmpty) return path;
       }
-    }
+    } catch (_) {}
+    return null;
   }
 
   Future<void> _pickMusicFolder(BuildContext context) async {
     final settings = context.read<SettingsProvider>();
-    final result = await FilePicker.getDirectoryPath();
+    String? result;
+    if (kIsWeb) {
+      result = await _pickFolderViaBackend('Selecciona la carpeta para guardar música');
+    }
+    result ??= await FilePicker.getDirectoryPath();
     if (result != null) {
       await settings.setMusicFolder(result);
       if (mounted) setState(() {});
@@ -55,12 +65,17 @@ class _SetupModalState extends State<SetupModal> {
 
   Future<void> _pickVideoFolder(BuildContext context) async {
     final settings = context.read<SettingsProvider>();
-    final result = await FilePicker.getDirectoryPath();
+    String? result;
+    if (kIsWeb) {
+      result = await _pickFolderViaBackend('Selecciona la carpeta para guardar videos');
+    }
+    result ??= await FilePicker.getDirectoryPath();
     if (result != null) {
       await settings.setVideoFolder(result);
       if (mounted) setState(() {});
     }
   }
+
 
   @override
   Widget build(BuildContext context) {

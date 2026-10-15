@@ -119,18 +119,18 @@ class AppTheme {
         surface: surface,
         error: error,
       ),
-      textTheme: GoogleFonts.interTextTheme(baseTextTheme).apply(
+      textTheme: GoogleFonts.poppinsTextTheme(baseTextTheme).apply(
         bodyColor: textPrimary,
         displayColor: textPrimary,
       ).copyWith(
-        bodyLarge: GoogleFonts.inter(textStyle: baseTextTheme.bodyLarge, fontWeight: FontWeight.w500, color: textPrimary),
-        bodyMedium: GoogleFonts.inter(textStyle: baseTextTheme.bodyMedium, fontWeight: FontWeight.w500, color: textPrimary),
-        bodySmall: GoogleFonts.inter(textStyle: baseTextTheme.bodySmall, fontWeight: FontWeight.w400, color: textSecondary),
-        titleMedium: GoogleFonts.inter(textStyle: baseTextTheme.titleMedium, fontWeight: FontWeight.w600, color: textPrimary),
-        titleSmall: GoogleFonts.inter(textStyle: baseTextTheme.titleSmall, fontWeight: FontWeight.w500, color: textSecondary),
-        labelLarge: GoogleFonts.inter(textStyle: baseTextTheme.labelLarge, fontWeight: FontWeight.w500, color: textPrimary),
-        labelMedium: GoogleFonts.inter(textStyle: baseTextTheme.labelMedium, fontWeight: FontWeight.w500, color: textSecondary),
-        labelSmall: GoogleFonts.inter(textStyle: baseTextTheme.labelSmall, fontWeight: FontWeight.w400, color: textSecondary),
+        bodyLarge: GoogleFonts.poppins(textStyle: baseTextTheme.bodyLarge, fontWeight: FontWeight.w500, color: textPrimary),
+        bodyMedium: GoogleFonts.poppins(textStyle: baseTextTheme.bodyMedium, fontWeight: FontWeight.w500, color: textPrimary),
+        bodySmall: GoogleFonts.poppins(textStyle: baseTextTheme.bodySmall, fontWeight: FontWeight.w400, color: textSecondary),
+        titleMedium: GoogleFonts.poppins(textStyle: baseTextTheme.titleMedium, fontWeight: FontWeight.w600, color: textPrimary),
+        titleSmall: GoogleFonts.poppins(textStyle: baseTextTheme.titleSmall, fontWeight: FontWeight.w500, color: textSecondary),
+        labelLarge: GoogleFonts.poppins(textStyle: baseTextTheme.labelLarge, fontWeight: FontWeight.w500, color: textPrimary),
+        labelMedium: GoogleFonts.poppins(textStyle: baseTextTheme.labelMedium, fontWeight: FontWeight.w500, color: textSecondary),
+        labelSmall: GoogleFonts.poppins(textStyle: baseTextTheme.labelSmall, fontWeight: FontWeight.w400, color: textSecondary),
       ),
       iconTheme: IconThemeData(color: isDark ? textSecondary : textPrimary),
       dividerColor: border,
@@ -138,30 +138,52 @@ class AppTheme {
         filled: true,
         fillColor: surfaceAlt,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(10),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: border.withOpacity(0.5)),
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: border.withOpacity(0.4)),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: accent, width: 2),
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: accent, width: 1.5),
         ),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        hintStyle: TextStyle(color: textSecondary.withOpacity(0.5), fontSize: 13),
       ),
-      cardTheme: CardTheme(
+      cardTheme: CardThemeData(
         color: surfaceAlt,
-        elevation: isDark ? 4 : 8,
-        shadowColor: isDark ? Colors.black.withOpacity(0.4) : accent.withOpacity(0.15),
+        elevation: isDark ? 1 : 2,
+        shadowColor: isDark ? Colors.black.withOpacity(0.3) : Colors.black.withOpacity(0.06),
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(color: border, width: 1), // Apple-like subtle border
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(color: border.withOpacity(0.5), width: 1),
         ),
         clipBehavior: Clip.antiAlias,
       ),
-      dialogTheme: DialogTheme(
+      tooltipTheme: TooltipThemeData(
+        decoration: BoxDecoration(
+          color: isDark ? const Color(0xFF2A2A2A) : Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: border.withOpacity(0.3)),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.08),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        textStyle: TextStyle(
+          color: textPrimary,
+          fontSize: 12,
+          fontWeight: FontWeight.w500,
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        waitDuration: const Duration(milliseconds: 400),
+      ),
+      dialogTheme: DialogThemeData(
         backgroundColor: surfaceAlt,
         elevation: 24,
         shadowColor: Colors.black.withOpacity(0.5),
@@ -176,30 +198,30 @@ class AppTheme {
         style: IconButton.styleFrom(
           backgroundColor: isDark ? const Color(0xFF2A2A2A) : Colors.white,
           foregroundColor: textPrimary,
-          elevation: isDark ? 0 : 3,
-          shadowColor: isDark ? Colors.transparent : Colors.black.withOpacity(0.15),
-          hoverColor: accent.withOpacity(0.15),
-          highlightColor: accent.withOpacity(0.25),
-          padding: const EdgeInsets.all(12),
+          elevation: 0,
+          hoverColor: accent.withOpacity(0.08),
+          highlightColor: accent.withOpacity(0.12),
+          padding: const EdgeInsets.all(10),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: isDark ? border.withOpacity(0.5) : border, width: 1.5),
+            borderRadius: BorderRadius.circular(10),
+            side: BorderSide(color: border.withOpacity(0.4), width: 1),
           ),
         ),
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: accent,
-          foregroundColor: ThemeData.estimateBrightnessForColor(accent) == Brightness.dark ? Colors.white : Colors.black,
-          elevation: isDark ? 6 : 8,
-          shadowColor: accent.withOpacity(isDark ? 0.5 : 0.3),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          textStyle: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 15),
+          foregroundColor: Colors.white,
+          elevation: 0,
+          shadowColor: Colors.transparent,
+          minimumSize: const Size(0, 44),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          textStyle: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13),
         ).copyWith(
           overlayColor: WidgetStateProperty.resolveWith((states) {
-            if (states.contains(WidgetState.hovered)) return Colors.white.withOpacity(0.2);
-            if (states.contains(WidgetState.pressed)) return Colors.white.withOpacity(0.3);
+            if (states.contains(WidgetState.hovered)) return Colors.white.withOpacity(0.12);
+            if (states.contains(WidgetState.pressed)) return Colors.white.withOpacity(0.2);
             return null;
           }),
         ),
@@ -207,36 +229,36 @@ class AppTheme {
       outlinedButtonTheme: OutlinedButtonThemeData(
         style: OutlinedButton.styleFrom(
           foregroundColor: accent,
-          backgroundColor: isDark ? accent.withOpacity(0.05) : Colors.white,
-          elevation: isDark ? 0 : 2,
-          shadowColor: isDark ? Colors.transparent : accent.withOpacity(0.15),
-          side: BorderSide(color: accent, width: 2),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          textStyle: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 15),
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          minimumSize: const Size(0, 44),
+          side: BorderSide(color: accent.withOpacity(0.35), width: 1),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          padding: const EdgeInsets.symmetric(horizontal: 20),
+          textStyle: GoogleFonts.inter(fontWeight: FontWeight.w600, fontSize: 13),
         ).copyWith(
           overlayColor: WidgetStateProperty.resolveWith((states) {
-            if (states.contains(WidgetState.hovered)) return accent.withOpacity(0.1);
-            if (states.contains(WidgetState.pressed)) return accent.withOpacity(0.2);
+            if (states.contains(WidgetState.hovered)) return accent.withOpacity(0.06);
+            if (states.contains(WidgetState.pressed)) return accent.withOpacity(0.12);
             return null;
           }),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: textPrimary,
-          backgroundColor: isDark ? const Color(0xFF2A2A2A) : Colors.white,
-          elevation: isDark ? 0 : 3,
-          shadowColor: isDark ? Colors.transparent : Colors.black.withOpacity(0.15),
+          foregroundColor: textSecondary,
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          minimumSize: const Size(0, 44),
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-            side: BorderSide(color: isDark ? Colors.transparent : border, width: 1.5),
+            borderRadius: BorderRadius.circular(10),
+            side: BorderSide(color: border.withOpacity(0.3), width: 1),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-          textStyle: GoogleFonts.inter(fontWeight: FontWeight.w700, fontSize: 15),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          textStyle: GoogleFonts.inter(fontWeight: FontWeight.w500, fontSize: 13),
         ).copyWith(
           overlayColor: WidgetStateProperty.resolveWith((states) {
-            if (states.contains(WidgetState.hovered)) return textPrimary.withOpacity(0.05);
+            if (states.contains(WidgetState.hovered)) return textPrimary.withOpacity(0.04);
             return null;
           }),
         ),

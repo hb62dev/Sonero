@@ -11,12 +11,16 @@ import 'providers/settings_provider.dart';
 import 'providers/library_provider.dart';
 import 'providers/listen_provider.dart';
 import 'providers/player_provider.dart';
+import 'providers/equalizer_provider.dart';
 import 'providers/downloads_provider.dart';
 import 'ui/app_shell.dart';
 import 'ui/theme.dart';
 import 'ui/video_download_dialog.dart';
+import 'ui/settings/folder_setup_dialog.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import 'package:sonero_app/l10n/app_localizations.dart';
+import 'ui/settings/favicon_stub.dart'
+    if (dart.library.js_interop) 'ui/settings/favicon_web.dart';
 
 class ShazamApp extends StatefulWidget {
   const ShazamApp({super.key});
@@ -31,9 +35,11 @@ class _ShazamAppState extends State<ShazamApp> with TrayListener, WindowListener
   final _listen    = ListenProvider();
   final _player    = PlayerProvider();
   final _downloads = DownloadsProvider();
+  final _equalizer  = EqualizerProvider();
   final _hotkeys   = HotkeyService();
   final _navigatorKey = GlobalKey<NavigatorState>();
   bool _initialized = false;
+  bool _needsSetup = false;
 
   @override
   void initState() {
@@ -42,43 +48,77 @@ class _ShazamAppState extends State<ShazamApp> with TrayListener, WindowListener
   }
 
   Future<void> _boot() async {
-    await _settings.load();
-    _downloads.startPolling(_settings.api);
+    try {
+      await _settings.load();
+      _player.setApiClient(_settings.api);
+      _downloads.startPolling(_settings.api);
 
-    // Register global hotkeys (Windows desktop only)
-    if (!kIsWeb && Platform.isWindows) {
-      await localNotifier.setup(appName: 'Sonero');
-      windowManager.addListener(this);
-      await windowManager.setPreventClose(true);
-      
-      trayManager.addListener(this);
-      await trayManager.setIcon(
-        Platform.isWindows ? 'windows/runner/resources/app_icon.ico' : 'app_icon.ico',
-      );
-      
-      Menu menu = Menu(
-        items: [
-          MenuItem(key: 'show_window', label: 'Abrir Sonero'),
-          MenuItem.separator(),
-          MenuItem(key: 'exit_app', label: 'Salir'),
-        ],
-      );
-      await trayManager.setContextMenu(menu);
+      // Equalizer: safe init (may fail on web)
+      try {
+        _equalizer.setPlayer(_player.player);
+      } catch (e) {
+        debugPrint('Equalizer init skipped: $e');
+      }
 
-      await _hotkeys.initialize(
-        onMicTriggered: _listenMic,
-        onSystemTriggered: _listenSystem,
-        onVideoTriggered: _listenVideo,
-        onHideTriggered: () => windowManager.hide(),
-        onShowTriggered: () async {
-          await windowManager.show();
-          await windowManager.focus();
-        },
-      );
+      // Register global hotkeys (Windows desktop only)
+      if (!kIsWeb && Platform.isWindows) {
+        await localNotifier.setup(appName: 'Sonero');
+        windowManager.addListener(this);
+        await windowManager.setPreventClose(true);
+        
+        trayManager.addListener(this);
+        await trayManager.setIcon(
+          Platform.isWindows ? 'windows/runner/resources/app_icon.ico' : 'app_icon.ico',
+        );
+        
+        Menu menu = Menu(
+          items: [
+            MenuItem(key: 'show_window', label: 'Abrir Sonero'),
+            MenuItem.separator(),
+            MenuItem(key: 'exit_app', label: 'Salir'),
+          ],
+        );
+        await trayManager.setContextMenu(menu);
+
+        await _hotkeys.initialize(
+          onMicTriggered: _listenMic,
+          onSystemTriggered: _listenSystem,
+          onVideoTriggered: _listenVideo,
+          onHideTriggered: () => windowManager.hide(),
+          onShowTriggered: () async {
+            await windowManager.show();
+            await windowManager.focus();
+          },
+        );
+      }
+    } catch (e) {
+      debugPrint('Boot error (continuing anyway): $e');
     }
 
+    // ALWAYS mark as initialized, even if something above failed
+    setState(() {
+      _initialized = true;
+      _needsSetup = _settings.isFirstLaunch;
+    });
 
-    setState(() => _initialized = true);
+    // Apply custom logo as favicon on web
+    if (kIsWeb && _settings.customLogoPath.isNotEmpty) {
+      try {
+        setFaviconDataUri(_settings.customLogoPath);
+      } catch (_) {}
+    }
+
+    // Show folder setup dialog on first launch
+    if (_needsSetup) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        final ctx = _navigatorKey.currentContext;
+        if (ctx != null) {
+          FolderSetupDialog.show(ctx).then((_) {
+            setState(() => _needsSetup = false);
+          });
+        }
+      });
+    }
   }
 
   void _listenMic() {
@@ -176,11 +216,23 @@ class _ShazamAppState extends State<ShazamApp> with TrayListener, WindowListener
   @override
   Widget build(BuildContext context) {
     if (!_initialized) {
-      return const MaterialApp(
+      final accent = _settings.accentColor;
+      return MaterialApp(
+        debugShowCheckedModeBanner: false,
         home: Scaffold(
-          backgroundColor: Color(0xFF0A0A10),
+          backgroundColor: const Color(0xFF0A0A10),
           body: Center(
-            child: CircularProgressIndicator(color: Color(0xFF7B2FFF)),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 48),
+                  child: Image.asset('assets/images/logo.png', fit: BoxFit.contain),
+                ),
+                const SizedBox(height: 32),
+                SizedBox(width: 100, child: LinearProgressIndicator(color: accent, backgroundColor: accent.withOpacity(0.1), minHeight: 2)),
+              ],
+            ),
           ),
         ),
       );
@@ -193,6 +245,7 @@ class _ShazamAppState extends State<ShazamApp> with TrayListener, WindowListener
         ChangeNotifierProvider.value(value: _listen),
         ChangeNotifierProvider.value(value: _player),
         ChangeNotifierProvider.value(value: _downloads),
+        ChangeNotifierProvider.value(value: _equalizer),
         Provider.value(value: _hotkeys),
       ],
       child: Builder(
@@ -220,8 +273,16 @@ class _ShazamAppState extends State<ShazamApp> with TrayListener, WindowListener
             // ── Global mobile density ───────────────────────────────────────
             // Aplica a TODAS las rutas (push, dialog, etc.), no solo AppShell
             builder: (context, child) {
+              // ── Global fix: kill yellow underlines on Flutter Web ──
+              child = DefaultTextStyle(
+                style: DefaultTextStyle.of(context).style.copyWith(
+                  decoration: TextDecoration.none,
+                ),
+                child: child!,
+              );
+
               final isMobile = MediaQuery.of(context).size.width < 600;
-              if (!isMobile) return child!;
+              if (!isMobile) return child;
 
               return MediaQuery(
                 data: MediaQuery.of(context).copyWith(
@@ -271,7 +332,7 @@ class _ShazamAppState extends State<ShazamApp> with TrayListener, WindowListener
                       toolbarHeight: 48,
                     ),
                   ),
-                  child: child!,
+                  child: child,
                 ),
               );
             },

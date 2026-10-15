@@ -6,7 +6,7 @@ from pathlib import Path
 from config import settings
 from database import get_db
 from models import Media, PlaylistMedia, PlaybackEvent
-from services import downloader
+from services import downloader, youtube
 from schemas.video import VideoDownloadRequest, VideoInfoResponse
 from schemas.song import TrackInfo
 from routers.metadata import read_mp3_basic_info
@@ -20,12 +20,13 @@ router = APIRouter()
     "/downloads",
     summary="List all downloaded MP3 files",
 )
-async def list_downloads() -> dict:
+async def list_downloads(db: Session = Depends(get_db)) -> dict:
     settings.MUSIC_DIR.mkdir(exist_ok=True)
     files = []
     
-    for f in settings.MUSIC_DIR.rglob("*.mp3"):
-        if f.is_file():
+    audio_exts = {".mp3", ".m4a", ".opus", ".ogg", ".wav", ".aac", ".flac", ".wma", ".webm"}
+    for f in settings.MUSIC_DIR.rglob("*"):
+        if f.is_file() and f.suffix.lower() in audio_exts:
             files.append(f)
             
     videos_dir = settings.VIDEO_DIR
@@ -39,7 +40,19 @@ async def list_downloads() -> dict:
     downloads = []
     for f in files:
         stat = f.stat()
-        meta = read_mp3_basic_info(f) if f.suffix == ".mp3" else {}
+        meta = {}
+        if f.suffix.lower() == ".mp3":
+            meta = read_mp3_basic_info(f)
+        
+        # For non-mp3, parse artist/title from filename: "Artist - Title.ext"
+        if not meta.get("title"):
+            stem = f.stem.lstrip("- ").strip()
+            if " - " in stem:
+                parts = stem.split(" - ", 1)
+                meta["artist"] = meta.get("artist") or parts[0].strip()
+                meta["title"] = parts[1].strip()
+            else:
+                meta["title"] = stem
         
         if f.is_relative_to(settings.VIDEO_DIR) and settings.VIDEO_DIR != settings.MUSIC_DIR:
             filename = f"videos/{str(f.relative_to(settings.VIDEO_DIR)).replace(chr(92), '/')}"
@@ -51,16 +64,26 @@ async def list_downloads() -> dict:
             rel_parts = f.relative_to(settings.MUSIC_DIR).parts
             if len(rel_parts) > 1:
                 playlist_name = rel_parts[0]
+        
+        # Get cover_url: first check embedded MP3 cover, then check DB
+        cover_url = None
+        if meta.get("has_cover") and f.suffix.lower() == ".mp3":
+            cover_url = f"/api/v1/metadata/cover/{filename}"
+        else:
+            # Look up cover_url from DB (Shazam/YouTube thumbnail)
+            db_media = db.query(Media).filter(Media.filename == f.name).first()
+            if db_media and db_media.cover_url:
+                cover_url = db_media.cover_url
             
         downloads.append({
             "filename": filename,
             "size_mb": round(stat.st_size / 1024 / 1024, 2),
             "created_at": stat.st_ctime,
             "title": meta.get("title") or f.stem,
-            "artist": meta.get("artist"),
-            "album": meta.get("album"),
-            "year": meta.get("year"),
-            "cover_url": f"/api/v1/metadata/cover/{filename}" if meta.get("has_cover") and f.suffix == ".mp3" else None,
+            "artist": meta.get("artist") or "",
+            "album": meta.get("album") or "",
+            "year": meta.get("year") or "",
+            "cover_url": cover_url,
             "playlist": playlist_name,
         })
     return {"total": len(downloads), "downloads": downloads}
@@ -174,9 +197,11 @@ async def _run_video_download(job_id: str, url: str, format_id: str):
         video_jobs[job_id].status = "paused"
         video_jobs[job_id].step = "⏸️ Pausado"
     except Exception as exc:
+        kind, message = youtube.classify_error(exc)
         video_jobs[job_id].status = "failed"
-        video_jobs[job_id].step = "❌ Error en descarga"
-        video_jobs[job_id].error = str(exc)
+        video_jobs[job_id].step = "❌ YouTube bloqueó la descarga" if kind == "bot" else "❌ Error en descarga"
+        video_jobs[job_id].error = message
+        video_jobs[job_id].error_kind = kind
 
 class Mp3DownloadRequest(BaseModel):
     url: str
@@ -230,9 +255,11 @@ async def _run_mp3_download(job_id: str, request: Mp3DownloadRequest):
         video_jobs[job_id].status = "paused"
         video_jobs[job_id].step = "⏸️ Pausado"
     except Exception as exc:
+        kind, message = youtube.classify_error(exc)
         video_jobs[job_id].status = "failed"
-        video_jobs[job_id].step = "❌ Error en descarga"
-        video_jobs[job_id].error = str(exc)
+        video_jobs[job_id].step = "❌ YouTube bloqueó la descarga" if kind == "bot" else "❌ Error en descarga"
+        video_jobs[job_id].error = message
+        video_jobs[job_id].error_kind = kind
 
 @router.post(
     "/downloads/video/jobs/{job_id}/pause",
@@ -534,7 +561,10 @@ async def clean_duplicates(body: CleanDuplicatesRequest, db: Session = Depends(g
     summary="Get a specific video file",
 )
 async def get_video_file(filename: str) -> FileResponse:
-    file_path = settings.VIDEO_DIR / filename
+    file_path = (settings.VIDEO_DIR / filename).resolve()
+    # Security: prevent path traversal
+    if not file_path.is_relative_to(settings.VIDEO_DIR.resolve()):
+        raise HTTPException(status_code=403, detail="Acceso denegado.")
     if not file_path.exists():
         raise HTTPException(status_code=404, detail=f"Archivo de video '{filename}' no encontrado.")
     
@@ -554,7 +584,10 @@ async def get_video_file(filename: str) -> FileResponse:
     summary="Delete a downloaded video",
 )
 async def delete_video_file(filename: str) -> dict:
-    file_path = settings.VIDEO_DIR / filename
+    file_path = (settings.VIDEO_DIR / filename).resolve()
+    # Security: prevent path traversal
+    if not file_path.is_relative_to(settings.VIDEO_DIR.resolve()):
+        raise HTTPException(status_code=403, detail="Acceso denegado.")
     if not file_path.exists():
         raise HTTPException(status_code=404, detail=f"Archivo de video '{filename}' no encontrado.")
     file_path.unlink()
@@ -566,7 +599,10 @@ async def delete_video_file(filename: str) -> dict:
     summary="Download a specific MP3 file",
 )
 async def get_file(filename: str) -> FileResponse:
-    file_path = settings.MUSIC_DIR / filename
+    file_path = (settings.MUSIC_DIR / filename).resolve()
+    # Security: prevent path traversal
+    if not file_path.is_relative_to(settings.MUSIC_DIR.resolve()):
+        raise HTTPException(status_code=403, detail="Acceso denegado.")
     if not file_path.exists():
         raise HTTPException(status_code=404, detail=f"Archivo '{filename}' no encontrado.")
     return FileResponse(
@@ -581,7 +617,10 @@ async def get_file(filename: str) -> FileResponse:
     summary="Delete a downloaded MP3",
 )
 async def delete_file(filename: str) -> dict:
-    file_path = settings.MUSIC_DIR / filename
+    file_path = (settings.MUSIC_DIR / filename).resolve()
+    # Security: prevent path traversal
+    if not file_path.is_relative_to(settings.MUSIC_DIR.resolve()):
+        raise HTTPException(status_code=403, detail="Acceso denegado.")
     if not file_path.exists():
         raise HTTPException(status_code=404, detail=f"Archivo '{filename}' no encontrado.")
     file_path.unlink()

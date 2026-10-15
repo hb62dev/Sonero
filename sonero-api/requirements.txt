@@ -11,8 +11,9 @@ aiofiles>=23.0.0
 shazamio>=0.4.0
 pydub>=0.25.1
 
-# YouTube search & download
-yt-dlp>=2024.1.0
+# YouTube search & download. [default] adds yt-dlp-ejs, which solves YouTube's
+# JavaScript challenges (also needs Deno, Node or Bun installed on the system)
+yt-dlp[default]>=2026.8.19
 
 # Utils
 python-dotenv>=1.0.0
@@ -26,3 +27,13 @@ sqlalchemy>=2.0.0
 
 # HTTP Client
 httpx>=0.25.0
+
+# Auth (routers/auth.py)
+passlib>=1.7.4
+bcrypt>=4.0.0
+
+# WiFi transfer: LAN interface detection
+psutil>=5.9.0
+
+# MCP server for AI agents (services/mcp_server.py)
+mcp>=2.3,<3

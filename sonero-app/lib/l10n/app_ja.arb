@@ -244,6 +244,45 @@
     "placeholders": {
       "count": { "type": "int" }
     }
-  }
-}
+  },
 
+  "navShare": "共有",
+  "navActiveDownloads": "ダウンロード",
+  "wifiTitle": "Wi-Fiで共有",
+  "wifiTabSend": "送信",
+  "wifiTabReceive": "受信",
+  "wifiNoFilesTitle": "ファイルが選択されていません",
+  "wifiNoFilesHint": "ライブラリで曲や動画を長押しして選択モードにし、送信したいものにチェックを入れてWi-Fiアイコンをタップしてください。",
+  "wifiSendCount": "{count} 件のファイルを送信",
+  "wifiClear": "クリア",
+  "wifiReceiverIp": "受信側のIP",
+  "wifiReceiverIpHint": "例: 192.168.1.50",
+  "wifiSend": "送信",
+  "wifiSending": "送信中",
+  "wifiQueue": "送信キュー",
+  "wifiCompleted": "{done} / {total} 完了",
+  "wifiEnterIp": "受信側のIPを入力してください。",
+  "wifiSendFinished": "送信が完了しました。",
+  "wifiSendError": "送信エラー: {error}",
+  "wifiReady": "ファイルを受信できます",
+  "wifiEnterIpOnSender": "相手の端末のSoneroアプリにこのIPを入力してください。",
+  "wifiOtherIps": "その他のネットワーク: {ips}",
+  "wifiOrOpenInBrowser": "アプリがない場合は、スマホのブラウザでこちらを開いてください:",
+  "wifiCopied": "クリップボードにコピーしました。",
+  "wifiCopy": "コピー",
+  "wifiReceiveOff": "受信はオフです",
+  "wifiReceiveOffHint": "同じWi-Fiネットワーク上の他の端末から音楽や動画を受け取るには、受信をオンにしてください。",
+  "wifiStartReceiving": "受信を開始",
+  "wifiStopReceiving": "受信を停止",
+  "wifiStartError": "受信を開始できませんでした: {error}",
+  "wifiReceivedList": "受信済み / 進行中",
+  "wifiNoNetwork": "Wi-FiまたはLANが見つかりません。共有するにはネットワークに接続してください。",
+  "wifiSameNetworkTip": "両方の端末が同じWi-Fiに接続している必要があります。VPNが有効だと接続できない場合があり、コンピューターが受信接続の許可を求めることがあります。",
+  "wifiBackendUnavailable": "Soneroサーバーに接続できません。起動しているか確認してください。",
+  "wifiStatusWaiting": "待機中…",
+  "wifiStatusTransferring": "転送中… {pct}%",
+  "wifiStatusDone": "完了",
+  "wifiStatusDuplicate": "既に存在するためスキップ",
+  "wifiStatusFailed": "失敗: {error}",
+  "wifiUnknownError": "不明なエラー"
+}

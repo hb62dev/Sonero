@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import 'package:media_kit/media_kit.dart';
 import '../../providers/player_provider.dart';
 import '../theme.dart';
-import '../widgets/hover_scale.dart';
 import '../widgets/track_cover_image.dart';
-import 'lyrics_view.dart';
 import 'mobile_player_sheet.dart';
 
 class MiniPlayer extends StatelessWidget {
@@ -18,150 +15,51 @@ class MiniPlayer extends StatelessWidget {
     final isMobile = MediaQuery.of(context).size.width < 600;
 
     if (track == null) return const SizedBox.shrink();
-    if (player.isVideoMode) return const SizedBox.shrink(); // hidden in video mode
+    if (player.isVideoMode) return const SizedBox.shrink();
 
-    // ── Shared: sidebar toggle button ──────────────────────────────────────
-    final sidebarToggle = HoverScale(
-      scale: 1.15,
-      child: IconButton(
-        icon: Icon(
-          player.isSidebarVisible
-              ? Icons.menu_open_rounded
-              : Icons.menu_rounded,
-          color: context.colors.textSecondary,
-          size: 22,
-        ),
-        tooltip: player.isSidebarVisible ? 'Ocultar panel' : 'Mostrar panel',
-        onPressed: player.toggleSidebar,
-        padding: EdgeInsets.zero,
-        constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
-      ),
-    );
-
-    // ── VIDEO MODE: simplified bar — controls are in the overlay ──────────
-    if (player.isVideoMode) {
-      return Container(
-        height: 72,
-        decoration: BoxDecoration(
-          color: context.colors.surfaceAlt,
-          border: Border(top: BorderSide(color: context.colors.border)),
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 20),
-        child: Row(
-          children: [
-            // Sidebar toggle
-            sidebarToggle,
-            const SizedBox(width: 12),
-
-            // Album art thumbnail
-            Container(
-              width: 44,
-              height: 44,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(6),
-                color: context.colors.surface,
-                image: getCoverImageProvider(track.coverUrl) != null
-                    ? DecorationImage(
-                        image: getCoverImageProvider(track.coverUrl)!,
-                        fit: BoxFit.cover,
-                      )
-                    : null,
-              ),
-              child: getCoverImageProvider(track.coverUrl) == null
-                  ? Icon(Icons.videocam_rounded,
-                      color: context.colors.textSecondary, size: 20)
-                  : null,
-            ),
-            const SizedBox(width: 12),
-
-            // Title + artist
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    track.title.isNotEmpty ? track.title : track.filename,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: context.colors.textPrimary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 13,
-                    ),
-                  ),
-                  if (track.artist.isNotEmpty)
-                    Text(
-                      track.artist,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: context.colors.textSecondary,
-                        fontSize: 11,
-                      ),
-                    ),
-                ],
-              ),
-            ),
-
-            // "Reproduciendo en video" label
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(Icons.play_circle_outline_rounded,
-                      color: Theme.of(context).colorScheme.primary, size: 16),
-                  const SizedBox(width: 6),
-                  Text(
-                    'Reproduciendo en video',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            // Close (stop)
-            IconButton(
-              icon: Icon(Icons.close_rounded,
-                  color: context.colors.textSecondary, size: 20),
-              tooltip: 'Detener',
-              onPressed: player.stop,
-            ),
-          ],
-        ),
-      );
-    }
-
-    // ── NORMAL MODE: full player controls ────────────────────────────────────
-    final bottomPadding = MediaQuery.of(context).padding.bottom;
-
+    // ── MOBILE: pill mini player ──────────────────────────────────────
     if (isMobile) {
-      return Container(
-        height: 62 + bottomPadding,
-        decoration: BoxDecoration(
-          color: context.colors.surfaceAlt,
-          border: Border(top: BorderSide(color: context.colors.border)),
-        ),
-        child: Column(
-          children: [
-            SizedBox(
-              height: 2.0,
-              child: LinearProgressIndicator(
-                value: player.duration.inMilliseconds > 0
-                    ? player.position.inMilliseconds / player.duration.inMilliseconds
-                    : 0.0,
-                backgroundColor: context.colors.border,
-                valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        child: Container(
+          height: 58,
+          decoration: BoxDecoration(
+            color: context.colors.surface.withOpacity(0.97),
+            borderRadius: BorderRadius.circular(32),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.18),
+                blurRadius: 16,
+                offset: const Offset(0, 4),
               ),
+            ],
+            border: Border.all(
+              color: context.colors.border.withOpacity(0.12),
+              width: 0.5,
             ),
-            Expanded(
-              child: Padding(
-                padding: EdgeInsets.fromLTRB(16, 0, 8, bottomPadding),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Stack(
+            children: [
+              // Thin progress bar at top
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: SizedBox(
+                  height: 2.5,
+                  child: LinearProgressIndicator(
+                    value: player.duration.inMilliseconds > 0
+                        ? player.position.inMilliseconds / player.duration.inMilliseconds
+                        : 0.0,
+                    backgroundColor: Colors.transparent,
+                    valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.primary),
+                  ),
+                ),
+              ),
+              // Content
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 0, 6, 0),
                 child: Row(
                   children: [
                     Expanded(
@@ -179,22 +77,19 @@ class MiniPlayer extends StatelessWidget {
                           children: [
                             Hero(
                               tag: 'mobile_player_cover',
-                              child: Container(
-                                width: 38,
-                                height: 38,
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(6),
-                                  color: context.colors.surface,
-                                  image: getCoverImageProvider(track.coverUrl) != null
-                                      ? DecorationImage(
-                                          image: getCoverImageProvider(track.coverUrl)!,
-                                          fit: BoxFit.cover,
+                              child: ClipOval(
+                                child: Container(
+                                  width: 40,
+                                  height: 40,
+                                  color: context.colors.surfaceAlt,
+                                  child: getCoverImageProvider(track.coverUrl) != null
+                                      ? AdjustedCoverImage(
+                                          coverUrl: track.coverUrl,
+                                          width: 40,
+                                          height: 40,
                                         )
-                                      : null,
+                                      : Icon(Icons.music_note, color: context.colors.textSecondary, size: 18),
                                 ),
-                                child: getCoverImageProvider(track.coverUrl) == null
-                                    ? Icon(Icons.music_note, color: context.colors.textSecondary, size: 18)
-                                    : null,
                               ),
                             ),
                             const SizedBox(width: 10),
@@ -210,7 +105,7 @@ class MiniPlayer extends StatelessWidget {
                                     style: TextStyle(
                                       color: context.colors.textPrimary,
                                       fontWeight: FontWeight.w600,
-                                      fontSize: 13.5,
+                                      fontSize: 13,
                                     ),
                                   ),
                                   if (track.artist.isNotEmpty)
@@ -220,7 +115,7 @@ class MiniPlayer extends StatelessWidget {
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
                                         color: context.colors.textSecondary,
-                                        fontSize: 11.5,
+                                        fontSize: 11,
                                       ),
                                     ),
                                 ],
@@ -231,334 +126,56 @@ class MiniPlayer extends StatelessWidget {
                       ),
                     ),
                     IconButton(
+                      icon: Icon(Icons.skip_previous_rounded, color: context.colors.textPrimary, size: 20),
+                      onPressed: player.previous,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      style: IconButton.styleFrom(backgroundColor: Colors.transparent, side: BorderSide.none, elevation: 0),
+                    ),
+                    IconButton(
                       icon: Icon(
                         player.isPlaying
                             ? Icons.pause_rounded
                             : Icons.play_arrow_rounded,
-                        color: Theme.of(context).colorScheme.primary,
-                        size: 26,
+                        color: context.colors.textPrimary,
+                        size: 24,
                       ),
                       onPressed: player.playPause,
                       padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                      constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+                      style: IconButton.styleFrom(backgroundColor: Colors.transparent, side: BorderSide.none, elevation: 0),
                     ),
                     IconButton(
-                      icon: Icon(Icons.skip_next_rounded, color: context.colors.textPrimary, size: 26),
+                      icon: Icon(Icons.skip_next_rounded, color: context.colors.textPrimary, size: 20),
                       onPressed: player.next,
                       padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      style: IconButton.styleFrom(backgroundColor: Colors.transparent, side: BorderSide.none, elevation: 0),
+                    ),
+                    Container(
+                      width: 1,
+                      height: 18,
+                      margin: const EdgeInsets.symmetric(horizontal: 2),
+                      color: context.colors.border.withOpacity(0.3),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.stop_rounded, color: Colors.red.shade300, size: 20),
+                      onPressed: player.stop,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                      tooltip: 'Detener',
+                      style: IconButton.styleFrom(backgroundColor: Colors.transparent, side: BorderSide.none, elevation: 0),
                     ),
                   ],
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       );
     }
 
-    return Container(
-      height: 96 + bottomPadding,
-      decoration: BoxDecoration(
-        color: context.colors.surfaceAlt,
-        border: Border(top: BorderSide(color: context.colors.border)),
-      ),
-      padding: EdgeInsets.fromLTRB(24, 0, 24, bottomPadding),
-      child: Row(
-        children: [
-          // ── Left: Sidebar toggle + Track info ──────────────────────────
-          Expanded(
-            flex: 1,
-            child: Row(
-              children: [
-                sidebarToggle,
-                const SizedBox(width: 8),
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(8),
-                    color: context.colors.surface,
-                    image: getCoverImageProvider(track.coverUrl) != null
-                        ? DecorationImage(
-                            image: getCoverImageProvider(track.coverUrl)!,
-                            fit: BoxFit.cover,
-                          )
-                        : null,
-                  ),
-                  child: getCoverImageProvider(track.coverUrl) == null
-                      ? Icon(Icons.music_note,
-                          color: context.colors.textSecondary)
-                      : null,
-                ),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        track.title.isNotEmpty ? track.title : track.filename,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          color: context.colors.textPrimary,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                      ),
-                      if (track.artist.isNotEmpty)
-                        Text(
-                          track.artist,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            color: context.colors.textSecondary,
-                            fontSize: 12,
-                          ),
-                        ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // ── Center: Playback controls + seek bar ────────────────────────
-          Expanded(
-            flex: 2,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Expanded(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.end,
-                        children: [
-                          HoverScale(
-                            scale: 1.15,
-                            child: IconButton(
-                              icon: Icon(
-                                Icons.shuffle_rounded,
-                                color: player.isShuffle
-                                    ? Theme.of(context).colorScheme.primary
-                                    : context.colors.textSecondary,
-                                size: 20,
-                              ),
-                              tooltip: 'Aleatorio',
-                              onPressed: player.toggleShuffle,
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(
-                                  minWidth: 36, minHeight: 36),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          HoverScale(
-                            scale: 1.15,
-                            child: IconButton(
-                              icon: Icon(Icons.skip_previous_rounded,
-                                  color: context.colors.textPrimary, size: 26),
-                              tooltip: 'Anterior',
-                              onPressed: player.previous,
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(
-                                  minWidth: 36, minHeight: 36),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    HoverScale(
-                      scale: 1.15,
-                      child: IconButton(
-                        icon: Icon(
-                          player.isPlaying
-                              ? Icons.pause_circle_filled_rounded
-                              : Icons.play_circle_filled_rounded,
-                          color: Theme.of(context).colorScheme.primary,
-                          size: 40,
-                        ),
-                        onPressed: player.playPause,
-                        padding: EdgeInsets.zero,
-                        constraints:
-                            const BoxConstraints(minWidth: 44, minHeight: 44),
-                      ),
-                    ),
-                    const SizedBox(width: 4),
-                    Expanded(
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        children: [
-                          HoverScale(
-                            scale: 1.15,
-                            child: IconButton(
-                              icon: Icon(Icons.skip_next_rounded,
-                                  color: context.colors.textPrimary, size: 26),
-                              tooltip: 'Siguiente',
-                              onPressed: player.next,
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(
-                                  minWidth: 36, minHeight: 36),
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          HoverScale(
-                            scale: 1.15,
-                            child: IconButton(
-                              icon: Icon(
-                                player.repeatMode == PlaylistMode.single
-                                    ? Icons.repeat_one_rounded
-                                    : Icons.repeat_rounded,
-                                color: player.repeatMode != PlaylistMode.none
-                                    ? Theme.of(context).colorScheme.primary
-                                    : context.colors.textSecondary,
-                                size: 20,
-                              ),
-                              tooltip: 'Repetir',
-                              onPressed: player.toggleRepeat,
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(
-                                  minWidth: 36, minHeight: 36),
-                            ),
-                          ),
-                          if (player.isVideo) ...[
-                            const SizedBox(width: 8),
-                            HoverScale(
-                              scale: 1.15,
-                              child: IconButton(
-                                icon: Icon(Icons.fullscreen_rounded,
-                                    color: context.colors.textSecondary,
-                                    size: 22),
-                                tooltip: 'Mostrar Video',
-                                onPressed: () => player.setVideoMode(true),
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(
-                                    minWidth: 36, minHeight: 36),
-                              ),
-                            ),
-                          ],
-                          const SizedBox(width: 8),
-                          HoverScale(
-                            scale: 1.15,
-                            child: IconButton(
-                              icon: Icon(Icons.lyrics_outlined,
-                                  color: context.colors.textSecondary,
-                                  size: 22),
-                              tooltip: 'Ver Letras',
-                              onPressed: () => _showLyricsDialog(
-                                  context, track.title, track.artist, track.filename),
-                              padding: EdgeInsets.zero,
-                              constraints: const BoxConstraints(
-                                  minWidth: 36, minHeight: 36),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-                Row(
-                  children: [
-                    Text(
-                      _formatDuration(player.position),
-                      style: TextStyle(
-                          color: context.colors.textSecondary, fontSize: 11),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: SliderTheme(
-                        data: SliderThemeData(
-                          trackHeight: 4,
-                          thumbShape:
-                              const RoundSliderThumbShape(enabledThumbRadius: 6),
-                          overlayShape: const RoundSliderOverlayShape(
-                              overlayRadius: 14),
-                          activeTrackColor:
-                              Theme.of(context).colorScheme.primary,
-                          inactiveTrackColor: context.colors.border,
-                          thumbColor: context.colors.textPrimary,
-                        ),
-                        child: Slider(
-                          value: player.position.inMilliseconds
-                              .toDouble()
-                              .clamp(
-                                0.0,
-                                player.duration.inMilliseconds > 0
-                                    ? player.duration.inMilliseconds.toDouble()
-                                    : 100.0,
-                              ),
-                          max: player.duration.inMilliseconds > 0
-                              ? player.duration.inMilliseconds.toDouble()
-                              : 100.0,
-                          onChanged: (val) =>
-                              player.seek(Duration(milliseconds: val.toInt())),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      _formatDuration(player.duration),
-                      style: TextStyle(
-                          color: context.colors.textSecondary, fontSize: 11),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-
-          // ── Right: Volume + close (desktop) ──────
-          Expanded(
-            flex: 1,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Icon(Icons.volume_up_rounded,
-                    color: context.colors.textSecondary, size: 20),
-                SizedBox(
-                  width: 100,
-                  child: SliderTheme(
-                    data: SliderThemeData(
-                      trackHeight: 4,
-                      thumbShape:
-                          const RoundSliderThumbShape(enabledThumbRadius: 6),
-                      activeTrackColor: context.colors.textSecondary,
-                      inactiveTrackColor: context.colors.border,
-                      thumbColor: context.colors.textPrimary,
-                    ),
-                    child: Slider(
-                      value: player.volume.toDouble().clamp(0.0, 100.0),
-                      max: 100,
-                      onChanged: (val) => player.setVolume(val),
-                    ),
-                  ),
-                ),
-                IconButton(
-                  icon: Icon(Icons.close_rounded,
-                      color: context.colors.textSecondary, size: 20),
-                  onPressed: player.stop,
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _formatDuration(Duration d) {
-    String two(int n) => n.toString().padLeft(2, '0');
-    return '${two(d.inMinutes.remainder(60))}:${two(d.inSeconds.remainder(60))}';
-  }
-
-  void _showLyricsDialog(
-      BuildContext context, String title, String artist, String filename) {
-    showDialog(
-      context: context,
-      builder: (_) => LyricsView(title: title, artist: artist, filename: filename),
-    );
+    // Desktop/tablet player is now handled by app_shell's unified bottom bar
+    return const SizedBox.shrink();
   }
 }

@@ -1,5 +1,11 @@
-import 'dart:io';
+import 'dart:ui' as ui;
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'platform_stub.dart'
+    if (dart.library.io) 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:file_picker/file_picker.dart';
+import 'package:sonero_app/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:flutter/services.dart';
@@ -10,7 +16,9 @@ import '../../providers/settings_provider.dart';
 import '../../providers/library_provider.dart';
 import '../theme.dart';
 import '../../services/log_service.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
+import '../player/equalizer_view.dart';
+import 'favicon_stub.dart'
+    if (dart.library.js_interop) 'favicon_web.dart';
 
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
@@ -58,167 +66,617 @@ class _SettingsPageState extends State<SettingsPage> {
     _shazamProxyUrlCtrl.dispose();
     super.dispose();
   }
+  Future<String?> _showWebFolderInput(BuildContext context, String title, String currentPath) async {
+    // First, try the backend native folder picker
+    try {
+      final uri = Uri.parse(
+        'http://127.0.0.1:8000/api/v1/settings/pick-folder?title=${Uri.encodeComponent(title)}',
+      );
+      final response = await http.get(uri).timeout(const Duration(seconds: 120));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final path = data['path'] as String?;
+        if (path != null && path.isNotEmpty) {
+          return path;
+        }
+      }
+    } catch (_) {
+      // Backend unreachable — fall through to manual input
+    }
+    // Fallback: manual text input
+    final controller = TextEditingController(text: currentPath);
+    final accent = Theme.of(context).colorScheme.primary;
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: context.colors.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Icon(Icons.folder_rounded, color: accent, size: 20),
+            const SizedBox(width: 10),
+            Text(title, style: TextStyle(color: context.colors.textPrimary, fontSize: 16)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Escribe la ruta completa de la carpeta:', style: TextStyle(color: context.colors.textSecondary, fontSize: 13)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              style: TextStyle(color: context.colors.textPrimary, fontSize: 14),
+              decoration: InputDecoration(
+                hintText: r'Ej: C:\Users\tu_usuario\Music\Sonero',
+                hintStyle: TextStyle(color: context.colors.textSecondary.withOpacity(0.4), fontSize: 13),
+                filled: true,
+                fillColor: context.colors.bg,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: context.colors.border.withOpacity(0.2))),
+                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: context.colors.border.withOpacity(0.2))),
+                focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide(color: accent, width: 1.5)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                prefixIcon: Icon(Icons.folder_rounded, color: accent.withOpacity(0.5), size: 20),
+              ),
+              onSubmitted: (val) => Navigator.of(ctx).pop(val),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text('Cancelar', style: TextStyle(color: context.colors.textSecondary)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text),
+            style: ElevatedButton.styleFrom(backgroundColor: accent, foregroundColor: Colors.white, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)), elevation: 0),
+            child: const Text('Confirmar'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWebSettingsSection(BuildContext context, SettingsProvider settings) {
+    return SizedBox(
+      width: 500,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('URL del Servidor', style: TextStyle(fontWeight: FontWeight.bold, color: context.colors.textPrimary)),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _apiUrlCtrl,
+            decoration: const InputDecoration(hintText: 'http://localhost:8000'),
+            onSubmitted: (v) => settings.setApiUrl(v),
+          ),
+          const SizedBox(height: 16),
+          Text('API Key de Gemini', style: TextStyle(fontWeight: FontWeight.bold, color: context.colors.textPrimary)),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _geminiKeyCtrl,
+            obscureText: true,
+            decoration: const InputDecoration(hintText: 'Tu clave de Google AI Studio'),
+            onSubmitted: (v) => settings.setGeminiApiKey(v),
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () {
+                settings.setApiUrl(_apiUrlCtrl.text);
+                settings.setGeminiApiKey(_geminiKeyCtrl.text);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Configuración guardada.')),
+                );
+              },
+              child: const Text('Guardar'),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLogoPreview(SettingsProvider settings, double size) {
+    final path = settings.customLogoPath;
+    if (path.isEmpty) {
+      return Image.asset('assets/images/logo.png', width: size, height: size, fit: BoxFit.cover);
+    }
+    if (path.startsWith('data:')) {
+      try {
+        final b64 = path.split(',').last;
+        return Image.memory(
+          base64Decode(b64),
+          width: size, height: size, fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => Image.asset('assets/images/logo.png', width: size, height: size, fit: BoxFit.cover),
+        );
+      } catch (_) {
+        return Image.asset('assets/images/logo.png', width: size, height: size, fit: BoxFit.cover);
+      }
+    }
+    // Fallback for any other stored path — just show default
+    return Image.asset('assets/images/logo.png', width: size, height: size, fit: BoxFit.cover);
+  }
+
+  Future<void> _pickLogoImage(SettingsProvider settings) async {
+    try {
+      final result = await FilePicker.pickFiles(
+        type: FileType.image,
+        allowMultiple: false,
+        withData: true,
+      );
+      if (result != null && result.files.isNotEmpty) {
+        final file = result.files.first;
+        if (file.bytes != null) {
+          // Decode, resize to 200x200 max, and re-encode as PNG to keep small
+          final original = await decodeImageFromList(file.bytes!);
+          final size = 200.0;
+          double w = original.width.toDouble();
+          double h = original.height.toDouble();
+          if (w > size || h > size) {
+            final scale = size / (w > h ? w : h);
+            w = (w * scale).roundToDouble();
+            h = (h * scale).roundToDouble();
+          }
+          // Use Canvas to resize
+          final recorder = ui.PictureRecorder();
+          final canvas = Canvas(recorder, Rect.fromLTWH(0, 0, w, h));
+          canvas.drawImageRect(
+            original,
+            Rect.fromLTWH(0, 0, original.width.toDouble(), original.height.toDouble()),
+            Rect.fromLTWH(0, 0, w, h),
+            Paint()..filterQuality = FilterQuality.high,
+          );
+          final picture = recorder.endRecording();
+          final resized = await picture.toImage(w.toInt(), h.toInt());
+          final byteData = await resized.toByteData(format: ui.ImageByteFormat.png);
+          if (byteData != null) {
+            final pngBytes = byteData.buffer.asUint8List();
+            final b64 = base64Encode(pngBytes);
+            final dataUri = 'data:image/png;base64,$b64';
+            debugPrint('Logo saved: ${dataUri.length} chars');
+            await settings.setCustomLogoPath(dataUri);
+            // Update favicon on web
+            if (kIsWeb) {
+              _updateFavicon(dataUri);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Logo pick error: $e');
+    }
+  }
+
+  /// Updates the browser favicon dynamically (web only)
+  void _updateFavicon(String dataUri) {
+    try {
+      setFaviconDataUri(dataUri);
+    } catch (_) {}
+  }
 
   @override
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
 
+
+
     return Scaffold(
       backgroundColor: context.colors.bg,
       appBar: AppBar(
         backgroundColor: context.colors.surface,
+        titleSpacing: 20,
         title: Text(AppLocalizations.of(context)!.settings,
             style: TextStyle(color: context.colors.textPrimary, fontSize: 16, fontWeight: FontWeight.w600)),
         iconTheme: IconThemeData(color: context.colors.textSecondary),
         elevation: 0,
+        leading: Padding(
+          padding: const EdgeInsets.only(left: 8),
+          child: IconButton(
+            icon: const Icon(Icons.arrow_back_rounded, size: 20),
+            onPressed: () => Navigator.of(context).pop(),
+            style: IconButton.styleFrom(shape: const CircleBorder(), backgroundColor: Colors.transparent, side: BorderSide.none),
+          ),
+        ),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
-          child: Container(height: 1, color: context.colors.border),
+          child: Container(height: 1, color: context.colors.border.withOpacity(0.3)),
         ),
       ),
       body: ListView(
         padding: EdgeInsets.fromLTRB(
-          MediaQuery.of(context).size.width < 600 ? 16 : 24,  // left
-          MediaQuery.of(context).size.width < 600 ? 16 : 24,  // top
-          MediaQuery.of(context).size.width < 600 ? 16 : 24,  // right
-          MediaQuery.of(context).size.width < 600 ? 40 : 32,  // bottom
+          MediaQuery.of(context).size.width < 600 ? 16 : 32,  // left
+          MediaQuery.of(context).size.width < 600 ? 16 : 28,  // top
+          MediaQuery.of(context).size.width < 600 ? 16 : 32,  // right
+          MediaQuery.of(context).size.width < 600 ? 40 : 40,  // bottom
         ),
         children: [
           // ── Music folder ───────────────────────────────────────────────
-          _Section(
-            title: AppLocalizations.of(context)!.musicFolder,
-            icon: Icons.folder_outlined,
-            children: [
-              _InfoText(
-                settings.hasMusicFolder
-                    ? settings.musicFolder
-                    : 'No seleccionada',
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.folder_open, size: 16),
-                    label: const Text('Seleccionar carpeta'),
-                    onPressed: () async {
-                      final result = await FilePicker.getDirectoryPath(
-                        dialogTitle: 'Selecciona la carpeta donde guardar la música',
-                      );
-                      if (result != null) {
-                        await settings.setMusicFolder(result);
-                      }
-                    },
+          // ── Carpetas (lado a lado) ─────────────────────────────────
+          _SectionLabel('Almacenamiento'),
+          Builder(builder: (context) {
+            final isMobile = MediaQuery.of(context).size.width < 600;
+            return Flex(
+              direction: isMobile ? Axis.vertical : Axis.horizontal,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+              // Music folder
+              Flexible(
+                fit: isMobile ? FlexFit.loose : FlexFit.tight,
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: context.colors.surface,
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  if (settings.hasMusicFolder) ...[
-                    OutlinedButton.icon(
-                      icon: const Icon(Icons.open_in_new, size: 16),
-                      label: const Text('Abrir'),
-                      onPressed: () {
-                        final path = settings.musicFolder;
-                        if (Platform.isWindows) {
-                          Process.run('explorer', [path]);
-                        } else if (Platform.isMacOS) {
-                          Process.run('open', [path]);
-                        } else if (Platform.isLinux) {
-                          Process.run('xdg-open', [path]);
-                        }
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.music_note_rounded, size: 16, color: Theme.of(context).colorScheme.primary),
+                          const SizedBox(width: 8),
+                          Text('Música', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: context.colors.textPrimary)),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      _InfoText(
+                        settings.hasMusicFolder
+                            ? settings.musicFolder
+                            : 'No seleccionada',
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          ElevatedButton.icon(
+                            icon: const Icon(Icons.folder_open, size: 16),
+                            label: const Text('Seleccionar carpeta'),
+                            onPressed: () async {
+                              if (kIsWeb) {
+                                final path = await _showWebFolderInput(context, 'Carpeta de Música', settings.musicFolder);
+                                if (path != null && path.isNotEmpty) {
+                                  await settings.setMusicFolder(path);
+                                }
+                                return;
+                              }
+                              final result = await FilePicker.getDirectoryPath(
+                                dialogTitle: 'Selecciona la carpeta donde guardar la música',
+                              );
+                              if (result != null) {
+                                await settings.setMusicFolder(result);
+                              }
+                            },
+                          ),
+                          if (settings.hasMusicFolder) ...[
+                            OutlinedButton.icon(
+                              icon: const Icon(Icons.open_in_new, size: 16),
+                              label: const Text('Abrir'),
+                              onPressed: kIsWeb ? null : () {
+                                final path = settings.musicFolder;
+                                if (!kIsWeb) {
+                                  if (Platform.isWindows) {
+                                    Process.run('explorer', [path]);
+                                  } else if (Platform.isMacOS) {
+                                    Process.run('open', [path]);
+                                  } else if (Platform.isLinux) {
+                                    Process.run('xdg-open', [path]);
+                                  }
+                                }
+                              },
+                            ),
+                            TextButton(
+                              onPressed: () => settings.setMusicFolder(''),
+                              child: Text('Limpiar',
+                                  style: TextStyle(color: context.colors.textSecondary)),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              SizedBox(width: isMobile ? 0 : 12, height: isMobile ? 12 : 0),
+              // Video folder
+              Flexible(
+                fit: isMobile ? FlexFit.loose : FlexFit.tight,
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: context.colors.surface,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.videocam_rounded, size: 16, color: Theme.of(context).colorScheme.primary),
+                          const SizedBox(width: 8),
+                          Text('Video', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: context.colors.textPrimary)),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      _InfoText(
+                        settings.hasVideoFolder
+                            ? settings.videoFolder
+                            : 'No seleccionada',
+                      ),
+                      const SizedBox(height: 10),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          ElevatedButton.icon(
+                            icon: const Icon(Icons.folder_open, size: 16),
+                            label: const Text('Seleccionar carpeta'),
+                            onPressed: () async {
+                              if (kIsWeb) {
+                                final path = await _showWebFolderInput(context, 'Carpeta de Videos', settings.videoFolder);
+                                if (path != null && path.isNotEmpty) {
+                                  await settings.setVideoFolder(path);
+                                }
+                                return;
+                              }
+                              final result = await FilePicker.getDirectoryPath(
+                                dialogTitle: 'Selecciona la carpeta donde guardar los videos',
+                              );
+                              if (result != null) {
+                                await settings.setVideoFolder(result);
+                              }
+                            },
+                          ),
+                          if (settings.hasVideoFolder) ...[
+                            OutlinedButton.icon(
+                              icon: const Icon(Icons.open_in_new, size: 16),
+                              label: const Text('Abrir'),
+                              onPressed: kIsWeb ? null : () {
+                                final path = settings.videoFolder;
+                                if (!kIsWeb) {
+                                  if (Platform.isWindows) {
+                                    Process.run('explorer', [path]);
+                                  } else if (Platform.isMacOS) {
+                                    Process.run('open', [path]);
+                                  } else if (Platform.isLinux) {
+                                    Process.run('xdg-open', [path]);
+                                  }
+                                }
+                              },
+                            ),
+                            TextButton(
+                              onPressed: () => settings.setVideoFolder(''),
+                              child: Text('Limpiar',
+                                  style: TextStyle(color: context.colors.textSecondary)),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+          }),
+
+          const SizedBox(height: 16),
+
+          // ── Audio / Ecualizador ─────────────────────────────────────
+          _SectionLabel('Audio'),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: context.colors.surface,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                InkWell(
+                  onTap: () => showEqualizerDialog(context),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    child: Row(
+                      children: [
+                        Icon(Icons.equalizer_rounded, size: 20, color: Theme.of(context).colorScheme.primary),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Ecualizador', style: TextStyle(
+                                color: context.colors.textPrimary,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              )),
+                              const SizedBox(height: 2),
+                              Text('EQ de 10 bandas, presets, bass boost, canal y más',
+                                style: TextStyle(
+                                  color: context.colors.textSecondary,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Icon(Icons.chevron_right_rounded, color: context.colors.textSecondary, size: 20),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: 16),
+
+          // ── Idioma (row inline) ──────────────────────────────────────
+          _SectionLabel('General'),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: context.colors.surface,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.language_rounded, size: 18, color: context.colors.textSecondary),
+                        const SizedBox(width: 10),
+                        Text('Idioma', style: TextStyle(color: context.colors.textPrimary, fontSize: 13)),
+                      ],
+                    ),
+                    DropdownButton<String>(
+                      value: settings.locale,
+                      dropdownColor: context.colors.surfaceAlt,
+                      underline: const SizedBox(),
+                      items: [
+                        DropdownMenuItem(value: 'es', child: Text(AppLocalizations.of(context)!.languageSpanish)),
+                        DropdownMenuItem(value: 'en', child: Text(AppLocalizations.of(context)!.languageEnglish)),
+                        DropdownMenuItem(value: 'ja', child: Text(AppLocalizations.of(context)!.languageJapanese)),
+                      ],
+                      onChanged: (lang) {
+                        if (lang != null) settings.setLocale(lang);
                       },
                     ),
-                    const SizedBox(width: 8),
-                    TextButton(
-                      onPressed: () => settings.setMusicFolder(''),
-                      child: Text('Limpiar',
-                          style: TextStyle(color: context.colors.textSecondary)),
-                    ),
                   ],
-                ],
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 24),
-
-          // ── Video folder ───────────────────────────────────────────────
-          _Section(
-            title: 'Carpeta de Video',
-            icon: Icons.video_library_outlined,
-            children: [
-              _InfoText(
-                settings.hasVideoFolder
-                    ? settings.videoFolder
-                    : 'No seleccionada',
-              ),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.folder_open, size: 16),
-                    label: const Text('Seleccionar carpeta'),
-                    onPressed: () async {
-                      final result = await FilePicker.getDirectoryPath(
-                        dialogTitle: 'Selecciona la carpeta donde guardar los videos',
-                      );
-                      if (result != null) {
-                        await settings.setVideoFolder(result);
-                      }
-                    },
-                  ),
-                  if (settings.hasVideoFolder) ...[
-                    OutlinedButton.icon(
-                      icon: const Icon(Icons.open_in_new, size: 16),
-                      label: const Text('Abrir'),
-                      onPressed: () {
-                        final path = settings.videoFolder;
-                        if (Platform.isWindows) {
-                          Process.run('explorer', [path]);
-                        } else if (Platform.isMacOS) {
-                          Process.run('open', [path]);
-                        } else if (Platform.isLinux) {
-                          Process.run('xdg-open', [path]);
-                        }
+                ),
+                Divider(height: 24, color: context.colors.border.withOpacity(0.3)),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.color_lens_rounded, size: 18, color: context.colors.textSecondary),
+                        const SizedBox(width: 10),
+                        Text('Color Principal', style: TextStyle(color: context.colors.textPrimary, fontSize: 13)),
+                      ],
+                    ),
+                    InkWell(
+                      onTap: () {
+                        showDialog(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            backgroundColor: context.colors.surface,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            title: const Text('Elegir color'),
+                            content: SingleChildScrollView(
+                              child: BlockPicker(
+                                pickerColor: settings.accentColor,
+                                onColorChanged: (color) {
+                                  settings.setAccentColor(color);
+                                },
+                              ),
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.of(ctx).pop(),
+                                child: Text('Cerrar', style: TextStyle(color: settings.accentColor)),
+                              ),
+                            ],
+                          ),
+                        );
                       },
-                    ),
-                    const SizedBox(width: 8),
-                    TextButton(
-                      onPressed: () => settings.setVideoFolder(''),
-                      child: Text('Limpiar',
-                          style: TextStyle(color: context.colors.textSecondary)),
+                      child: Container(
+                        width: 32,
+                        height: 32,
+                        decoration: BoxDecoration(
+                          color: settings.accentColor,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: context.colors.border.withOpacity(0.5), width: 1.5),
+                        ),
+                      ),
                     ),
                   ],
-                ],
-              ),
-            ],
+                ),
+              ],
+            ),
           ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 12),
 
-          // ── Language ────────────────────────────────────────────────────
-          _Section(
-            title: AppLocalizations.of(context)!.language,
-            icon: Icons.language,
-            children: [
-              DropdownButton<String>(
-                value: settings.locale,
-                dropdownColor: context.colors.surfaceAlt,
-                underline: const SizedBox(),
-                isExpanded: true,
-                items: [
-                  DropdownMenuItem(value: 'es', child: Text(AppLocalizations.of(context)!.languageSpanish)),
-                  DropdownMenuItem(value: 'en', child: Text(AppLocalizations.of(context)!.languageEnglish)),
-                  DropdownMenuItem(value: 'ja', child: Text(AppLocalizations.of(context)!.languageJapanese)),
-                ],
-                onChanged: (lang) {
-                  if (lang != null) settings.setLocale(lang);
-                },
-              ),
-            ],
+          // ── Logo personalizado ────────────────────────────────────
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: context.colors.surface,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Row(
+              children: [
+                // Current logo preview
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Theme.of(context).colorScheme.primary.withOpacity(0.3)),
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(14),
+                    child: _buildLogoPreview(settings, 56),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Logo personalizado',
+                        style: TextStyle(
+                          color: context.colors.textPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Cambia el ícono de la app donde aparezca',
+                        style: TextStyle(
+                          color: context.colors.textSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Row(
+                        children: [
+                          ElevatedButton.icon(
+                            icon: const Icon(Icons.image_rounded, size: 16),
+                            label: const Text('Elegir imagen'),
+                            style: ElevatedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                              textStyle: const TextStyle(fontSize: 12),
+                            ),
+                            onPressed: () => _pickLogoImage(settings),
+                          ),
+                          if (settings.customLogoPath.isNotEmpty) ...[
+                            const SizedBox(width: 8),
+                            TextButton.icon(
+                              icon: Icon(Icons.restore_rounded, size: 16, color: context.colors.error),
+                              label: Text('Restaurar', style: TextStyle(color: context.colors.error, fontSize: 12)),
+                              onPressed: () => settings.clearCustomLogo(),
+                            ),
+                          ],
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
 
           // ── Authentication (Anti-Bot) ──────────────────────────────────
           _Section(
@@ -262,6 +720,12 @@ class _SettingsPageState extends State<SettingsPage> {
                       icon: Icon(Icons.upload_file, size: 16),
                       label: Text('Cargar cookies.txt'),
                       onPressed: () async {
+                        if (kIsWeb) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Carga de archivos no disponible en la versión web.')),
+                          );
+                          return;
+                        }
                         final result = await FilePicker.pickFiles(
                           dialogTitle: 'Selecciona tu archivo cookies.txt',
                           type: FileType.custom,
@@ -290,10 +754,16 @@ class _SettingsPageState extends State<SettingsPage> {
                   ),
                 ],
               ),
+              if (!settings.api.isNative) ...[
+                const SizedBox(height: 16),
+                const _BrowserCookiesTile(),
+                const SizedBox(height: 16),
+                const _YoutubeStatusTile(),
+              ],
             ],
           ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
 
           // ── Google Cloud Integration ────────────────────────────────────
           _Section(
@@ -305,28 +775,42 @@ class _SettingsPageState extends State<SettingsPage> {
                 style: TextStyle(color: context.colors.textSecondary, fontSize: 12),
               ),
               const SizedBox(height: 16),
-              TextField(
-                controller: _googleClientIdCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Google Client ID',
-                  hintText: 'ej. 123456789-abc.apps.googleusercontent.com',
-                  prefixIcon: Icon(Icons.vpn_key_outlined, size: 18),
-                ),
-                style: TextStyle(fontSize: 13),
-                onSubmitted: (v) => settings.setGoogleClientId(v),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _googleClientSecretCtrl,
-                decoration: const InputDecoration(
-                  labelText: 'Google Client Secret',
-                  hintText: 'Introduce tu Client Secret de Google Cloud',
-                  prefixIcon: Icon(Icons.lock_outline_rounded, size: 18),
-                ),
-                obscureText: true,
-                style: TextStyle(fontSize: 13),
-                onSubmitted: (v) => settings.setGoogleClientSecret(v),
-              ),
+              Builder(builder: (ctx) {
+                final isMobile = MediaQuery.of(ctx).size.width < 600;
+                return Flex(
+                  direction: isMobile ? Axis.vertical : Axis.horizontal,
+                  children: [
+                    Flexible(
+                      fit: isMobile ? FlexFit.loose : FlexFit.tight,
+                      child: TextField(
+                        controller: _googleClientIdCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Google Client ID',
+                          hintText: 'ej. 123456789-abc.apps.googleusercontent.com',
+                          prefixIcon: Icon(Icons.vpn_key_outlined, size: 18),
+                        ),
+                        style: TextStyle(fontSize: 13),
+                        onSubmitted: (v) => settings.setGoogleClientId(v),
+                      ),
+                    ),
+                    SizedBox(width: isMobile ? 0 : 12, height: isMobile ? 12 : 0),
+                    Flexible(
+                      fit: isMobile ? FlexFit.loose : FlexFit.tight,
+                      child: TextField(
+                        controller: _googleClientSecretCtrl,
+                        decoration: const InputDecoration(
+                          labelText: 'Google Client Secret',
+                          hintText: 'Introduce tu Client Secret',
+                          prefixIcon: Icon(Icons.lock_outline_rounded, size: 18),
+                        ),
+                        obscureText: true,
+                        style: TextStyle(fontSize: 13),
+                        onSubmitted: (v) => settings.setGoogleClientSecret(v),
+                      ),
+                    ),
+                  ],
+                );
+              }),
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: () {
@@ -343,7 +827,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
 
           // ── Google Drive Sync ───────────────────────────────────────────
           if (settings.isLoggedIn) ...[
@@ -429,7 +913,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ],
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
           ],
 
           // ── Appearance ──────────────────────────────────────────────────
@@ -504,7 +988,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
 
           // ── Servicio de Reconocimiento ─────────────────────────────────
           _Section(
@@ -648,7 +1132,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
 
           // ── Backend API URL ────────────────────────────────────────────
           _Section(
@@ -691,7 +1175,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
 
           // ── Listen duration ────────────────────────────────────────────
           _Section(
@@ -732,7 +1216,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
 
           // ── Lyrics latency/offset ──────────────────────────────────────
           _Section(
@@ -782,11 +1266,11 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
 
           // ── Hotkeys ──────────────────────────────────────────────────
           // Solo se muestran en escritorio: en Android no existen teclas globales
-          if (!Platform.isAndroid) ...[
+          if (!kIsWeb && !Platform.isAndroid) ...[
             _Section(
               title: 'Atajos de teclado globales',
               icon: Icons.keyboard_outlined,
@@ -832,7 +1316,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 ),
               ],
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
           ],
 
           // ── Mic device ─────────────────────────────────────────────
@@ -866,7 +1350,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
 
           // ── Mantenimiento de Biblioteca ───────────────────────────────
           _Section(
@@ -886,7 +1370,7 @@ class _SettingsPageState extends State<SettingsPage> {
             ],
           ),
 
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
 
           // ── Logs de Diagnóstico ───────────────────────────────────────
           _Section(
@@ -1178,30 +1662,59 @@ class _Section extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isMobile = MediaQuery.of(context).size.width < 600;
-    return Container(
-      padding: EdgeInsets.all(isMobile ? 14 : 20),
-      decoration: BoxDecoration(
-        color: context.colors.surface,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: context.colors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(icon, size: isMobile ? 16 : 18, color: Theme.of(context).colorScheme.primary),
-              SizedBox(width: isMobile ? 6 : 8),
-              Text(title,
-                  style: TextStyle(
-                      color: context.colors.textPrimary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: isMobile ? 13 : 14)),
-            ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Uppercase section header label (outside the card)
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 8),
+          child: Text(
+            title.toUpperCase(),
+            style: TextStyle(
+              color: context.colors.textSecondary.withOpacity(0.6),
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 0.8,
+            ),
           ),
-          SizedBox(height: isMobile ? 12 : 16),
-          ...children,
-        ],
+        ),
+        // Content card
+        Container(
+          width: double.infinity,
+          padding: EdgeInsets.symmetric(
+            horizontal: isMobile ? 14 : 20,
+            vertical: isMobile ? 14 : 16,
+          ),
+          decoration: BoxDecoration(
+            color: context.colors.surface,
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: children,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  final String title;
+  const _SectionLabel(this.title);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 8, top: 4),
+      child: Text(
+        title.toUpperCase(),
+        style: TextStyle(
+          color: context.colors.textSecondary.withOpacity(0.6),
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 0.8,
+        ),
       ),
     );
   }
@@ -1217,7 +1730,6 @@ class _InfoText extends StatelessWidget {
         decoration: BoxDecoration(
           color: context.colors.surfaceAlt,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: context.colors.border),
         ),
         child: Text(text,
             style: TextStyle(
@@ -1657,6 +2169,197 @@ class _DuplicatesDialogState extends State<_DuplicatesDialog> {
       title: title,
       content: content,
       actions: actions,
+    );
+  }
+}
+
+
+/// Opt-in for letting the backend read YouTube cookies from one browser.
+/// Off by default: reading a browser's cookie store exposes all of its cookies
+/// to the backend process and, on macOS, needs keychain access.
+class _BrowserCookiesTile extends StatefulWidget {
+  const _BrowserCookiesTile();
+
+  @override
+  State<_BrowserCookiesTile> createState() => _BrowserCookiesTileState();
+}
+
+class _BrowserCookiesTileState extends State<_BrowserCookiesTile> {
+  static const _browsers = {
+    'chrome': 'Chrome',
+    'brave': 'Brave',
+    'edge': 'Edge',
+    'firefox': 'Firefox',
+    'opera': 'Opera',
+    'safari': 'Safari',
+    'vivaldi': 'Vivaldi',
+    'chromium': 'Chromium',
+  };
+
+  String? _browser;
+  bool _loading = true;
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final api = context.read<SettingsProvider>().api;
+    api.getCookieBrowser().then((value) {
+      if (mounted) setState(() { _browser = value; _loading = false; });
+    }).catchError((_) {
+      if (mounted) setState(() => _loading = false);
+    });
+  }
+
+  Future<void> _change(String? browser) async {
+    if (browser == _browser) return;
+    if (browser != null) {
+      final ok = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text('¿Usar cookies de ${_browsers[browser]}?'),
+          content: const Text(
+            'Sonero leerá las cookies de ese navegador para que YouTube no bloquee las descargas. '
+            'Solo se envían a YouTube, pero el servidor de Sonero tendrá acceso a todas las cookies del navegador.\n\n'
+            'En macOS el sistema te pedirá permiso para acceder al Llavero.',
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancelar')),
+            ElevatedButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Permitir')),
+          ],
+        ),
+      );
+      if (ok != true) return;
+    }
+
+    setState(() => _saving = true);
+    try {
+      final saved = await context.read<SettingsProvider>().api.setCookieBrowser(browser);
+      if (mounted) setState(() => _browser = saved);
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(e.toString().replaceFirst('Exception: ', '')),
+          backgroundColor: context.colors.error,
+        ));
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(Icons.cookie_outlined, size: 18, color: context.colors.textSecondary),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            'Leer cookies de un navegador',
+            style: TextStyle(color: context.colors.textPrimary, fontSize: 13),
+          ),
+        ),
+        if (_loading || _saving)
+          const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+        else
+          DropdownButton<String?>(
+            value: _browser,
+            underline: const SizedBox.shrink(),
+            items: [
+              const DropdownMenuItem<String?>(value: null, child: Text('Desactivado')),
+              ..._browsers.entries.map((e) => DropdownMenuItem<String?>(value: e.key, child: Text(e.value))),
+            ],
+            onChanged: _change,
+          ),
+      ],
+    );
+  }
+}
+
+
+/// What affects YouTube downloads: yt-dlp version, JavaScript runtime and cookies.
+class _YoutubeStatusTile extends StatefulWidget {
+  const _YoutubeStatusTile();
+
+  @override
+  State<_YoutubeStatusTile> createState() => _YoutubeStatusTileState();
+}
+
+class _YoutubeStatusTileState extends State<_YoutubeStatusTile> {
+  Map<String, dynamic>? _status;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final s = await context.read<SettingsProvider>().api.getYoutubeStatus();
+      if (mounted) setState(() => _status = s);
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = _status;
+    if (s == null) {
+      return _error == null
+          ? const LinearProgressIndicator()
+          : Text('No se pudo consultar el estado de YouTube.', style: TextStyle(color: context.colors.textSecondary, fontSize: 12));
+    }
+    final ok = s['ok'] == true;
+    final issues = ((s['issues'] as List?) ?? const []).cast<String>();
+    final cookies = s['cookies'] as String?;
+    Widget row(IconData icon, String label, String value, {bool good = true}) => Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Row(children: [
+            Icon(icon, size: 16, color: good ? context.colors.success : Colors.orange),
+            const SizedBox(width: 8),
+            Text('$label: ', style: TextStyle(color: context.colors.textSecondary, fontSize: 12)),
+            Expanded(child: Text(value, style: TextStyle(color: context.colors.textPrimary, fontSize: 12))),
+          ]),
+        );
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: context.colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: ok ? context.colors.border : Colors.orange.withValues(alpha: 0.6)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(ok ? Icons.check_circle_rounded : Icons.warning_amber_rounded,
+                color: ok ? context.colors.success : Colors.orange, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(ok ? 'Descargas de YouTube listas' : 'Descargas de YouTube: revisa esto',
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+            ),
+            IconButton(icon: const Icon(Icons.refresh_rounded, size: 18), tooltip: 'Actualizar', onPressed: _load),
+          ]),
+          row(Icons.system_update_alt_rounded, 'yt-dlp', '${s['ytdlp_version']}', good: s['outdated'] != true),
+          row(Icons.code_rounded, 'Motor JavaScript', s['js_runtime'] as String? ?? 'no encontrado',
+              good: s['js_runtime'] != null && s['ejs_installed'] == true),
+          row(Icons.cookie_outlined, 'Cookies',
+              cookies == null ? 'no configuradas (YouTube puede bloquear descargas, sobre todo con VPN)'
+                  : cookies == 'file' ? 'archivo cookies.txt' : 'navegador ${cookies.replaceFirst('browser:', '')}',
+              good: cookies != null),
+          for (final issue in issues)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text('• $issue', style: TextStyle(color: Colors.orange.shade300, fontSize: 12, height: 1.35)),
+            ),
+        ],
+      ),
     );
   }
 }

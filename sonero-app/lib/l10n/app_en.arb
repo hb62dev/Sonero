@@ -244,6 +244,45 @@
     "placeholders": {
       "count": { "type": "int" }
     }
-  }
-}
+  },
 
+  "navShare": "Share",
+  "navActiveDownloads": "Downloads",
+  "wifiTitle": "Share via WiFi",
+  "wifiTabSend": "Send",
+  "wifiTabReceive": "Receive",
+  "wifiNoFilesTitle": "No files selected",
+  "wifiNoFilesHint": "Go to your Library, long-press a song or video to start selecting, check what you want to send and tap the WiFi icon.",
+  "wifiSendCount": "Send {count} file(s)",
+  "wifiClear": "Clear",
+  "wifiReceiverIp": "Receiver IP",
+  "wifiReceiverIpHint": "e.g. 192.168.1.50",
+  "wifiSend": "Send",
+  "wifiSending": "Sending",
+  "wifiQueue": "Send queue",
+  "wifiCompleted": "{done} / {total} completed",
+  "wifiEnterIp": "Enter the receiver's IP.",
+  "wifiSendFinished": "Transfer finished.",
+  "wifiSendError": "Transfer error: {error}",
+  "wifiReady": "Ready to receive files",
+  "wifiEnterIpOnSender": "Enter this IP in the Sonero app on the other device.",
+  "wifiOtherIps": "Other networks: {ips}",
+  "wifiOrOpenInBrowser": "No app? Open this in your phone's browser:",
+  "wifiCopied": "Copied to clipboard.",
+  "wifiCopy": "Copy",
+  "wifiReceiveOff": "Receiving is off",
+  "wifiReceiveOffHint": "Turn on receiving to get music or videos from other devices on the same WiFi network.",
+  "wifiStartReceiving": "Start receiving",
+  "wifiStopReceiving": "Stop receiving",
+  "wifiStartError": "Couldn't start receiving: {error}",
+  "wifiReceivedList": "Received / in progress",
+  "wifiNoNetwork": "No WiFi or LAN network found. Connect to a network to share.",
+  "wifiSameNetworkTip": "Both devices must be on the same WiFi network. An active VPN may block the connection, and your computer may ask permission to accept incoming connections.",
+  "wifiBackendUnavailable": "Can't reach the Sonero server. Make sure it's running.",
+  "wifiStatusWaiting": "Waiting…",
+  "wifiStatusTransferring": "Transferring… {pct}%",
+  "wifiStatusDone": "Completed",
+  "wifiStatusDuplicate": "Already there, skipped",
+  "wifiStatusFailed": "Failed: {error}",
+  "wifiUnknownError": "Unknown error"
+}

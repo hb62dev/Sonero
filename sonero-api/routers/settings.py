@@ -1,9 +1,98 @@
-from fastapi import APIRouter, File, UploadFile, HTTPException
+import asyncio
+import sys
+from fastapi import APIRouter, File, UploadFile, HTTPException, Query
 from pathlib import Path
 from config import settings
+from pydantic import BaseModel
+from services import cookies
 from services.benrio_client import benrio_client
 
 router = APIRouter()
+
+
+@router.get(
+    "/settings/pick-folder",
+    summary="Open native OS folder picker dialog",
+)
+async def pick_folder(
+    title: str = Query("Selecciona una carpeta", description="Title for the dialog"),
+) -> dict:
+    """
+    Opens the native OS folder-picker dialog (Windows/macOS/Linux)
+    and returns the selected path. Returns empty string if cancelled.
+    Uses tkinter which ships with Python's standard library.
+    """
+    def _open_dialog() -> str:
+        import tkinter as tk
+        from tkinter import filedialog
+
+        root = tk.Tk()
+        root.withdraw()            # Hide the root window
+        root.attributes('-topmost', True)  # Bring dialog to front
+        root.update()              # Process events so it appears on top
+
+        folder = filedialog.askdirectory(
+            title=title,
+            mustexist=False,
+        )
+
+        root.destroy()
+        return folder or ""
+
+    # Run in a thread to avoid blocking the event loop
+    loop = asyncio.get_event_loop()
+    selected = await loop.run_in_executor(None, _open_dialog)
+
+    return {"path": selected}
+
+@router.get(
+    "/settings/youtube",
+    summary="Health of YouTube downloads: yt-dlp version, JS runtime, cookies",
+)
+async def youtube_status() -> dict:
+    from services import youtube
+
+    return youtube.status()
+
+
+class CookieBrowserUpdate(BaseModel):
+    browser: str | None = None  # None / "" disables reading browser cookies
+
+
+@router.get(
+    "/settings/cookies",
+    summary="Current YouTube cookie source",
+)
+async def get_cookie_settings() -> dict:
+    return {
+        "browser": cookies.get_cookie_browser(),
+        "has_cookie_file": (settings.TMP_DIR / "cookies.txt").exists(),
+        "supported_browsers": list(cookies.SUPPORTED_BROWSERS),
+    }
+
+
+@router.put(
+    "/settings/cookies/browser",
+    summary="Opt in/out of reading YouTube cookies from a browser",
+    description="Off by default. Enabling tests the browser once; on macOS this is "
+                "when the system asks for keychain access.",
+)
+async def set_cookie_browser(body: CookieBrowserUpdate) -> dict:
+    browser = (body.browser or "").strip().lower() or None
+    if browser is not None:
+        if browser not in cookies.SUPPORTED_BROWSERS:
+            raise HTTPException(status_code=400, detail=f"Navegador no soportado: {browser}")
+        loop = asyncio.get_running_loop()
+        try:
+            await loop.run_in_executor(None, cookies.test_browser_cookies, browser)
+        except Exception as e:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No se pudieron leer las cookies de {browser}: {e}",
+            )
+    cookies.set_cookie_browser(browser)
+    return await get_cookie_settings()
+
 
 @router.post(
     "/settings/cookies/benrio",
@@ -38,9 +127,13 @@ async def upload_cookies(file: UploadFile = File(...)) -> dict:
     cookie_path = settings.TMP_DIR / "cookies.txt"
     
     try:
-        content = await file.read()
+        content = await file.read(1_048_576 + 1)  # Read up to 1MB + 1 byte
+        if len(content) > 1_048_576:
+            raise HTTPException(status_code=413, detail="Archivo muy grande (máximo 1MB).")
         with open(cookie_path, "wb") as f:
             f.write(content)
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al guardar el archivo: {str(e)}")
         

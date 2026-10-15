@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 import 'package:youtube_explode_dart/youtube_explode_dart.dart';
 import 'package:path/path.dart' as p;
@@ -21,7 +22,7 @@ class ApiClient {
 
   ApiClient({required this.baseUrl, this.musicFolder, this.videoFolder});
 
-  bool get isNative => Platform.isAndroid || Platform.isIOS || baseUrl == 'native';
+  bool get isNative => !kIsWeb && baseUrl == 'native';
 
   // ── Listen pipeline ──────────────────────────────────────────────────────
 
@@ -112,10 +113,15 @@ class ApiClient {
             }
           } catch (_) {}
           
+          // Check for cover image
+          final coverFile = File(p.join(entity.path, 'cover.jpg'));
+          final hasCover = await coverFile.exists();
+
           playlistsList.add({
             'name': name,
             'path': entity.path,
             'track_count': count,
+            'cover_url': hasCover ? 'file://${coverFile.path}' : null,
           });
         }
       }
@@ -142,6 +148,22 @@ class ApiClient {
       body: jsonEncode({'name': name}),
     );
     _check(res);
+  }
+
+  Future<String?> uploadPlaylistCover(String playlistName, List<int> imageBytes, String fileName) async {
+    if (isNative) {
+      // Native: save directly to playlist folder
+      final coverPath = p.join(musicFolder ?? '', playlistName, 'cover.jpg');
+      await File(coverPath).writeAsBytes(imageBytes);
+      return 'file://$coverPath';
+    }
+    final uri = Uri.parse('$baseUrl/api/v1/playlists/$playlistName/cover');
+    final request = http.MultipartRequest('POST', uri)
+      ..files.add(http.MultipartFile.fromBytes('file', imageBytes, filename: fileName));
+    final response = await request.send();
+    if (response.statusCode != 200) return null;
+    final body = jsonDecode(await response.stream.bytesToString());
+    return body['cover_url'] as String?;
   }
 
   Future<void> renamePlaylist(String oldName, String newName) async {
@@ -778,7 +800,13 @@ class ApiClient {
     t = t.replaceAll(_youtubeSuffixes, '');
     t = t.replaceAll(_featuring, '');
     t = t.replaceAll(_extraParens, '');
-    return t.replaceAll(RegExp(r'^[ \-|]+|[ \-|]+$'), '').trim();
+    // Remove square brackets content too (e.g. [Official Video])
+    t = t.replaceAll(RegExp(r'\[.*?\]'), '');
+    // Remove common YouTube noise words
+    t = t.replaceAll(RegExp(r'\b(?:official\s+video|official\s+audio|official\s+music\s+video|lyric\s+video|lyrics?\s+video|audio\s+oficial|video\s+oficial)\b', caseSensitive: false), '');
+    // Remove extra whitespace and trailing/leading separators
+    t = t.replaceAll(RegExp(r'\s{2,}'), ' ');
+    return t.replaceAll(RegExp(r'^[ \-|,]+|[ \-|,]+$'), '').trim();
   }
 
   Map<String, String> _extractArtistTitle(String rawTitle, String rawArtist) {
@@ -787,12 +815,24 @@ class ApiClient {
     final cleaned = _cleanTitle(title);
     final match = _artistPrefix.firstMatch(cleaned);
     if (match != null) {
-      final extractedArtist = match.group(1)!.trim();
+      var extractedArtist = match.group(1)!.trim();
       final extractedTitle = _cleanTitle(match.group(2)!);
-      final useArtist = rawArtist.trim().isNotEmpty ? rawArtist.trim() : extractedArtist;
+      // Use only primary artist (first name before comma) for better matching
+      if (extractedArtist.contains(',')) {
+        extractedArtist = extractedArtist.split(',').first.trim();
+      }
+      var useArtist = rawArtist.trim().isNotEmpty ? rawArtist.trim() : extractedArtist;
+      // Also clean the provided artist of comma-separated names
+      if (useArtist.contains(',')) {
+        useArtist = useArtist.split(',').first.trim();
+      }
       return {'artist': useArtist, 'title': extractedTitle};
     }
-    return {'artist': rawArtist.trim(), 'title': cleaned};
+    var finalArtist = rawArtist.trim();
+    if (finalArtist.contains(',')) {
+      finalArtist = finalArtist.split(',').first.trim();
+    }
+    return {'artist': finalArtist, 'title': cleaned};
   }
 
   Future<Map<String, dynamic>?> _lrclibFetch(String title, String artist) async {
@@ -862,38 +902,43 @@ class ApiClient {
   }
 
   Future<Map<String, dynamic>> getLyrics(String title, String artist) async {
-    if (isNative) {
-      try {
-        final result = await _lrclibFetch(title, artist);
-        if (result != null) {
-          return {
-            'plain': result['plain'],
-            'synced': result['synced'],
-            'source': 'lrclib',
-          };
-        }
+    // LRCLIB has full CORS support, so we call it directly on all platforms
+    // This is much faster than routing through the backend
+    try {
+      final result = await _lrclibFetch(title, artist);
+      if (result != null) {
         return {
-          'plain': null,
-          'synced': null,
-          'error': 'No se encontraron letras para esta canción en lrclib.net.',
-        };
-      } catch (e) {
-        return {
-          'plain': null,
-          'synced': null,
-          'error': 'Error al buscar letras: $e',
+          'plain': result['plain'],
+          'synced': result['synced'],
+          'source': 'lrclib',
         };
       }
+      return {
+        'plain': null,
+        'synced': null,
+        'error': 'No se encontraron letras para esta canción.',
+      };
+    } catch (e) {
+      // If direct lrclib fails on web and we have a backend, try through backend
+      if (!isNative && baseUrl.isNotEmpty && baseUrl != 'native') {
+        try {
+          final uri = Uri.parse('$baseUrl/api/v1/metadata/lyrics').replace(
+            queryParameters: {
+              'title': title,
+              'artist': artist,
+            },
+          );
+          final res = await http.get(uri).timeout(const Duration(seconds: 8));
+          _check(res);
+          return jsonDecode(res.body) as Map<String, dynamic>;
+        } catch (_) {}
+      }
+      return {
+        'plain': null,
+        'synced': null,
+        'error': 'Error al buscar letras: $e',
+      };
     }
-    final uri = Uri.parse('$baseUrl/api/v1/metadata/lyrics').replace(
-      queryParameters: {
-        'title': title,
-        'artist': artist,
-      },
-    );
-    final res = await http.get(uri);
-    _check(res);
-    return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
   Future<Map<String, dynamic>> saveLyrics({
@@ -1372,6 +1417,41 @@ class ApiClient {
     _check(res);
   }
 
+  /// Health of YouTube downloads: yt-dlp version, JS runtime, cookies and issues.
+  Future<Map<String, dynamic>?> getYoutubeStatus() async {
+    if (isNative) return null;
+    final res = await http.get(Uri.parse('$baseUrl/api/v1/settings/youtube')).timeout(const Duration(seconds: 10));
+    _check(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  /// Browser the backend may read YouTube cookies from (null = disabled, the default).
+  Future<String?> getCookieBrowser() async {
+    if (isNative) return null;
+    final res = await http.get(Uri.parse('$baseUrl/api/v1/settings/cookies'));
+    _check(res);
+    return (jsonDecode(res.body) as Map<String, dynamic>)['browser'] as String?;
+  }
+
+  /// Opt in (browser name) or out (null). Enabling makes the backend read the
+  /// browser's cookie store once; on macOS the system asks for keychain access.
+  Future<String?> setCookieBrowser(String? browser) async {
+    if (isNative) return null;
+    final res = await http.put(
+      Uri.parse('$baseUrl/api/v1/settings/cookies/browser'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'browser': browser}),
+    );
+    if (res.statusCode >= 400) {
+      String message = res.body;
+      try {
+        message = (jsonDecode(res.body) as Map<String, dynamic>)['detail']?.toString() ?? message;
+      } catch (_) {}
+      throw Exception(message);
+    }
+    return (jsonDecode(res.body) as Map<String, dynamic>)['browser'] as String?;
+  }
+
   // ── Health ───────────────────────────────────────────────────────────────
 
   Future<bool> checkHealth() async {
@@ -1461,7 +1541,42 @@ class ApiClient {
     return jsonDecode(res.body) as List<dynamic>;
   }
 
+  Future<Map<String, dynamic>> getDownloadStats() async {
+    final res = await http.get(Uri.parse('$baseUrl/api/v1/analytics/stats'));
+    _check(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> getAdvancedStats() async {
+    final res = await http.get(Uri.parse('$baseUrl/api/v1/analytics/stats/advanced'));
+    _check(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> syncDownloads() async {
+    final res = await http.post(Uri.parse('$baseUrl/api/v1/analytics/sync'));
+    _check(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<void> logPlayback(String filename, double durationSeconds, bool completed) async {
+    try {
+      await http.post(
+        Uri.parse('$baseUrl/api/v1/analytics/log-by-filename'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'filename': filename,
+          'duration_watched': durationSeconds,
+          'completed': completed,
+        }),
+      );
+    } catch (_) {
+      // Silently fail — analytics should never block playback
+    }
+  }
+
   // ── Authentication Endpoints ───────────────────────────────────────────────
+
 
   Future<Map<String, dynamic>> register(String name, String email, String password) async {
     final res = await http.post(

@@ -1,14 +1,18 @@
 import hashlib
 import uuid
 import httpx
-from fastapi import APIRouter, Depends, HTTPException
+from collections import defaultdict
+from time import time
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
+from passlib.context import CryptContext
 from database import get_db
 from models import User
 
 router = APIRouter()
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
@@ -24,11 +28,48 @@ class LoginRequest(BaseModel):
 class GoogleLoginRequest(BaseModel):
     id_token: str
 
+# ── Rate Limiting ─────────────────────────────────────────────────────────────
+
+_login_attempts: dict[str, list[float]] = defaultdict(list)
+
+def _check_rate_limit(ip: str, max_attempts: int = 5, window: int = 60):
+    """Blocks if there are more than max_attempts in the last 'window' seconds."""
+    now = time()
+    _login_attempts[ip] = [t for t in _login_attempts[ip] if now - t < window]
+    if len(_login_attempts[ip]) >= max_attempts:
+        raise HTTPException(
+            status_code=429,
+            detail="Demasiados intentos. Espera un minuto."
+        )
+    _login_attempts[ip].append(now)
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def hash_password(password: str) -> str:
-    """Hashes a password using SHA-256 (standard library, zero dependencies)."""
-    return hashlib.sha256(password.encode('utf-8')).hexdigest()
+    """Hashes a new password using bcrypt."""
+    return pwd_context.hash(password)
+
+def verify_password(password: str, stored_hash: str, db: Session = None, user: User = None) -> bool:
+    """
+    Verifies a password against a stored hash.
+    Supports both bcrypt (new) and SHA-256 (legacy) hashes.
+    If a legacy SHA-256 hash is detected and valid, it is automatically
+    migrated to bcrypt for future logins.
+    """
+    # Attempt 1: bcrypt hash (starts with $2b$)
+    if stored_hash and stored_hash.startswith("$2b$"):
+        return pwd_context.verify(password, stored_hash)
+
+    # Attempt 2: legacy SHA-256 hash
+    sha256_hash = hashlib.sha256(password.encode('utf-8')).hexdigest()
+    if stored_hash == sha256_hash:
+        # Migrate to bcrypt transparently
+        if db and user:
+            user.password_hash = pwd_context.hash(password)
+            db.commit()
+        return True
+
+    return False
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
@@ -48,7 +89,7 @@ def register_user(body: RegisterRequest, db: Session = Depends(get_db)):
         id=new_id,
         name=body.name.strip(),
         email=body.email.strip().lower(),
-        password_hash=hash_password(body.password),
+        password_hash=hash_password(body.password),  # Uses bcrypt
         preferences='{"favorite_genres": []}'
     )
     
@@ -71,13 +112,13 @@ def register_user(body: RegisterRequest, db: Session = Depends(get_db)):
     summary="Login with email and password",
     description="Authenticates the user using email and password."
 )
-def login_user(body: LoginRequest, db: Session = Depends(get_db)):
+def login_user(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
+    # Rate limiting: max 5 attempts per minute per IP
+    _check_rate_limit(request.client.host if request.client else "unknown")
+
     user = db.query(User).filter(User.email == body.email.strip().lower()).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="Usuario no encontrado.")
-        
-    if not user.password_hash or user.password_hash != hash_password(body.password):
-        raise HTTPException(status_code=401, detail="Contraseña incorrecta.")
+    if not user or not user.password_hash or not verify_password(body.password, user.password_hash, db=db, user=user):
+        raise HTTPException(status_code=401, detail="Credenciales inválidas.")
         
     return {
         "message": "Inicio de sesión exitoso.",
@@ -114,7 +155,7 @@ def google_auth(body: GoogleLoginRequest, db: Session = Depends(get_db)):
             raise e
         raise HTTPException(
             status_code=500,
-            detail=f"Error al verificar el token de Google con el servidor de Google: {str(e)}"
+            detail="Error al verificar el token de Google."
         )
 
     google_id = token_info.get("sub")

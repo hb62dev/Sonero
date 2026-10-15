@@ -1,10 +1,10 @@
 import 'dart:async';
+import 'package:sonero_app/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/library_provider.dart';
-import 'package:flutter_gen/gen_l10n/app_localizations.dart';
 
 class VideoDownloadDialog extends StatefulWidget {
   const VideoDownloadDialog({super.key});

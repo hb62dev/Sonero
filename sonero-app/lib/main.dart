@@ -55,14 +55,16 @@ void main() async {
       debugPrint('Error initializing BackgroundListenService: $e');
     }
   }
-  // Suppress transient red error screens (e.g. during track transitions).
-  // In debug mode, keep the default error widget for development visibility.
-  if (!kDebugMode) {
-    ErrorWidget.builder = (FlutterErrorDetails details) {
-      debugPrint('Suppressed ErrorWidget: ${details.exception}');
-      return const SizedBox.shrink();
-    };
-  }
+  // Suppress ALL visual error indicators:
+  // 1. Red/yellow ErrorWidget screens (build errors)
+  ErrorWidget.builder = (FlutterErrorDetails details) {
+    debugPrint('Suppressed ErrorWidget: ${details.exception}');
+    return const SizedBox.shrink();
+  };
+  // 2. Overflow and other errors: log only, suppress visual indicators
+  FlutterError.onError = (FlutterErrorDetails details) {
+    debugPrint('Flutter error (suppressed): ${details.exception}');
+  };
 
   // Start the Python backend as a subprocess (Windows only, production builds)
   if (!kIsWeb && Platform.isWindows) {

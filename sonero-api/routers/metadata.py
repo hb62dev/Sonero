@@ -11,6 +11,7 @@ import urllib.request
 from config import settings
 from schemas.metadata import MetadataResponse, MetadataBatchUpdateRequest, AutoFillRequest
 from services.recognizer import recognize
+from services import youtube
 
 router = APIRouter()
 
@@ -479,7 +480,7 @@ async def _run_autofill(job_id: str, filenames: list[str]):
                 
             if yt_url:
                 def _fetch_yt():
-                    with yt_dlp.YoutubeDL({"quiet": True, "no_warnings": True, "noplaylist": True, "socket_timeout": 15, "nocheckcertificate": True}) as ydl:
+                    with yt_dlp.YoutubeDL(youtube.apply_common({"quiet": True, "noplaylist": True, "socket_timeout": 15, "nocheckcertificate": True})) as ydl:
                         return ydl.extract_info(yt_url, download=False)
                         
                 yt_info = await asyncio.to_thread(_fetch_yt)

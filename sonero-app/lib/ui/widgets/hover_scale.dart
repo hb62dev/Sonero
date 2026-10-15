@@ -10,7 +10,7 @@ class HoverScale extends StatefulWidget {
   const HoverScale({
     super.key,
     required this.child,
-    this.scale = 1.05,
+    this.scale = 1.02,
     this.onTap,
     this.onLongPress,
     this.onSecondaryTapUp,
@@ -28,7 +28,7 @@ class _HoverScaleState extends State<HoverScale> {
   Widget build(BuildContext context) {
     final matrix = Matrix4.identity();
     if (_isPressed) {
-      matrix.scale(0.98, 0.98);
+      matrix.scale(0.99, 0.99);
     } else if (_isHovered) {
       matrix.scale(widget.scale, widget.scale);
     }
@@ -49,8 +49,8 @@ class _HoverScaleState extends State<HoverScale> {
             ? (details) => widget.onSecondaryTapUp!() 
             : null,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOutCubic,
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOut,
           transform: matrix,
           transformAlignment: Alignment.center,
           child: widget.child,

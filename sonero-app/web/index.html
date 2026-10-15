@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="Sonero - Tu reproductor de música inteligente">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="Sonero">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>Sonero</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #0a0a10;
+      overflow: hidden;
+    }
+
+    .loading-screen {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: #0a0a10;
+      z-index: 9999;
+      transition: opacity 0.5s ease-out;
+    }
+
+    .loading-screen.fade-out {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .logo-container {
+      width: 260px;
+      margin-bottom: 32px;
+    }
+
+    .logo-container img {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    .progress-container {
+      width: 100px;
+      height: 2px;
+      background: rgba(255, 255, 255, 0.06);
+      border-radius: 1px;
+      overflow: hidden;
+    }
+
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      border-radius: 1px;
+      animation: loading-progress 25s ease-out forwards;
+    }
+
+    @keyframes loading-progress {
+      0% { width: 0%; }
+      10% { width: 15%; }
+      30% { width: 35%; }
+      50% { width: 55%; }
+      70% { width: 70%; }
+      90% { width: 85%; }
+      100% { width: 95%; }
+    }
+  </style>
+</head>
+<body>
+  <!-- Loading screen shown while Flutter initializes -->
+  <div class="loading-screen" id="loading-screen">
+    <div class="logo-container">
+      <img src="splash-logo.png" alt="Sonero">
+    </div>
+    <div class="progress-container">
+      <div class="progress-bar" id="progress-bar"></div>
+    </div>
+  </div>
+
+  <script>
+    // Apply accent color from SharedPreferences (stored as ARGB int)
+    (function() {
+      try {
+        var raw = localStorage.getItem('flutter.accent_color');
+        var bar = document.getElementById('progress-bar');
+        if (bar) {
+          if (raw) {
+            var argb = parseInt(raw, 10);
+            var r = (argb >> 16) & 0xFF;
+            var g = (argb >> 8) & 0xFF;
+            var b = argb & 0xFF;
+            bar.style.background = 'rgb(' + r + ',' + g + ',' + b + ')';
+          } else {
+            bar.style.background = '#7B2FFF';
+          }
+        }
+      } catch(e) {
+        var bar = document.getElementById('progress-bar');
+        if (bar) bar.style.background = '#7B2FFF';
+      }
+    })();
+  </script>
+
+  <script>
+    function removeSplash() {
+      const loader = document.getElementById('loading-screen');
+      if (loader) {
+        loader.style.transition = 'opacity 0.4s ease';
+        loader.style.opacity = '0';
+        setTimeout(() => loader.remove(), 500);
+      }
+    }
+
+    // Kill Flutter's default loading bar
+    (function() {
+      function killFlutterLoader() {
+        document.querySelectorAll('body > div').forEach(function(el) {
+          if (el.id === 'loading-screen') return;
+          var style = el.getAttribute('style') || '';
+          if (style.includes('position') && style.includes('top') && !el.querySelector('flt-glass-pane') && !el.querySelector('flutter-view')) {
+            el.style.display = 'none';
+          }
+        });
+        document.querySelectorAll('[role="progressbar"], .flutter-loader').forEach(function(el) {
+          el.style.display = 'none';
+        });
+      }
+
+      killFlutterLoader();
+      var observer = new MutationObserver(function(mutations) {
+        killFlutterLoader();
+      });
+      observer.observe(document.body, { childList: true, subtree: true });
+
+      window.addEventListener('flutter-first-frame', function() {
+        observer.disconnect();
+      });
+    })();
+
+    // Remove when Flutter is ready
+    window.addEventListener('flutter-first-frame', removeSplash);
+
+    // After 12s FORCE remove splash — NEVER stay stuck
+    setTimeout(removeSplash, 12000);
+  </script>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

@@ -1,0 +1,4 @@
+# Optional: local audio analysis (BPM, energy, danceability) for smart mixes.
+# Without it Sonero still works; "Analizar audio" reports it's unavailable.
+#   pip install -r requirements-audio.txt
+librosa>=0.10
