@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/downloads_provider.dart';
 import '../theme.dart';
+import '../settings/settings_page.dart';
 
 class DownloadsPage extends StatelessWidget {
   const DownloadsPage({super.key});
@@ -109,6 +110,9 @@ class _JobCard extends StatelessWidget {
     final step = job['step'] as String? ?? '';
     final progress = (job['progress'] as num?)?.toDouble() ?? 0.0;
     final error = job['error'] as String?;
+    // Set by the backend (services/youtube.py) when a download fails
+    final errorKind = job['error_kind'] as String?;
+    final needsCookies = status == 'failed' && (errorKind == 'bot' || errorKind == 'age');
     
     final track = job['track'] as Map<String, dynamic>?;
     final title = track?['title'] ?? 'Descarga #${job['job_id']}';
@@ -194,9 +198,19 @@ class _JobCard extends StatelessWidget {
               fontSize: 14,
               color: status == 'failed' ? Colors.red : context.colors.textSecondary,
             ),
-            maxLines: 2,
+            maxLines: 4,
             overflow: TextOverflow.ellipsis,
           ),
+          if (needsCookies) ...[
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.cookie_outlined, size: 18),
+              label: const Text('Configurar cookies'),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const SettingsPage()),
+              ),
+            ),
+          ],
         ],
       ),
     );

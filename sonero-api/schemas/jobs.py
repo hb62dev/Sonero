@@ -14,6 +14,8 @@ class JobStatus(BaseModel):
     track: Optional[TrackInfo] = None
     file_path: Optional[str] = None
     error: Optional[str] = None
+    # bot, age, private, rate_limited, outdated, unavailable, network, other (services.youtube)
+    error_kind: Optional[str] = None
     warning: Optional[str] = None
     url: Optional[str] = None
     format_id: Optional[str] = None

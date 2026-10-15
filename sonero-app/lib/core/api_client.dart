@@ -1417,6 +1417,14 @@ class ApiClient {
     _check(res);
   }
 
+  /// Health of YouTube downloads: yt-dlp version, JS runtime, cookies and issues.
+  Future<Map<String, dynamic>?> getYoutubeStatus() async {
+    if (isNative) return null;
+    final res = await http.get(Uri.parse('$baseUrl/api/v1/settings/youtube')).timeout(const Duration(seconds: 10));
+    _check(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
   /// Browser the backend may read YouTube cookies from (null = disabled, the default).
   Future<String?> getCookieBrowser() async {
     if (isNative) return null;

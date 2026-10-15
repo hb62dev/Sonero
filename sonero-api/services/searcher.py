@@ -1,7 +1,7 @@
 import asyncio
 from typing import Optional, List, Dict, Any
 import yt_dlp
-from services.cookies import CookieManager
+from services import youtube
 
 
 async def search_youtube(query: str) -> Optional[str]:
@@ -19,7 +19,7 @@ async def search_youtube(query: str) -> Optional[str]:
             "default_search": "ytsearch1",  # 1 result
             "nocheckcertificate": True,
         }
-        ydl_opts.update(CookieManager.get_cookie_opts())
+        ydl_opts = youtube.apply_common(ydl_opts)
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(f"ytsearch1:{query}", download=False)
@@ -46,7 +46,7 @@ async def search_youtube_multiple(query: str, limit: int = 20) -> List[Dict[str,
             "default_search": f"ytsearch{limit}",
             "nocheckcertificate": True,
         }
-        ydl_opts.update(CookieManager.get_cookie_opts())
+        ydl_opts = youtube.apply_common(ydl_opts)
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(f"ytsearch{limit}:{query}", download=False)

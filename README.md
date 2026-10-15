@@ -83,6 +83,15 @@ To use account synchronization and Google Drive backup in your local build or fo
 
 ---
 
+## ▶️ YouTube downloads
+
+YouTube increasingly asks to "confirm you're not a bot", especially from VPN or datacenter IPs. To keep downloads working:
+* Install **Deno** (recommended) or **Node.js**: yt-dlp needs a JavaScript runtime to solve YouTube's challenges. Sonero finds it automatically.
+* Keep yt-dlp updated: `pip install -U "yt-dlp[default]"` (the `[default]` extra includes `yt-dlp-ejs`, the challenge solver).
+* If downloads are still blocked, use cookies from a Google account (a secondary one is safer) in **Settings → Authentication**, or exclude Sonero from your VPN.
+
+**Settings → Authentication** shows the status of all of this, and failed downloads explain why they failed.
+
 ## 🤖 MCP Server for AI Agents
 
 The Python backend exposes Sonero's **usage statistics** over the [Model Context Protocol](https://modelcontextprotocol.io), so agents (Claude Code, Claude Desktop, or any MCP client) can analyze your listening habits. All tools are **read-only**: agents can't play, download, edit or delete anything.
@@ -255,6 +264,15 @@ Para usar la sincronización de cuenta y respaldo en Google Drive en tu compilac
 7. Abre la aplicación Sonero, navega a **Ajustes > Integración con Google Cloud** e introduce tus claves.
 
 ---
+
+## ▶️ Descargas de YouTube
+
+YouTube pide cada vez más "confirmar que no eres un bot", sobre todo desde IPs de VPN o centros de datos. Para que las descargas sigan funcionando:
+* Instala **Deno** (recomendado) o **Node.js**: yt-dlp necesita un motor de JavaScript para resolver los desafíos de YouTube. Sonero lo encuentra solo.
+* Mantén yt-dlp actualizado: `pip install -U "yt-dlp[default]"` (el extra `[default]` incluye `yt-dlp-ejs`, que resuelve los desafíos).
+* Si aun así se bloquean, usa cookies de una cuenta de Google (mejor una secundaria) en **Ajustes → Autenticación**, o excluye Sonero de tu VPN.
+
+**Ajustes → Autenticación** muestra el estado de todo esto, y las descargas fallidas explican por qué fallaron.
 
 ## 🤖 Servidor MCP para Agentes de IA
 

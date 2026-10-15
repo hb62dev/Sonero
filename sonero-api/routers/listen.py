@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 from schemas.jobs import JobStatus, JobResponse
 from schemas.song import TrackInfo
-from services import recorder, recognizer, searcher, downloader
+from services import recorder, recognizer, searcher, downloader, youtube
 from config import settings
 
 router = APIRouter()
@@ -246,6 +246,8 @@ async def _run_pipeline(
         jobs[job_id].progress = 100
 
     except Exception as exc:
+        kind, message = youtube.classify_error(exc)
         jobs[job_id].status = "failed"
-        jobs[job_id].step = "❌ Error inesperado en el pipeline."
-        jobs[job_id].error = str(exc)
+        jobs[job_id].step = "❌ YouTube bloqueó la descarga" if kind == "bot" else "❌ Error inesperado en el pipeline."
+        jobs[job_id].error = message
+        jobs[job_id].error_kind = kind

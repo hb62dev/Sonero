@@ -757,6 +757,8 @@ class _SettingsPageState extends State<SettingsPage> {
               if (!settings.api.isNative) ...[
                 const SizedBox(height: 16),
                 const _BrowserCookiesTile(),
+                const SizedBox(height: 16),
+                const _YoutubeStatusTile(),
               ],
             ],
           ),
@@ -2271,6 +2273,93 @@ class _BrowserCookiesTileState extends State<_BrowserCookiesTile> {
             onChanged: _change,
           ),
       ],
+    );
+  }
+}
+
+
+/// What affects YouTube downloads: yt-dlp version, JavaScript runtime and cookies.
+class _YoutubeStatusTile extends StatefulWidget {
+  const _YoutubeStatusTile();
+
+  @override
+  State<_YoutubeStatusTile> createState() => _YoutubeStatusTileState();
+}
+
+class _YoutubeStatusTileState extends State<_YoutubeStatusTile> {
+  Map<String, dynamic>? _status;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final s = await context.read<SettingsProvider>().api.getYoutubeStatus();
+      if (mounted) setState(() => _status = s);
+    } catch (e) {
+      if (mounted) setState(() => _error = e.toString());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final s = _status;
+    if (s == null) {
+      return _error == null
+          ? const LinearProgressIndicator()
+          : Text('No se pudo consultar el estado de YouTube.', style: TextStyle(color: context.colors.textSecondary, fontSize: 12));
+    }
+    final ok = s['ok'] == true;
+    final issues = ((s['issues'] as List?) ?? const []).cast<String>();
+    final cookies = s['cookies'] as String?;
+    Widget row(IconData icon, String label, String value, {bool good = true}) => Padding(
+          padding: const EdgeInsets.only(top: 6),
+          child: Row(children: [
+            Icon(icon, size: 16, color: good ? context.colors.success : Colors.orange),
+            const SizedBox(width: 8),
+            Text('$label: ', style: TextStyle(color: context.colors.textSecondary, fontSize: 12)),
+            Expanded(child: Text(value, style: TextStyle(color: context.colors.textPrimary, fontSize: 12))),
+          ]),
+        );
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: context.colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: ok ? context.colors.border : Colors.orange.withValues(alpha: 0.6)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(ok ? Icons.check_circle_rounded : Icons.warning_amber_rounded,
+                color: ok ? context.colors.success : Colors.orange, size: 18),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(ok ? 'Descargas de YouTube listas' : 'Descargas de YouTube: revisa esto',
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+            ),
+            IconButton(icon: const Icon(Icons.refresh_rounded, size: 18), tooltip: 'Actualizar', onPressed: _load),
+          ]),
+          row(Icons.system_update_alt_rounded, 'yt-dlp', '${s['ytdlp_version']}', good: s['outdated'] != true),
+          row(Icons.code_rounded, 'Motor JavaScript', s['js_runtime'] as String? ?? 'no encontrado',
+              good: s['js_runtime'] != null && s['ejs_installed'] == true),
+          row(Icons.cookie_outlined, 'Cookies',
+              cookies == null ? 'no configuradas (YouTube puede bloquear descargas, sobre todo con VPN)'
+                  : cookies == 'file' ? 'archivo cookies.txt' : 'navegador ${cookies.replaceFirst('browser:', '')}',
+              good: cookies != null),
+          for (final issue in issues)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text('• $issue', style: TextStyle(color: Colors.orange.shade300, fontSize: 12, height: 1.35)),
+            ),
+        ],
+      ),
     );
   }
 }
