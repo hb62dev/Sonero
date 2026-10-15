@@ -2,7 +2,7 @@ import csv
 from pathlib import Path
 from datetime import datetime
 from database import engine, SessionLocal
-from models import Base, Media, Playlist, PlaylistMedia, Track, User, ListeningHistory, FocusSession, SystemSetting, Mix, MixItem, AudioFeatures  # noqa: F401 (registers tables)
+from models import Base, Media, Playlist, PlaylistMedia, Track, User, ListeningHistory, FocusSession, SystemSetting, Mix, MixItem, AudioFeatures, SongRating  # noqa: F401 (registers tables)
 from config import settings
 
 def init_db():

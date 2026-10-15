@@ -190,6 +190,25 @@ class MixItem(Base):
     media = relationship("Media")
 
 
+class SongRating(Base):
+    """
+    The user's verdict on a song, given from a mix: 1 = me gusta, 0 = me da igual,
+    -1 = no me gusta. Stored per song (not per mix item) so it applies to every mix.
+    song_key: "m<media_id>" for library files, "o<normalized artist title>" for online songs.
+    """
+    __tablename__ = "song_ratings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    song_key = Column(String, unique=True, index=True, nullable=False)
+    media_id = Column(Integer, ForeignKey("media.id"), nullable=True)
+    title = Column(String, nullable=True)
+    artist = Column(String, nullable=True)
+    external_id = Column(String, nullable=True)
+    rating = Column(Integer, nullable=False)
+    mix_title = Column(String, nullable=True)  # mix it was rated from, as context for agents
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 class AudioFeatures(Base):
     """Locally computed audio analysis of a library file."""
     __tablename__ = "audio_features"

@@ -464,6 +464,32 @@ class _MixDetailPageState extends State<MixDetailPage> {
     });
   }
 
+  /// Saves the rating right away and rolls back if the server rejects it. Tapping the
+  /// active button again clears the rating.
+  Future<void> _rate(MixItem item, int value) async {
+    final mix = _mix;
+    final index = mix?.items.indexWhere((i) => i.id == item.id) ?? -1;
+    if (mix == null || index < 0) return;
+    final rating = item.rating == value ? null : value;
+    setState(() => mix.items[index] = item.withRating(rating));
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      await widget.api.rate(widget.mixId, item.id, rating);
+      if (rating == MixItem.dislike && mounted) {
+        messenger.hideCurrentSnackBar();
+        messenger.showSnackBar(SnackBar(
+          content: Text('"${item.title}" no volverá a aparecer en tus mixes.'),
+          action: SnackBarAction(label: 'Deshacer', onPressed: () => _rate(mix.items[index], MixItem.dislike)),
+        ));
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => mix.items[index] = item);
+      messenger.showSnackBar(
+          SnackBar(content: Text('No se pudo guardar: ${e.toString().replaceFirst('Exception: ', '')}')));
+    }
+  }
+
   Future<void> _delete() async {
     final ok = await showDialog<bool>(
       context: context,
@@ -546,6 +572,12 @@ class _MixDetailPageState extends State<MixDetailPage> {
                           style: const TextStyle(color: Colors.white70, fontSize: 12),
                         ),
                       ]),
+                      const SizedBox(height: 10),
+                      const Text(
+                        'Valora las canciones (me gusta, me da igual, no me gusta) y pulsa "Actualizar mixes" '
+                        'o pídeselo a tu agente IA: los próximos mixes se ajustan a lo que digas.',
+                        style: TextStyle(color: Colors.white60, fontSize: 11, height: 1.35),
+                      ),
                     ],
                   ),
                 ),
@@ -559,6 +591,7 @@ class _MixDetailPageState extends State<MixDetailPage> {
                     downloading: _downloading.contains(item.id),
                     onPlay: () => _play(mix.items, index),
                     onDownload: item.inLibrary ? null : () => _download(item),
+                    onRate: (value) => _rate(item, value),
                   ),
               ],
             ),
@@ -572,12 +605,14 @@ class _MixItemTile extends StatelessWidget {
   final bool downloading;
   final VoidCallback onPlay;
   final VoidCallback? onDownload;
+  final ValueChanged<int> onRate;
 
   const _MixItemTile({
     required this.item,
     required this.track,
     required this.downloading,
     required this.onPlay,
+    required this.onRate,
     this.onDownload,
   });
 
@@ -586,7 +621,9 @@ class _MixItemTile extends StatelessWidget {
     final playable = item.inLibrary || (item.previewUrl?.isNotEmpty ?? false);
     final isCurrent = context.select<PlayerProvider, bool>((p) => p.currentTrack?.filename == track.filename);
     final primary = Theme.of(context).colorScheme.primary;
-    return ListTile(
+    final compact = MediaQuery.of(context).size.width < 600;
+    final disliked = item.rating == MixItem.dislike;
+    final tile = ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 4),
       onTap: playable ? onPlay : null,
       leading: ClipRRect(
@@ -608,32 +645,79 @@ class _MixItemTile extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: TextStyle(fontWeight: FontWeight.w600, color: isCurrent ? primary : null)),
       subtitle: Text(
-        [if (item.artist.isNotEmpty) item.artist, if (item.note != null) item.note!].join(' · '),
+        [
+          if (compact && !item.inLibrary) playable ? 'Nueva · 30 s' : 'Nueva',
+          if (item.artist.isNotEmpty) item.artist,
+          if (item.note != null) item.note!,
+        ].join(' · '),
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(color: context.colors.textSecondary, fontSize: 12),
       ),
-      trailing: item.inLibrary
-          ? Icon(Icons.library_music_rounded, size: 18, color: context.colors.textSecondary.withValues(alpha: 0.6))
-          : Row(mainAxisSize: MainAxisSize.min, children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: primary.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(playable ? 'Nueva · 30 s' : 'Nueva',
-                    style: TextStyle(color: primary, fontSize: 10, fontWeight: FontWeight.w700)),
+      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+        _RatingButtons(rating: item.rating, onRate: onRate),
+        if (item.inLibrary && !compact)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: Icon(Icons.library_music_rounded,
+                size: 18, color: context.colors.textSecondary.withValues(alpha: 0.6)),
+          )
+        else if (!item.inLibrary) ...[
+          if (!compact)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: primary.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(6),
               ),
-              IconButton(
-                tooltip: 'Descargar a mi biblioteca',
-                onPressed: downloading ? null : onDownload,
-                icon: downloading
-                    ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.download_rounded),
-              ),
-            ]),
+              child: Text(playable ? 'Nueva · 30 s' : 'Nueva',
+                  style: TextStyle(color: primary, fontSize: 10, fontWeight: FontWeight.w700)),
+            ),
+          IconButton(
+            tooltip: 'Descargar a mi biblioteca',
+            onPressed: downloading ? null : onDownload,
+            icon: downloading
+                ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.download_rounded),
+          ),
+        ],
+      ]),
     );
+    // A disliked song stays visible (so it can be undone) but fades out
+    return disliked ? Opacity(opacity: 0.45, child: tile) : tile;
+  }
+}
+
+/// Me gusta / me da igual / no me gusta. The active choice is filled and coloured.
+class _RatingButtons extends StatelessWidget {
+  final int? rating;
+  final ValueChanged<int> onRate;
+  const _RatingButtons({required this.rating, required this.onRate});
+
+  @override
+  Widget build(BuildContext context) {
+    final idle = context.colors.textSecondary.withValues(alpha: 0.7);
+    Widget button(int value, IconData off, IconData on, Color color, String tooltip) {
+      final active = rating == value;
+      return IconButton(
+        tooltip: active ? 'Quitar valoración' : tooltip,
+        visualDensity: VisualDensity.compact,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(minWidth: 34, minHeight: 34),
+        iconSize: 19,
+        onPressed: () => onRate(value),
+        icon: Icon(active ? on : off, color: active ? color : idle),
+      );
+    }
+
+    return Row(mainAxisSize: MainAxisSize.min, children: [
+      button(MixItem.like, Icons.thumb_up_outlined, Icons.thumb_up_rounded,
+          Theme.of(context).colorScheme.primary, 'Me gusta'),
+      button(MixItem.meh, Icons.sentiment_neutral_outlined, Icons.sentiment_neutral_rounded,
+          Colors.amber.shade600, 'Me da igual'),
+      button(MixItem.dislike, Icons.thumb_down_outlined, Icons.thumb_down_rounded,
+          context.colors.error, 'No me gusta'),
+    ]);
   }
 }
 

@@ -13,6 +13,13 @@ class MixItem {
   final String? previewUrl;
   final String? note;
 
+  /// The user's verdict: [like], [meh], [dislike], or null if not rated. Applies to every mix.
+  final int? rating;
+
+  static const like = 1;
+  static const meh = 0;
+  static const dislike = -1;
+
   const MixItem({
     required this.id,
     required this.inLibrary,
@@ -23,7 +30,21 @@ class MixItem {
     this.coverUrl,
     this.previewUrl,
     this.note,
+    this.rating,
   });
+
+  MixItem withRating(int? value) => MixItem(
+        id: id,
+        inLibrary: inLibrary,
+        title: title,
+        artist: artist,
+        filename: filename,
+        album: album,
+        coverUrl: coverUrl,
+        previewUrl: previewUrl,
+        note: note,
+        rating: value,
+      );
 
   factory MixItem.fromJson(Map<String, dynamic> j) => MixItem(
         id: (j['id'] as num).toInt(),
@@ -35,6 +56,7 @@ class MixItem {
         coverUrl: j['cover_url'] as String?,
         previewUrl: j['preview_url'] as String?,
         note: j['note'] as String?,
+        rating: (j['rating'] as num?)?.toInt(),
       );
 }
 
@@ -153,6 +175,15 @@ class MixesApi {
         .timeout(const Duration(seconds: 60)));
     return data['job_id'] as String;
   }
+
+  /// Rates a song of a mix (1 me gusta, 0 me da igual, -1 no me gusta, null to clear).
+  Future<void> rate(int mixId, int itemId, int? rating) async => _decode(await http
+      .put(
+        _uri('/mixes/$mixId/items/$itemId/rating'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'rating': rating}),
+      )
+      .timeout(const Duration(seconds: 15)));
 
   Future<LibraryJob> enrichStart() async => LibraryJob.fromJson(_decode(await http.post(_uri('/library/enrich'))));
   Future<LibraryJob> enrichStatus() async => LibraryJob.fromJson(_decode(await http.get(_uri('/library/enrich'))));

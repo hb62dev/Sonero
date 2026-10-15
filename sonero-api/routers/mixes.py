@@ -1,3 +1,5 @@
+from typing import Literal
+
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -19,6 +21,7 @@ def _link_downloaded(db: Session, mix: Mix, songs) -> None:
             song = mixes._match_library(item.title, item.artist or "", songs)
             if song is not None:
                 item.media_id = song.media_id
+                mixes.move_rating_to_library(db, item)
                 changed = True
     if changed:
         db.commit()
@@ -67,6 +70,19 @@ async def delete_mix(mix_id: int, db: Session = Depends(get_db)) -> dict:
     db.delete(mix)
     db.commit()
     return {"deleted": mix_id}
+
+
+class RatingRequest(BaseModel):
+    rating: Literal[-1, 0, 1] | None  # 1 me gusta, 0 me da igual, -1 no me gusta, null quita la valoración
+
+
+@router.put("/mixes/{mix_id}/items/{item_id}/rating", summary="Rate a song of a mix (applies to every mix)")
+async def rate_item(mix_id: int, item_id: int, body: RatingRequest, db: Session = Depends(get_db)) -> dict:
+    mix = db.get(Mix, mix_id)
+    item = next((i for i in mix.items if i.id == item_id), None) if mix else None
+    if item is None:
+        raise HTTPException(status_code=404, detail="Canción no encontrada en el mix.")
+    return {"item_id": item_id, "rating": mixes.rate_item(db, mix, item, body.rating)}
 
 
 @router.post("/mixes/{mix_id}/items/{item_id}/download", summary="Download an online song of a mix as MP3")

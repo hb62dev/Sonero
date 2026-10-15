@@ -11,7 +11,7 @@ from pathlib import Path
 from sqlalchemy.orm import Session
 
 from config import settings
-from models import AudioFeatures, Media, PlaybackEvent
+from models import AudioFeatures, Media, PlaybackEvent, SongRating
 
 AUDIO_EXTS = {".mp3", ".m4a", ".opus", ".ogg", ".wav", ".aac", ".flac", ".wma", ".webm"}
 
@@ -38,6 +38,7 @@ class LibrarySong:
     brightness: float | None = None
     danceability: float | None = None
     duration: float | None = None
+    rating: int | None = None  # 1 me gusta, 0 me da igual, -1 no me gusta (from a mix)
 
     @property
     def completion_rate(self) -> float | None:
@@ -73,6 +74,7 @@ class LibrarySong:
             "brightness": round(self.brightness, 2) if self.brightness is not None else None,
             "danceability": round(self.danceability, 2) if self.danceability is not None else None,
             "duration": round(self.duration) if self.duration else None,
+            "rating": self.rating,
         }
 
 
@@ -132,6 +134,9 @@ def load_library(db: Session, include_missing: bool = False) -> list[LibrarySong
             s.last_played = e.start_time
         if e.start_time:
             s.hours[e.start_time.replace(tzinfo=timezone.utc).astimezone().hour] += 1
+
+    for r in db.query(SongRating).filter(SongRating.media_id.in_(songs.keys())):
+        songs[r.media_id].rating = r.rating
 
     return list(songs.values())
 

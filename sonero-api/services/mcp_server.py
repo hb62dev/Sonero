@@ -44,11 +44,14 @@ mcp = MCPServer(
         "get_artist_top_tracks / search_music_catalog para descubrir música nueva → create_mix (varias "
         "veces, con títulos y razones claras). Mezcla canciones de la biblioteca (media_id) con "
         "descubrimientos online (title + artist + preview_url de los resultados del catálogo).\n"
+        "El usuario valora las canciones de los mixes (me gusta / me da igual / no me gusta): consulta "
+        "get_song_ratings antes de crear mixes, usa lo que le gusta como semilla y evita los artistas y estilos "
+        "que rechaza. create_mix descarta solo las canciones con 'no me gusta'.\n"
         "Las estadísticas y el historial son de solo lectura; create_mix y delete_mix solo afectan a los "
         "mixes, nunca a los archivos de música. Los periodos se indican en días hacia atrás desde ahora. "
         "Las horas y días de la semana están en la zona horaria local de la computadora donde corre Sonero."
     ),
-    version="1.1.0",
+    version="1.2.0",
 )
 
 
@@ -408,9 +411,9 @@ async def get_dashboard_stats() -> dict:
 
 # ── Recommendations: library, discovery and mixes ─────────────────────────────
 
-from models import Mix  # noqa: E402
+from models import Mix, SongRating  # noqa: E402
 from services import mixes as mix_service, music_catalog  # noqa: E402
-from services.library_data import load_library, taste_profile  # noqa: E402
+from services.library_data import load_library, split_artists, taste_profile  # noqa: E402
 
 
 def _catalog_error(e: Exception) -> dict:
@@ -427,6 +430,7 @@ def get_taste_profile() -> dict:
     """
     with _db() as db:
         songs = load_library(db)
+        ratings = list(mix_service.load_ratings(db).values())
     played = [s for s in songs if s.plays]
 
     def weighted(attr: str) -> float | None:
@@ -452,6 +456,8 @@ def get_taste_profile() -> dict:
             "played_songs": len(played),
             "total_plays": sum(s.plays for s in songs),
         },
+        "ratings": {label: sum(1 for r in ratings if r == value)
+                    for label, value in (("liked", 1), ("meh", 0), ("disliked", -1))},
         "hint": "Si faltan género/año o análisis de audio, sugiere al usuario 'Completar metadatos' y "
                 "'Analizar audio' en Biblioteca → Para ti.",
     }
@@ -472,8 +478,9 @@ def list_library_songs(
     """
     Canciones de la biblioteca con sus metadatos, uso (reproducciones, minutos, % terminado,
     % saltada, última vez, horas favoritas) y análisis de audio (bpm, energy 0-1, brightness 0-1,
-    danceability 0-1; null si no se ha analizado). Usa media_id para incluirlas en create_mix.
-    'affinity' ordena por cuánto le gusta al usuario (tiempo, terminadas, sin saltos, recencia).
+    danceability 0-1; null si no se ha analizado) y rating (1 me gusta, 0 me da igual, -1 no me gusta,
+    null sin valorar). Usa media_id para incluirlas en create_mix.
+    'affinity' ordena por cuánto le gusta al usuario (valoración, tiempo, terminadas, sin saltos, recencia).
     """
     limit = _clamp(limit, 1, 500)
     now = datetime.utcnow()
@@ -576,6 +583,42 @@ def list_mixes(include_songs: bool = False) -> dict:
         return {"mixes": [mix_service.serialize(m, songs, with_items=include_songs) for m in rows]}
 
 
+@mcp.tool(annotations=READ_ONLY)
+def get_song_ratings() -> dict:
+    """
+    Lo que el usuario dijo de las canciones de los mixes: me gusta (1), me da igual (0) o
+    no me gusta (-1), con el mix desde el que valoró, y un resumen por artista.
+    Úsalo para refinar: repite y expande lo que le gusta, evita lo que no le gusta, y no insistas
+    con lo que le da igual. Las canciones con "no me gusta" se descartan solas en create_mix.
+    """
+    with _db() as db:
+        rows = db.query(SongRating).order_by(SongRating.updated_at.desc()).all()
+        data = [{
+            "rating": r.rating,
+            "title": r.title,
+            "artist": r.artist or None,
+            "in_library": r.media_id is not None,
+            "media_id": r.media_id,
+            "external_id": r.external_id,
+            "rated_in_mix": r.mix_title,
+            "rated_at": _iso(r.updated_at),
+        } for r in rows]
+
+    labels = {1: "liked", 0: "meh", -1: "disliked"}
+    by_artist: dict[str, Counter] = {}
+    for r in data:
+        for a in split_artists(r["artist"] or ""):
+            by_artist.setdefault(a, Counter())[labels[r["rating"]]] += 1
+    return {
+        "counts": {label: sum(1 for r in data if r["rating"] == value) for value, label in labels.items()},
+        "liked": [r for r in data if r["rating"] == 1],
+        "meh": [r for r in data if r["rating"] == 0],
+        "disliked": [r for r in data if r["rating"] == -1],
+        "by_artist": {a: dict(c) for a, c in sorted(by_artist.items(), key=lambda kv: -sum(kv[1].values()))},
+        "hint": None if data else "Aún no hay valoraciones: el usuario puede valorar canciones dentro de cada mix.",
+    }
+
+
 @mcp.tool(annotations=WRITES_MIXES)
 def create_mix(
     title: str,
@@ -593,7 +636,8 @@ def create_mix(
       - o una canción online: {"title": "...", "artist": "...", "preview_url": "...",
         "cover_url": "...", "album": "...", "external_id": "...", "note": "opcional"}
         (copia esos campos de get_artist_top_tracks / search_music_catalog).
-    Las canciones online que el usuario ya tiene se enlazan solas con su archivo.
+    Las canciones online que el usuario ya tiene se enlazan solas con su archivo, y las que
+    marcó con "no me gusta" se descartan (ver get_song_ratings).
     description: una frase para la tarjeta. reason: por qué se la recomiendas, en base a sus datos.
     author: tu nombre como agente (p. ej. "Claude"); se muestra en la app.
     """
@@ -612,8 +656,11 @@ def create_mix(
             db.commit()
             return {"error": "Ninguna canción era válida (revisa media_id o title/artist)."}
         data = mix_service.serialize(mix, with_items=False)
+    skipped = len(songs) - data["count"]
     return {"created": data, "message": f"Mix '{data['title']}' guardado con {data['count']} canciones "
-                                        f"({data['in_library']} de la biblioteca)."}
+                                        f"({data['in_library']} de la biblioteca)."
+                                        + (f" Se omitieron {skipped} (repetidas, no válidas o con 'no me gusta')."
+                                           if skipped > 0 else "")}
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True,
@@ -637,7 +684,7 @@ def recommend_mixes(how_many: int = 4) -> str:
     return (
         f"Analiza mis datos de Sonero y crea {how_many} mixes recomendados, como los de Spotify o YouTube Music.\n"
         "1. Llama a get_taste_profile y list_library_songs (sort_by=affinity) para entender mis gustos, "
-        "cuándo escucho y qué salto.\n"
+        "cuándo escucho y qué salto, y get_song_ratings para ver qué me gustó y qué no de mixes anteriores.\n"
         "2. Usa find_similar_artists y get_artist_top_tracks para descubrir música que no tengo.\n"
         "3. Crea mixes variados con create_mix: por ejemplo uno de favoritas, uno de descubrimiento, uno según "
         "el momento del día o la energía, y uno sorpresa. Cada mix de 15 a 30 canciones, mezclando mi biblioteca "

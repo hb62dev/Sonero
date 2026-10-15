@@ -15,9 +15,9 @@ import random
 from collections import Counter
 from datetime import datetime, timedelta
 
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, object_session
 
-from models import Mix, MixItem
+from models import Mix, MixItem, SongRating
 from services import music_catalog
 from services.library_data import LibrarySong, load_library, split_artists, taste_profile
 
@@ -25,6 +25,52 @@ logger = logging.getLogger("sonero.mixes")
 
 MAX_ITEMS = 100
 MIN_MIX_SIZE = 5
+
+
+# ── Ratings ───────────────────────────────────────────────────────────────────
+
+LIKE, MEH, DISLIKE = 1, 0, -1
+
+
+def song_key(media_id: int | None = None, title: str = "", artist: str = "") -> str:
+    """Same song, same key, in every mix: the library file, or the online artist + title."""
+    return f"m{media_id}" if media_id else "o" + music_catalog.normalize(f"{artist or ''} {title}")
+
+
+def item_key(item: MixItem) -> str:
+    return song_key(item.media_id, item.title or "", item.artist or "")
+
+
+def load_ratings(db: Session) -> dict[str, int]:
+    return {r.song_key: r.rating for r in db.query(SongRating)}
+
+
+def rate_item(db: Session, mix: Mix, item: MixItem, rating: int | None) -> int | None:
+    """Saves (or with None, clears) the user's rating of a mix song; it applies to every mix."""
+    key = item_key(item)
+    row = db.query(SongRating).filter(SongRating.song_key == key).first()
+    if rating is None:
+        if row is not None:
+            db.delete(row)
+    else:
+        title, artist = (item.media.title, item.media.artist) if item.media_id and item.media else (item.title, item.artist)
+        if row is None:
+            row = SongRating(song_key=key)
+            db.add(row)
+        row.media_id, row.title, row.artist = item.media_id, title or item.title, artist or item.artist
+        row.external_id, row.rating, row.mix_title = item.external_id, rating, mix.title
+        row.updated_at = datetime.utcnow()
+    db.commit()
+    return rating
+
+
+def move_rating_to_library(db: Session, item: MixItem) -> None:
+    """An online song the user rated and then downloaded keeps its rating as a library song."""
+    online = song_key(None, item.title or "", item.artist or "")
+    row = db.query(SongRating).filter(SongRating.song_key == online).first()
+    if row is None or db.query(SongRating).filter(SongRating.song_key == f"m{item.media_id}").first():
+        return
+    row.song_key, row.media_id = f"m{item.media_id}", item.media_id
 
 
 # ── Storage ───────────────────────────────────────────────────────────────────
@@ -45,6 +91,8 @@ def serialize(mix: Mix, songs_by_id: dict[int, LibrarySong] | None = None, with_
     }
     if with_items:
         songs_by_id = songs_by_id or {}
+        db = object_session(mix)
+        ratings = load_ratings(db) if db is not None else {}
         items = []
         for i in mix.items:
             if i.media_id:
@@ -52,11 +100,12 @@ def serialize(mix: Mix, songs_by_id: dict[int, LibrarySong] | None = None, with_
                 if s is None:  # file deleted since the mix was made
                     continue
                 items.append({"id": i.id, "in_library": True, "media_id": s.media_id, "filename": s.filename,
-                              "title": s.title, "artist": s.artist, "album": s.album, "note": i.note})
+                              "title": s.title, "artist": s.artist, "album": s.album, "note": i.note,
+                              "rating": ratings.get(item_key(i))})
             else:
                 items.append({"id": i.id, "in_library": False, "title": i.title, "artist": i.artist,
                               "album": i.album, "cover_url": i.cover_url, "preview_url": i.preview_url,
-                              "external_id": i.external_id, "note": i.note})
+                              "external_id": i.external_id, "note": i.note, "rating": ratings.get(item_key(i))})
         data["items"] = items
     return data
 
@@ -82,7 +131,8 @@ def save_mix(db: Session, *, title: str, items: list[dict], description: str | N
     """
     items: [{"media_id": 12} | {"filename": "x.mp3"} |
             {"title", "artist", "album"?, "preview_url"?, "cover_url"?, "external_id"?}] + optional "note".
-    Duplicates are dropped; online songs already in the library are linked to the file.
+    Duplicates and songs the user rated "no me gusta" are dropped; online songs already
+    in the library are linked to the file.
     """
     songs = songs if songs is not None else load_library(db)
     by_id = {s.media_id: s for s in songs}
@@ -100,8 +150,11 @@ def save_mix(db: Session, *, title: str, items: list[dict], description: str | N
     mix.source, mix.author, mix.kind = source, author, kind
     mix.updated_at = datetime.utcnow()
 
-    seen: set[str] = set()
-    for raw in items[:MAX_ITEMS]:
+    disliked = {k for k, r in load_ratings(db).items() if r == DISLIKE}
+    seen: set[str] = set(disliked)
+    for raw in items:
+        if len(mix.items) >= MAX_ITEMS:
+            break
         song = None
         if raw.get("media_id") is not None:
             song = by_id.get(int(raw["media_id"]))
@@ -112,13 +165,13 @@ def save_mix(db: Session, *, title: str, items: list[dict], description: str | N
 
         note = (raw.get("note") or "")[:200] or None
         if song is not None:
-            key = f"m{song.media_id}"
+            key = song_key(song.media_id)
             if key in seen:
                 continue
             seen.add(key)
             mix.items.append(MixItem(position=len(mix.items), media_id=song.media_id, note=note))
         elif raw.get("title"):
-            key = "o" + music_catalog.normalize(f"{raw.get('artist', '')} {raw['title']}")
+            key = song_key(None, raw["title"], raw.get("artist") or "")
             if key in seen:
                 continue
             seen.add(key)
@@ -135,14 +188,20 @@ def save_mix(db: Session, *, title: str, items: list[dict], description: str | N
 # ── Sonero's own algorithm ────────────────────────────────────────────────────
 
 def _affinity(s: LibrarySong, now: datetime) -> float:
-    """How much the listener likes a song: time spent, finishing it, not skipping, recency."""
-    if not s.plays:
+    """
+    How much the listener likes a song: time spent, finishing it, not skipping, recency,
+    and above all what they said about it in a mix (👍 / 😐 / 👎).
+    """
+    if s.rating == DISLIKE:
         return 0.0
+    if not s.plays:
+        return 1.0 if s.rating == LIKE else 0.0
     completion = s.completion_rate or 0.0
     skip = s.skip_rate or 0.0
     days = s.days_since_played(now) or 0.0
     recency = math.exp(-days / 30)  # a play last month counts ~1/3
-    return (math.log1p(s.seconds / 60) + 0.5 * s.plays) * (0.5 + completion) * (1 - 0.7 * skip) * (0.6 + 0.4 * recency)
+    score = (math.log1p(s.seconds / 60) + 0.5 * s.plays) * (0.5 + completion) * (1 - 0.7 * skip) * (0.6 + 0.4 * recency)
+    return score * 1.5 + 1.0 if s.rating == LIKE else score * 0.7 if s.rating == MEH else score
 
 
 def _period_of(hour: int) -> str:
@@ -159,7 +218,7 @@ async def generate_auto_mixes(db: Session) -> dict:
 
     profile = taste_profile(songs)
     played = [s for s in songs if s.plays]
-    by_affinity = sorted(played, key=lambda s: _affinity(s, now), reverse=True)
+    by_affinity = sorted([s for s in songs if _affinity(s, now) > 0], key=lambda s: _affinity(s, now), reverse=True)
     lib_artists = {music_catalog.normalize(a) for s in songs if s.artist for a in split_artists(s.artist)}
     plans: list[dict] = []
     online = True
@@ -171,7 +230,7 @@ async def generate_auto_mixes(db: Session) -> dict:
     lib = lambda ss, note=None: [{"media_id": s.media_id, "note": note} for s in ss]
 
     # 1. Daily mix: favourites + a few songs from the same artists you haven't played much
-    if played:
+    if by_affinity:
         top = by_affinity[:18]
         fav_artists = {a for s in top[:8] for a in split_artists(s.artist)} if top else set()
         top_ids = {s.media_id for s in top}
@@ -190,7 +249,7 @@ async def generate_auto_mixes(db: Session) -> dict:
     # 2. Favourites
     plan("favorites", "Tus favoritas", "Lo que más escuchas y terminas, sin las que sueles saltar.",
          "Canciones con más tiempo de escucha y mayor porcentaje terminado.",
-         lib([s for s in by_affinity if s.plays >= 2 and (s.skip_rate or 0) < 0.5][:30]))
+         lib([s for s in by_affinity if s.rating == LIKE or (s.plays >= 2 and (s.skip_rate or 0) < 0.5)][:30]))
 
     # 3. Rediscover: liked once, not heard lately
     stale = [s for s in played if (s.days_since_played(now) or 0) >= 14 and (s.completion_rate or 0) >= 0.5]
