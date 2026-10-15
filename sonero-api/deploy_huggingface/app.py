@@ -7,8 +7,12 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from shazamio import Shazam
 from pydantic import BaseModel
+from mangum import Mangum
+
 
 app = FastAPI(title="Sonero Shazam Proxy API")
+
+
 
 # Enable CORS for mobile app connectivity
 app.add_middleware(
@@ -98,3 +102,6 @@ async def recognize_audio(file: UploadFile = File(...)):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=7860)
+
+
+handler = Mangum(app)

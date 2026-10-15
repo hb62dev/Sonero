@@ -33,6 +33,7 @@ class _SettingsPageState extends State<SettingsPage> {
   late final TextEditingController _googleClientIdCtrl;
   late final TextEditingController _googleClientSecretCtrl;
   late final TextEditingController _geminiKeyCtrl;
+  late final TextEditingController _claudeKeyCtrl;
   late final TextEditingController _auddTokenCtrl;
   late final TextEditingController _rapidApiKeyCtrl;
   late final TextEditingController _rapidApiHostCtrl;
@@ -47,6 +48,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _googleClientIdCtrl = TextEditingController(text: settings.googleClientId);
     _googleClientSecretCtrl = TextEditingController(text: settings.googleClientSecret);
     _geminiKeyCtrl = TextEditingController(text: settings.geminiApiKey);
+    _claudeKeyCtrl = TextEditingController(text: settings.claudeApiKey);
     _auddTokenCtrl = TextEditingController(text: settings.auddApiToken);
     _rapidApiKeyCtrl = TextEditingController(text: settings.rapidApiKey);
     _rapidApiHostCtrl = TextEditingController(text: settings.rapidApiHost);
@@ -60,6 +62,7 @@ class _SettingsPageState extends State<SettingsPage> {
     _googleClientIdCtrl.dispose();
     _googleClientSecretCtrl.dispose();
     _geminiKeyCtrl.dispose();
+    _claudeKeyCtrl.dispose();
     _auddTokenCtrl.dispose();
     _rapidApiKeyCtrl.dispose();
     _rapidApiHostCtrl.dispose();
@@ -152,13 +155,49 @@ class _SettingsPageState extends State<SettingsPage> {
             onSubmitted: (v) => settings.setApiUrl(v),
           ),
           const SizedBox(height: 16),
+          Text('Proveedor de Inteligencia Artificial', style: TextStyle(fontWeight: FontWeight.bold, color: context.colors.textPrimary)),
+          const SizedBox(height: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: context.colors.surfaceAlt,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: context.colors.border),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: settings.aiProvider,
+                dropdownColor: context.colors.surfaceAlt,
+                isExpanded: true,
+                items: const [
+                  DropdownMenuItem(value: 'gemini', child: Text('Google Gemini (Gemini 3.8 / 3.5 Flash)')),
+                  DropdownMenuItem(value: 'claude', child: Text('Anthropic Claude (Claude 5.5 / 5.1 / 4.x)')),
+                ],
+                onChanged: (val) {
+                  if (val != null) {
+                    settings.setAiProvider(val);
+                  }
+                },
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
           Text('API Key de Gemini', style: TextStyle(fontWeight: FontWeight.bold, color: context.colors.textPrimary)),
           const SizedBox(height: 8),
           TextField(
             controller: _geminiKeyCtrl,
             obscureText: true,
-            decoration: const InputDecoration(hintText: 'Tu clave de Google AI Studio'),
+            decoration: const InputDecoration(hintText: 'Tu clave de Google AI Studio (AIzaSy...)'),
             onSubmitted: (v) => settings.setGeminiApiKey(v),
+          ),
+          const SizedBox(height: 16),
+          Text('API Key de Claude (Anthropic)', style: TextStyle(fontWeight: FontWeight.bold, color: context.colors.textPrimary)),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _claudeKeyCtrl,
+            obscureText: true,
+            decoration: const InputDecoration(hintText: 'Tu clave de Anthropic (sk-ant-api...)'),
+            onSubmitted: (v) => settings.setClaudeApiKey(v),
           ),
           const SizedBox(height: 24),
           SizedBox(
@@ -167,8 +206,9 @@ class _SettingsPageState extends State<SettingsPage> {
               onPressed: () {
                 settings.setApiUrl(_apiUrlCtrl.text);
                 settings.setGeminiApiKey(_geminiKeyCtrl.text);
+                settings.setClaudeApiKey(_claudeKeyCtrl.text);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Configuración guardada.')),
+                  const SnackBar(content: Text('Configuración de IA guardada.')),
                 );
               },
               child: const Text('Guardar'),
@@ -1004,7 +1044,7 @@ class _SettingsPageState extends State<SettingsPage> {
                     dropdownColor: context.colors.surfaceAlt,
                     underline: const SizedBox(),
                     items: const [
-                      DropdownMenuItem(value: 'gemini', child: Text('Google Gemini (Flash)')),
+                      DropdownMenuItem(value: 'gemini', child: Text('Google Gemini (Gemini 3.8 / 3.5 Flash)')),
                       DropdownMenuItem(value: 'audd', child: Text('AudD API')),
                       DropdownMenuItem(value: 'rapidapi', child: Text('RapidAPI Shazam')),
                       DropdownMenuItem(value: 'shazam_proxy', child: Text('Shazam (Servidor Proxy)')),
@@ -1171,6 +1211,81 @@ class _SettingsPageState extends State<SettingsPage> {
                     },
                   ),
                 ],
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 16),
+
+          // ── Inteligencia Artificial (Curación y Playlists) ───────────────
+          _Section(
+            title: 'Inteligencia Artificial',
+            icon: Icons.auto_awesome_rounded,
+            children: [
+              Text(
+                'Generación libre de playlists ("Inspiradas por IA"), curación según tu actividad y reportes inteligentes.',
+                style: TextStyle(color: context.colors.textSecondary, fontSize: 12),
+              ),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text('Proveedor preferido', style: TextStyle(color: context.colors.textPrimary, fontSize: 13, fontWeight: FontWeight.w500)),
+                  DropdownButton<String>(
+                    value: settings.aiProvider,
+                    dropdownColor: context.colors.surfaceAlt,
+                    underline: const SizedBox(),
+                    items: const [
+                      DropdownMenuItem(value: 'gemini', child: Text('Google Gemini (Gemini 3.8 / 3.5 Flash)')),
+                      DropdownMenuItem(value: 'claude', child: Text('Anthropic Claude (Claude 5.5 / 5.1 / 4.x)')),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) settings.setAiProvider(val);
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: _geminiKeyCtrl,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Google Gemini API Key',
+                  hintText: 'AIzaSy...',
+                  prefixIcon: Icon(Icons.key, size: 18),
+                ),
+                style: const TextStyle(fontSize: 13),
+                onSubmitted: (v) => settings.setGeminiApiKey(v.trim()),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _claudeKeyCtrl,
+                obscureText: true,
+                decoration: const InputDecoration(
+                  labelText: 'Anthropic Claude API Key',
+                  hintText: 'sk-ant-api...',
+                  prefixIcon: Icon(Icons.key, size: 18),
+                ),
+                style: const TextStyle(fontSize: 13),
+                onSubmitted: (v) => settings.setClaudeApiKey(v.trim()),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Compatible con Claude y Gemini. Si configuras ambas claves, se usará tu preferida con fallback automático a la otra.',
+                style: TextStyle(color: context.colors.textSecondary, fontSize: 11),
+              ),
+              const SizedBox(height: 12),
+              ElevatedButton.icon(
+                icon: const Icon(Icons.save_outlined, size: 16),
+                label: const Text('Guardar Claves de IA'),
+                onPressed: () {
+                  settings.setGeminiApiKey(_geminiKeyCtrl.text.trim());
+                  settings.setClaudeApiKey(_claudeKeyCtrl.text.trim());
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                    content: Text('Configuración de IA guardada'),
+                    duration: Duration(seconds: 2),
+                  ));
+                },
               ),
             ],
           ),

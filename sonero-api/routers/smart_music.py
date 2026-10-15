@@ -15,6 +15,15 @@ router = APIRouter()
 class GeminiKeyRequest(BaseModel):
     api_key: str
 
+class ClaudeKeyRequest(BaseModel):
+    api_key: str
+
+class AiProviderRequest(BaseModel):
+    provider: str
+
+class ModelConfigRequest(BaseModel):
+    model: str
+
 class StartSessionRequest(BaseModel):
     user_id: str
 
@@ -75,6 +84,102 @@ def save_gemini_key(body: GeminiKeyRequest, db: Session = Depends(get_db)):
     
     db.commit()
     return {"message": "Clave API de Gemini guardada correctamente en la Base de Datos."}
+
+
+@router.post(
+    "/settings/claude-key",
+    summary="Save Claude / Anthropic API Key to database",
+    description="Saves or updates the Claude API key in the database settings table."
+)
+def save_claude_key(body: ClaudeKeyRequest, db: Session = Depends(get_db)):
+    setting = db.query(SystemSetting).filter(SystemSetting.key == "claude_api_key").first()
+    if setting:
+        setting.value = body.api_key
+    else:
+        setting = SystemSetting(key="claude_api_key", value=body.api_key)
+        db.add(setting)
+    
+    db.commit()
+    return {"message": "Clave API de Claude guardada correctamente en la Base de Datos."}
+
+
+@router.post(
+    "/settings/ai-provider",
+    summary="Set active AI provider (gemini or claude)",
+)
+def set_ai_provider(body: AiProviderRequest, db: Session = Depends(get_db)):
+    p = body.provider.strip().lower()
+    if p not in ("gemini", "claude"):
+        p = "gemini"
+    setting = db.query(SystemSetting).filter(SystemSetting.key == "ai_provider").first()
+    if setting:
+        setting.value = p
+    else:
+        setting = SystemSetting(key="ai_provider", value=p)
+        db.add(setting)
+    
+    db.commit()
+    return {"message": f"Proveedor de IA establecido en {p}."}
+
+
+@router.post(
+    "/settings/claude-model",
+    summary="Set preferred Claude model ID",
+)
+def set_claude_model(body: ModelConfigRequest, db: Session = Depends(get_db)):
+    m = body.model.strip()
+    setting = db.query(SystemSetting).filter(SystemSetting.key == "claude_model").first()
+    if setting:
+        setting.value = m
+    else:
+        setting = SystemSetting(key="claude_model", value=m)
+        db.add(setting)
+    db.commit()
+    return {"message": f"Modelo de Claude establecido en {m}."}
+
+
+@router.post(
+    "/settings/gemini-model",
+    summary="Set preferred Gemini model ID",
+)
+def set_gemini_model(body: ModelConfigRequest, db: Session = Depends(get_db)):
+    m = body.model.strip()
+    setting = db.query(SystemSetting).filter(SystemSetting.key == "gemini_model").first()
+    if setting:
+        setting.value = m
+    else:
+        setting = SystemSetting(key="gemini_model", value=m)
+        db.add(setting)
+    db.commit()
+    return {"message": f"Modelo de Gemini establecido en {m}."}
+
+
+@router.get(
+    "/settings/ai-config",
+    summary="Get current AI configuration status",
+)
+def get_ai_config(db: Session = Depends(get_db)):
+    from services.gemini_service import (
+        _get_gemini_api_key,
+        _get_claude_api_key,
+        _get_ai_provider,
+        _get_claude_models,
+        _get_gemini_models,
+    )
+    gemini_key = _get_gemini_api_key(db)
+    claude_key = _get_claude_api_key(db)
+    provider = _get_ai_provider(db)
+    claude_models = _get_claude_models(db)
+    gemini_models = _get_gemini_models(db)
+    return {
+        "provider": provider,
+        "has_gemini_key": bool(gemini_key),
+        "has_claude_key": bool(claude_key),
+        "active_gemini_model": gemini_models[0],
+        "active_claude_model": claude_models[0],
+        "available_gemini_models": gemini_models,
+        "available_claude_models": claude_models,
+    }
 
 
 @router.post(

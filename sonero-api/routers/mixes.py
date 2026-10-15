@@ -33,7 +33,7 @@ _KIND_ORDER = ["daily_mix", "discovery", "radio:", "favorites", "time_", "energy
 
 
 def _rank(mix: Mix) -> tuple:
-    if mix.source == "agent":
+    if mix.source in ("agent", "ai"):
         return (0, -mix.updated_at.timestamp() if mix.updated_at else 0)
     kind = mix.kind or ""
     position = next((i for i, k in enumerate(_KIND_ORDER) if kind == k or (k.endswith((":", "_")) and kind.startswith(k))),
@@ -60,6 +60,12 @@ async def get_mix(mix_id: int, db: Session = Depends(get_db)) -> dict:
 @router.post("/mixes/generate", summary="Rebuild Sonero's automatic mixes from current data")
 async def generate(db: Session = Depends(get_db)) -> dict:
     return await mixes.generate_auto_mixes(db)
+
+
+@router.post("/mixes/ai-curate", summary="Generate creative AI-curated mixes on demand using Gemini")
+async def ai_curate(db: Session = Depends(get_db)) -> dict:
+    from services.gemini_service import curate_ai_mixes
+    return await curate_ai_mixes(db, force=True)
 
 
 @router.delete("/mixes/{mix_id}", summary="Delete a mix (library files are not touched)")

@@ -1477,6 +1477,48 @@ class ApiClient {
     _check(res);
   }
 
+  Future<void> saveClaudeKey(String apiKey) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/api/v1/settings/claude-key'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'api_key': apiKey}),
+    );
+    _check(res);
+  }
+
+  Future<void> saveAiProvider(String provider) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/api/v1/settings/ai-provider'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'provider': provider}),
+    );
+    _check(res);
+  }
+
+  Future<void> saveClaudeModel(String model) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/api/v1/settings/claude-model'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'model': model}),
+    );
+    _check(res);
+  }
+
+  Future<void> saveGeminiModel(String model) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/api/v1/settings/gemini-model'),
+      headers: {'Content-Type': 'application/json'},
+      body: jsonEncode({'model': model}),
+    );
+    _check(res);
+  }
+
+  Future<Map<String, dynamic>> getAiConfig() async {
+    final res = await http.get(Uri.parse('$baseUrl/api/v1/settings/ai-config'));
+    _check(res);
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
   Future<Map<String, dynamic>> getActiveFocusSession(String userId) async {
     final res = await http.get(Uri.parse('$baseUrl/api/v1/smart/focus/session/active?user_id=$userId'));
     _check(res);

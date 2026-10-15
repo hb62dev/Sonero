@@ -54,6 +54,8 @@ class SettingsProvider extends ChangeNotifier {
   static const _keyLyricsOffset = 'lyrics_offset';
   static const _keyRecognitionService = 'recognition_service';
   static const _keyGeminiApiKey = 'gemini_api_key';
+  static const _keyClaudeApiKey = 'claude_api_key';
+  static const _keyAiProvider = 'ai_provider';
   static const _keyAudDApiToken = 'audd_api_token';
   static const _keyRapidApiKey = 'rapidapi_key';
   static const _keyRapidApiHost = 'rapidapi_host';
@@ -93,6 +95,8 @@ class SettingsProvider extends ChangeNotifier {
   int _lyricsOffset = 0;
   String _recognitionService = 'shazam_proxy';
   String _geminiApiKey = '';
+  String _claudeApiKey = '';
+  String _aiProvider = 'gemini';
   String _auddApiToken = '';
   String _rapidApiKey = '';
   String _rapidApiHost = 'shazam-song-recognizer.p.rapidapi.com';
@@ -145,6 +149,8 @@ class SettingsProvider extends ChangeNotifier {
   int get lyricsOffset => _lyricsOffset;
   String get recognitionService => _recognitionService;
   String get geminiApiKey => _geminiApiKey;
+  String get claudeApiKey => _claudeApiKey;
+  String get aiProvider => _aiProvider;
   String get auddApiToken => _auddApiToken;
   String get rapidApiKey => _rapidApiKey;
   String get rapidApiHost => _rapidApiHost;
@@ -168,6 +174,8 @@ class SettingsProvider extends ChangeNotifier {
     _lyricsOffset = prefs.getInt(_keyLyricsOffset) ?? 0;
     _recognitionService = prefs.getString(_keyRecognitionService) ?? 'shazam_proxy';
     _geminiApiKey = prefs.getString(_keyGeminiApiKey) ?? '';
+    _claudeApiKey = prefs.getString(_keyClaudeApiKey) ?? '';
+    _aiProvider = prefs.getString(_keyAiProvider) ?? 'gemini';
     _auddApiToken = prefs.getString(_keyAudDApiToken) ?? '';
     _rapidApiKey = prefs.getString(_keyRapidApiKey) ?? '';
     _rapidApiHost = prefs.getString(_keyRapidApiHost) ?? 'shazam-song-recognizer.p.rapidapi.com';
@@ -253,6 +261,14 @@ class SettingsProvider extends ChangeNotifier {
         video: videoFolder,
       ).timeout(const Duration(seconds: 3)).catchError((_) {});
     }
+
+    if (_geminiApiKey.isNotEmpty) {
+      _api.saveGeminiKey(_geminiApiKey).catchError((_) {});
+    }
+    if (_claudeApiKey.isNotEmpty) {
+      _api.saveClaudeKey(_claudeApiKey).catchError((_) {});
+    }
+    _api.saveAiProvider(_aiProvider).catchError((_) {});
     
     _isLoaded = true;
     notifyListeners();
@@ -806,6 +822,29 @@ class SettingsProvider extends ChangeNotifier {
     _geminiApiKey = key;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_keyGeminiApiKey, key);
+    try {
+      await _api.saveGeminiKey(key);
+    } catch (_) {}
+    notifyListeners();
+  }
+
+  Future<void> setClaudeApiKey(String key) async {
+    _claudeApiKey = key;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyClaudeApiKey, key);
+    try {
+      await _api.saveClaudeKey(key);
+    } catch (_) {}
+    notifyListeners();
+  }
+
+  Future<void> setAiProvider(String provider) async {
+    _aiProvider = provider;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_keyAiProvider, provider);
+    try {
+      await _api.saveAiProvider(provider);
+    } catch (_) {}
     notifyListeners();
   }
 

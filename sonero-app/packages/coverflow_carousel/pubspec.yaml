@@ -1,0 +1,26 @@
+name: coverflow_carousel
+description: "A highly customizable 3D coverflow-style carousel for Flutter with smooth animations, perspective effects, and controller support."
+version: 2.1.0
+homepage: https://github.com/GalaxyPhoenix716/coverflow_carousel_package
+repository: https://github.com/GalaxyPhoenix716/coverflow_carousel_package
+license: BSD-3-Clause
+
+topics:
+  - coverflow
+  - carousel
+  - carousel-3d
+  - image-slider
+  - ui-widget
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: ">=3.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0

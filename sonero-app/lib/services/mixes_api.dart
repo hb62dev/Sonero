@@ -88,7 +88,7 @@ class SmartMix {
     this.items = const [],
   });
 
-  bool get byAgent => source == 'agent';
+  bool get byAgent => source == 'agent' || source == 'ai';
 
   factory SmartMix.fromJson(Map<String, dynamic> j) => SmartMix(
         id: (j['id'] as num).toInt(),
@@ -166,6 +166,10 @@ class MixesApi {
   /// Rebuilds Sonero's automatic mixes; looks up related artists online when possible.
   Future<Map<String, dynamic>> generate() async =>
       _decode(await http.post(_uri('/mixes/generate')).timeout(const Duration(minutes: 2)));
+
+  /// Curates creative, non-templated playlists using Gemini AI based on user activity.
+  Future<Map<String, dynamic>> curateAi() async =>
+      _decode(await http.post(_uri('/mixes/ai-curate')).timeout(const Duration(minutes: 2)));
 
   Future<void> delete(int id) async => _decode(await http.delete(_uri('/mixes/$id')));
 

@@ -183,9 +183,9 @@ class _LibraryPageState extends State<LibraryPage>
               Tab(
                 height: isMobile ? 36 : null,
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.auto_awesome_rounded, size: isMobile ? 14 : 16),
+                  Icon(Icons.explore_rounded, size: isMobile ? 14 : 16),
                   SizedBox(width: isMobile ? 3 : 4),
-                  const Text('Para ti'),
+                  const Text('Explorar'),
                 ]),
               ),
             ],
@@ -219,7 +219,7 @@ class _LibraryPageState extends State<LibraryPage>
                     videoTracks.isEmpty
                         ? _EmptyState(playlist: selected, tabIndex: 4)
                         : _buildContent(videoTracks, videoTracks),
-                    // Tab 5: Para ti (recommended mixes)
+                    // Tab 5: Explorar (recommended mixes)
                     const ForYouTab(),
                   ],
                 ),

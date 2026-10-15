@@ -10,7 +10,7 @@ import '../../services/mixes_api.dart';
 import '../theme.dart';
 import '../widgets/track_cover_image.dart';
 
-/// Biblioteca → Para ti: recommended mixes from Sonero's own algorithm and
+/// Biblioteca → Explorar: recommended mixes from Sonero's own algorithm and
 /// from AI agents connected through the MCP server.
 class ForYouTab extends StatefulWidget {
   const ForYouTab({super.key});
@@ -24,6 +24,7 @@ class _ForYouTabState extends State<ForYouTab> {
   List<SmartMix>? _mixes;
   String? _error;
   bool _generating = false;
+  bool _curatingAi = false;
 
   @override
   void initState() {
@@ -43,6 +44,25 @@ class _ForYouTabState extends State<ForYouTab> {
       if (generateIfEmpty && mixes.isEmpty) await _generate();
     } catch (e) {
       if (mounted) setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
+  Future<void> _curateAi() async {
+    setState(() => _curatingAi = true);
+    try {
+      final result = await _api.curateAi();
+      if (result['success'] == true) {
+        await _load();
+        final count = result['count'] ?? 0;
+        _snack('✨ Se crearon $count nuevas playlists personalizadas con IA.');
+      } else {
+        final msg = result['message'] ?? 'No se pudieron generar los mixes con IA.';
+        _snack(msg);
+      }
+    } catch (e) {
+      _snack('Error al consultar IA: ${e.toString().replaceFirst('Exception: ', '')}');
+    } finally {
+      if (mounted) setState(() => _curatingAi = false);
     }
   }
 
@@ -75,8 +95,8 @@ class _ForYouTabState extends State<ForYouTab> {
   Widget build(BuildContext context) {
     if (context.read<SettingsProvider>().api.isNative) {
       return const _Centered(
-        icon: Icons.auto_awesome_rounded,
-        title: 'Para ti necesita el servidor de Sonero',
+        icon: Icons.explore_rounded,
+        title: 'Explorar necesita el servidor de Sonero',
         body: 'Las recomendaciones se calculan en el servidor de Sonero de tu computadora.',
       );
     }
@@ -104,10 +124,21 @@ class _ForYouTabState extends State<ForYouTab> {
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               FilledButton.icon(
-                onPressed: _generating ? null : _generate,
+                onPressed: (_curatingAi || _generating) ? null : _curateAi,
+                icon: _curatingAi
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.auto_awesome, size: 18),
+                label: Text(_curatingAi ? 'Inspirando con IA…' : 'Inspirar con IA'),
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF6366F1),
+                  foregroundColor: Colors.white,
+                ),
+              ),
+              OutlinedButton.icon(
+                onPressed: (_generating || _curatingAi) ? null : _generate,
                 icon: _generating
                     ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Icon(Icons.auto_awesome_rounded, size: 18),
+                    : const Icon(Icons.refresh_rounded, size: 18),
                 label: Text(_generating ? 'Generando…' : 'Actualizar mixes'),
               ),
               OutlinedButton.icon(
@@ -124,14 +155,18 @@ class _ForYouTabState extends State<ForYouTab> {
               TextButton.icon(
                 onPressed: () => showDialog(context: context, builder: (_) => const AgentHelpDialog()),
                 icon: const Icon(Icons.smart_toy_outlined, size: 18),
-                label: const Text('Conectar un agente IA'),
+                label: const Text('Agentes externos (MCP)'),
               ),
             ],
           ),
           const SizedBox(height: 24),
 
           if (agent.isNotEmpty) ...[
-            const _SectionTitle(icon: Icons.smart_toy_rounded, title: 'Creados por tu agente IA'),
+            const _SectionTitle(
+              icon: Icons.auto_awesome_rounded,
+              title: 'Inspiradas por IA',
+              subtitle: 'Playlists únicas adaptadas a tu actividad reciente y estado de ánimo',
+            ),
             _MixGrid(mixes: agent, onOpen: _open),
             const SizedBox(height: 28),
           ],
