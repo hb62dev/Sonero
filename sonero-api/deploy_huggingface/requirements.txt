@@ -2,3 +2,5 @@ fastapi
 uvicorn
 shazamio
 python-multipart
+mangum
+boto3

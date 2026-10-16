@@ -45,6 +45,16 @@ async def pick_folder(
 
     return {"path": selected}
 
+@router.get(
+    "/settings/youtube",
+    summary="Health of YouTube downloads: yt-dlp version, JS runtime, cookies",
+)
+async def youtube_status() -> dict:
+    from services import youtube
+
+    return youtube.status()
+
+
 class CookieBrowserUpdate(BaseModel):
     browser: str | None = None  # None / "" disables reading browser cookies
 

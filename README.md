@@ -83,6 +83,15 @@ To use account synchronization and Google Drive backup in your local build or fo
 
 ---
 
+## ▶️ YouTube downloads
+
+YouTube increasingly asks to "confirm you're not a bot", especially from VPN or datacenter IPs. To keep downloads working:
+* Install **Deno** (recommended) or **Node.js**: yt-dlp needs a JavaScript runtime to solve YouTube's challenges. Sonero finds it automatically.
+* Keep yt-dlp updated: `pip install -U "yt-dlp[default]"` (the `[default]` extra includes `yt-dlp-ejs`, the challenge solver).
+* If downloads are still blocked, use cookies from a Google account (a secondary one is safer) in **Settings → Authentication**, or exclude Sonero from your VPN.
+
+**Settings → Authentication** shows the status of all of this, and failed downloads explain why they failed.
+
 ## 🤖 MCP Server for AI Agents
 
 The Python backend exposes Sonero's **usage statistics** over the [Model Context Protocol](https://modelcontextprotocol.io), so agents (Claude Code, Claude Desktop, or any MCP client) can analyze your listening habits. All tools are **read-only**: agents can't play, download, edit or delete anything.
@@ -97,8 +106,19 @@ The Python backend exposes Sonero's **usage statistics** over the [Model Context
 | `search_library` | Search by title, artist, album or genre, with play counts |
 | `get_focus_stats` | Focus sessions, skips and Focus Score |
 | `get_dashboard_stats` | Everything the in-app Statistics screen shows |
+| `get_taste_profile` | Top artists/genres weighted by listening time, listening by time of day, data coverage |
+| `list_library_songs` | Library songs with metadata, usage (plays, % finished, % skipped) and audio features; filters by artist, genre, BPM, energy |
+| `find_similar_artists` / `get_artist_top_tracks` / `search_music_catalog` / `get_genre_chart` | Discovery in Deezer's public catalog (30 s previews), marking what's already in the library |
+| `list_mixes` / `create_mix` / `delete_mix` | Recommended playlists shown in **Biblioteca → Para ti**. Writes only touch mixes, never music files |
 
-It also provides the resource `sonero://stats/summary` (30-day summary).
+It also provides the resource `sonero://stats/summary` (30-day summary) and the prompt **"Crear mis mixes recomendados"**, which asks the agent to analyze your data and create several Spotify/YouTube-style mixes.
+
+### ✨ Para ti (recommended mixes)
+**Biblioteca → Para ti** shows two kinds of mixes:
+* **Created by your AI agent**: an agent connected to the MCP server reads your statistics, discovers new music and creates mixes with `create_mix`. Sonero itself never sends your data to any AI.
+* **Made for you**: Sonero's own algorithm (no AI) — daily mix, favourites, rediscover, never played, recently added, morning/afternoon/night, high energy/calm, best of a genre, artist radios and weekly discovery through related artists (Deezer, no account needed). Without internet, only library-based mixes are created.
+
+Online songs play as 30 s previews and can be downloaded to the library. Two optional tools improve the data the mixes use: **Completar géneros y años** (looks up missing artist/album/genre/year in Deezer/iTunes; you review before saving) and **Analizar audio** (BPM, energy, danceability computed locally; requires `pip install -r sonero-api/requirements-audio.txt`).
 
 **HTTP (backend running):** `http://127.0.0.1:8000/mcp` — local only (not reachable from the network, DNS-rebinding protection).
 
@@ -245,6 +265,15 @@ Para usar la sincronización de cuenta y respaldo en Google Drive en tu compilac
 
 ---
 
+## ▶️ Descargas de YouTube
+
+YouTube pide cada vez más "confirmar que no eres un bot", sobre todo desde IPs de VPN o centros de datos. Para que las descargas sigan funcionando:
+* Instala **Deno** (recomendado) o **Node.js**: yt-dlp necesita un motor de JavaScript para resolver los desafíos de YouTube. Sonero lo encuentra solo.
+* Mantén yt-dlp actualizado: `pip install -U "yt-dlp[default]"` (el extra `[default]` incluye `yt-dlp-ejs`, que resuelve los desafíos).
+* Si aun así se bloquean, usa cookies de una cuenta de Google (mejor una secundaria) en **Ajustes → Autenticación**, o excluye Sonero de tu VPN.
+
+**Ajustes → Autenticación** muestra el estado de todo esto, y las descargas fallidas explican por qué fallaron.
+
 ## 🤖 Servidor MCP para Agentes de IA
 
 El backend de Python expone las **estadísticas de uso** de Sonero mediante el [Model Context Protocol](https://modelcontextprotocol.io), para que agentes (Claude Code, Claude Desktop o cualquier cliente MCP) puedan analizar tus hábitos de escucha. Todas las herramientas son de **solo lectura**: los agentes no pueden reproducir, descargar, editar ni borrar nada.
@@ -259,8 +288,19 @@ El backend de Python expone las **estadísticas de uso** de Sonero mediante el [
 | `search_library` | Búsqueda por título, artista, álbum o género, con número de reproducciones |
 | `get_focus_stats` | Sesiones de concentración, saltos y Focus Score |
 | `get_dashboard_stats` | Todo lo que muestra la pantalla de Estadísticas de la app |
+| `get_taste_profile` | Artistas y géneros más escuchados (ponderados por tiempo), escucha por momento del día, cobertura de datos |
+| `list_library_songs` | Canciones con metadatos, uso (reproducciones, % terminado, % saltado) y análisis de audio; filtros por artista, género, BPM, energía |
+| `find_similar_artists` / `get_artist_top_tracks` / `search_music_catalog` / `get_genre_chart` | Descubrimiento en el catálogo público de Deezer (vistas previas de 30 s), marcando lo que ya está en la biblioteca |
+| `list_mixes` / `create_mix` / `delete_mix` | Playlists recomendadas que aparecen en **Biblioteca → Para ti**. Solo modifican los mixes, nunca los archivos de música |
 
-También ofrece el recurso `sonero://stats/summary` (resumen de 30 días).
+También ofrece el recurso `sonero://stats/summary` (resumen de 30 días) y el prompt **"Crear mis mixes recomendados"**, que pide al agente analizar tus datos y crear varios mixes al estilo Spotify/YouTube.
+
+### ✨ Para ti (mixes recomendados)
+**Biblioteca → Para ti** muestra dos tipos de mixes:
+* **Creados por tu agente IA**: un agente conectado al servidor MCP lee tus estadísticas, descubre música nueva y crea mixes con `create_mix`. Sonero no envía tus datos a ninguna IA por su cuenta.
+* **Hechos para ti**: el algoritmo propio de Sonero (sin IA) — mix diario, favoritas, redescubre, nunca escuchadas, recién añadidas, mañana/tarde/noche, alta energía/calma, lo mejor de un género, radios de artista y descubrimiento semanal mediante artistas relacionados (Deezer, sin cuenta). Sin internet se crean solo los mixes de tu biblioteca.
+
+Las canciones nuevas se escuchan como vistas previas de 30 s y se pueden descargar a la biblioteca. Dos herramientas opcionales mejoran los datos que usan los mixes: **Completar géneros y años** (busca artista/álbum/género/año faltantes en Deezer/iTunes; los revisas antes de guardar) y **Analizar audio** (BPM, energía y bailabilidad calculados localmente; requiere `pip install -r sonero-api/requirements-audio.txt`).
 
 **HTTP (con el backend en ejecución):** `http://127.0.0.1:8000/mcp` — solo local (no accesible desde la red, con protección contra DNS rebinding).
 

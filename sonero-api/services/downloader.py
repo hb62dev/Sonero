@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 from datetime import datetime
+from glob import escape as glob_escape
 from pathlib import Path
 from typing import Optional
 
@@ -14,7 +15,7 @@ from config import settings
 from database import SessionLocal
 from models import Media, Playlist, PlaylistMedia
 from services.benrio_client import benrio_client
-from services.cookies import CookieManager
+from services import youtube
 
 class PauseDownload(Exception):
     pass
@@ -162,13 +163,6 @@ async def download_mp3(
         "nocheckcertificate": True,
         "quiet": True,
         "no_warnings": True,
-        "http_headers": {
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/126.0.0.0 Safari/537.36"
-            )
-        },
     }
 
     if has_ffmpeg:
@@ -214,7 +208,7 @@ async def download_mp3(
                     progress_callback(99)
         ydl_opts["progress_hooks"] = [my_hook]
 
-    ydl_opts.update(CookieManager.get_cookie_opts())
+    ydl_opts = youtube.apply_common(ydl_opts)
 
     # Don't write thumbnails if we can't embed them (no ffmpeg)
     if not has_ffmpeg:
@@ -230,7 +224,7 @@ async def download_mp3(
                 "noplaylist": True,
                 "nocheckcertificate": True,
             }
-            extract_opts.update(CookieManager.get_cookie_opts())
+            extract_opts = youtube.apply_common(extract_opts)
             def _extract_thumb():
                 with yt_dlp.YoutubeDL(extract_opts) as ydl:
                     info = ydl.extract_info(url, download=False)
@@ -245,6 +239,7 @@ async def download_mp3(
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
 
+    await youtube.pace()
     await asyncio.to_thread(_download)
 
     # Find the actual downloaded file (could be .mp3, .m4a, .webm, .opus, etc.)
@@ -287,16 +282,9 @@ async def get_video_info(url: str) -> dict:
         "socket_timeout": 15,
         "noplaylist": True,
         "nocheckcertificate": True,
-        "http_headers": {
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
-            )
-        },
     }
     
-    ydl_opts.update(CookieManager.get_cookie_opts())
+    ydl_opts = youtube.apply_common(ydl_opts)
 
     def _extract():
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -352,7 +340,7 @@ async def download_video(url: str, format_id: str, progress_callback=None, check
     dest_dir.mkdir(parents=True, exist_ok=True)
     
     def _get_info():
-        with yt_dlp.YoutubeDL({"quiet": True, "nocheckcertificate": True}) as ydl:
+        with yt_dlp.YoutubeDL(youtube.apply_common({"quiet": True, "nocheckcertificate": True})) as ydl:
             info = ydl.extract_info(url, download=False)
             return (info.get("title", "video"), info.get("thumbnail", ""))
             
@@ -367,6 +355,7 @@ async def download_video(url: str, format_id: str, progress_callback=None, check
         def __init__(self):
             self.has_warning = False
             self.warning_msg = None
+            self.last_error = None
         def debug(self, msg): pass
         def info(self, msg): pass
         def warning(self, msg):
@@ -374,6 +363,7 @@ async def download_video(url: str, format_id: str, progress_callback=None, check
                 self.has_warning = True
                 self.warning_msg = "Advertencia: YouTube bloqueó temporalmente la descarga de subtítulos (HTTP 429)."
         def error(self, msg):
+            self.last_error = msg
             self.warning(msg)
 
     logger = YTDLPLogger()
@@ -459,13 +449,18 @@ async def download_video(url: str, format_id: str, progress_callback=None, check
     if postprocessors:
         ydl_opts["postprocessors"] = postprocessors
 
-    ydl_opts.update(CookieManager.get_cookie_opts())
+    ydl_opts = youtube.apply_common(ydl_opts)
 
     def _download():
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
-            
+
+    await youtube.pace()
     await asyncio.to_thread(_download)
+    # ignoreerrors keeps optional parts (subtitles) from failing the download,
+    # but it also swallows real failures: make sure the file exists
+    if not any(dest_dir.glob(f"{glob_escape(filename)}.*")):
+        raise RuntimeError(logger.last_error or "YouTube no entregó el archivo.")
     
     # Call Benrio to analyze the video and get a playlist suggestion
     benrio_response = await benrio_client.analyze_media(title=title, artist="")
@@ -491,15 +486,8 @@ async def get_playlist_info(url: str) -> dict:
         "socket_timeout": 15,
         "extract_flat": True,
         "nocheckcertificate": True,
-        "http_headers": {
-            "User-Agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/120.0.0.0 Safari/537.36"
-            )
-        },
     }
-    ydl_opts.update(CookieManager.get_cookie_opts())
+    ydl_opts = youtube.apply_common(ydl_opts)
 
     def _extract():
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:

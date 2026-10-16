@@ -6,7 +6,7 @@ from pathlib import Path
 from config import settings
 from database import get_db
 from models import Media, PlaylistMedia, PlaybackEvent
-from services import downloader
+from services import downloader, youtube
 from schemas.video import VideoDownloadRequest, VideoInfoResponse
 from schemas.song import TrackInfo
 from routers.metadata import read_mp3_basic_info
@@ -197,9 +197,11 @@ async def _run_video_download(job_id: str, url: str, format_id: str):
         video_jobs[job_id].status = "paused"
         video_jobs[job_id].step = "⏸️ Pausado"
     except Exception as exc:
+        kind, message = youtube.classify_error(exc)
         video_jobs[job_id].status = "failed"
-        video_jobs[job_id].step = "❌ Error en descarga"
-        video_jobs[job_id].error = str(exc)
+        video_jobs[job_id].step = "❌ YouTube bloqueó la descarga" if kind == "bot" else "❌ Error en descarga"
+        video_jobs[job_id].error = message
+        video_jobs[job_id].error_kind = kind
 
 class Mp3DownloadRequest(BaseModel):
     url: str
@@ -253,9 +255,11 @@ async def _run_mp3_download(job_id: str, request: Mp3DownloadRequest):
         video_jobs[job_id].status = "paused"
         video_jobs[job_id].step = "⏸️ Pausado"
     except Exception as exc:
+        kind, message = youtube.classify_error(exc)
         video_jobs[job_id].status = "failed"
-        video_jobs[job_id].step = "❌ Error en descarga"
-        video_jobs[job_id].error = str(exc)
+        video_jobs[job_id].step = "❌ YouTube bloqueó la descarga" if kind == "bot" else "❌ Error en descarga"
+        video_jobs[job_id].error = message
+        video_jobs[job_id].error_kind = kind
 
 @router.post(
     "/downloads/video/jobs/{job_id}/pause",

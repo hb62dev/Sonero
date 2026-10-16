@@ -31,6 +31,7 @@ venv\Scripts\python.exe -m PyInstaller --noconfirm --onedir --console --name son
   --hidden-import PIL ^
   --hidden-import httpx ^
   --hidden-import yt_dlp ^
+  --collect-all yt_dlp_ejs ^
   --hidden-import psutil ^
   --collect-submodules passlib ^
   --collect-submodules mcp ^

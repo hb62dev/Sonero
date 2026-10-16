@@ -14,6 +14,7 @@ import '../widgets/track_cover_image.dart';
 import '../settings/settings_page.dart';
 import 'metadata_dialog.dart';
 import '../wifi_transfer/cast_to_tv.dart';
+import 'for_you_tab.dart';
 import 'package:file_picker/file_picker.dart';
 
 class LibraryPage extends StatefulWidget {
@@ -41,7 +42,7 @@ class _LibraryPageState extends State<LibraryPage>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 5, vsync: this);
+    _tabController = TabController(length: 6, vsync: this);
     _tabController.addListener(() => setState(() {}));
   }
 
@@ -180,6 +181,14 @@ class _LibraryPageState extends State<LibraryPage>
                   Text('Videos (${videoTracks.length})'),
                 ]),
               ),
+              Tab(
+                height: isMobile ? 36 : null,
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(Icons.explore_rounded, size: isMobile ? 14 : 16),
+                  SizedBox(width: isMobile ? 3 : 4),
+                  const Text('Explorar'),
+                ]),
+              ),
             ],
           );
         }),
@@ -211,6 +220,8 @@ class _LibraryPageState extends State<LibraryPage>
                     videoTracks.isEmpty
                         ? _EmptyState(playlist: selected, tabIndex: 4)
                         : _buildContent(videoTracks, videoTracks),
+                    // Tab 5: Explorar (recommended mixes)
+                    const ForYouTab(),
                   ],
                 ),
         ),

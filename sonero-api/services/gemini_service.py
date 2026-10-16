@@ -1,34 +1,236 @@
+import os
 import json
 import logging
 import httpx
+from datetime import datetime, timedelta
+from fastapi import BackgroundTasks
 from sqlalchemy.orm import Session
-from models import SystemSetting
+from sqlalchemy import func
+from models import SystemSetting, PlaybackEvent, Media, SongRating
 
 logger = logging.getLogger("sonero-smart-gemini")
 
 def _get_gemini_api_key(db: Session) -> str | None:
-    """Retrieves the Gemini API key from the system settings table in the database."""
+    """Retrieves the Gemini API key from the database settings table or environment."""
     try:
         record = db.query(SystemSetting).filter(SystemSetting.key == "gemini_api_key").first()
-        return record.value if record else None
+        if record and record.value and record.value.strip():
+            return record.value.strip()
     except Exception as e:
         logger.error(f"Error fetching Gemini API key from DB: {e}")
-        return None
+    
+    env_key = os.environ.get("GEMINI_API_KEY")
+    if env_key and env_key.strip():
+        return env_key.strip()
+    return None
+
+def _get_claude_api_key(db: Session) -> str | None:
+    """Retrieves the Claude / Anthropic API key from DB or environment."""
+    try:
+        record = db.query(SystemSetting).filter(
+            (SystemSetting.key == "claude_api_key") | (SystemSetting.key == "anthropic_api_key")
+        ).first()
+        if record and record.value and record.value.strip():
+            return record.value.strip()
+    except Exception as e:
+        logger.error(f"Error fetching Claude API key from DB: {e}")
+
+    env_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("CLAUDE_API_KEY")
+    if env_key and env_key.strip():
+        return env_key.strip()
+    return None
+
+def _get_ai_provider(db: Session) -> str:
+    """Returns preferred AI provider: 'gemini' or 'claude' (default: 'gemini')."""
+    try:
+        record = db.query(SystemSetting).filter(SystemSetting.key == "ai_provider").first()
+        if record and record.value and record.value.strip().lower() in ("claude", "anthropic"):
+            return "claude"
+    except Exception as e:
+        logger.error(f"Error fetching AI provider from DB: {e}")
+    return "gemini"
+
+def _clean_json_text(raw_text: str) -> str:
+    """Strips markdown code fence wrappers from JSON output."""
+    t = raw_text.strip()
+    if t.startswith("```json"):
+        t = t[7:]
+    elif t.startswith("```"):
+        t = t[3:]
+    if t.endswith("```"):
+        t = t[:-3]
+    return t.strip()
+
+def _get_claude_models(db: Session | None = None) -> list[str]:
+    """Returns available Claude models ordered by priority (custom model first if set)."""
+    custom = None
+    if db:
+        try:
+            rec = db.query(SystemSetting).filter(SystemSetting.key == "claude_model").first()
+            if rec and rec.value and rec.value.strip():
+                custom = rec.value.strip()
+        except Exception:
+            pass
+    if not custom:
+        custom = os.environ.get("CLAUDE_MODEL") or os.environ.get("ANTHROPIC_MODEL")
+
+    defaults = [
+        "claude-haiku-5-5",
+        "claude-sonnet-5-5",
+        "claude-fable-5-1",
+        "claude-opus-5-5",
+        "claude-haiku-4-5",
+        "claude-sonnet-4-6",
+        "claude-3-7-sonnet",
+        "claude-3-5-haiku-20241022",
+        "claude-3-5-sonnet-20241022",
+    ]
+    if custom and custom.strip():
+        c = custom.strip()
+        return [c] + [m for m in defaults if m != c]
+    return defaults
+
+
+def _get_gemini_models(db: Session | None = None) -> list[str]:
+    """Returns available Gemini models ordered by priority (custom model first if set)."""
+    custom = None
+    if db:
+        try:
+            rec = db.query(SystemSetting).filter(SystemSetting.key == "gemini_model").first()
+            if rec and rec.value and rec.value.strip():
+                custom = rec.value.strip()
+        except Exception:
+            pass
+    if not custom:
+        custom = os.environ.get("GEMINI_MODEL")
+
+    defaults = [
+        "gemini-3.8-flash",
+        "gemini-3.5-flash",
+        "gemini-3.5-flash-lite",
+        "gemini-3-flash",
+        "gemini-2.5-flash",
+        "gemini-2.0-flash",
+        "gemini-1.5-flash",
+    ]
+    if custom and custom.strip():
+        c = custom.strip()
+        return [c] + [m for m in defaults if m != c]
+    return defaults
+
+
+async def _call_claude_api(api_key: str, system_instruction: str, prompt: str, json_mode: bool = True, models: list[str] | None = None) -> str | None:
+    """Calls Anthropic Claude API with model fallback."""
+    url = "https://api.anthropic.com/v1/messages"
+    headers = {
+        "x-api-key": api_key,
+        "anthropic-version": "2023-06-01",
+        "content-type": "application/json",
+    }
+    system_text = system_instruction
+    if json_mode:
+        system_text += "\n\nResponde ÚNICAMENTE con código JSON válido. Sin markdown ni texto explicativo."
+
+    target_models = models or _get_claude_models()
+    async with httpx.AsyncClient(timeout=35.0) as client:
+        for model in target_models:
+            payload = {
+                "model": model,
+                "max_tokens": 4096,
+                "system": system_text,
+                "messages": [{"role": "user", "content": prompt}]
+            }
+            try:
+                response = await client.post(url, headers=headers, json=payload)
+                if response.status_code == 200:
+                    data = response.json()
+                    content = data.get("content", [])
+                    if content:
+                        text_blocks = [c.get("text", "") for c in content if c.get("type") == "text"]
+                        raw = "".join(text_blocks).strip()
+                        if raw:
+                            logger.info(f"Respuesta de Claude recibida exitosamente con {model}")
+                            return raw
+                else:
+                    logger.warning(f"Claude {model} retornó código {response.status_code}: {response.text[:200]}")
+            except Exception as e:
+                logger.warning(f"Error llamando a Claude {model}: {e}")
+    return None
+
+async def _call_gemini_api(api_key: str, system_instruction: str, prompt: str, json_mode: bool = True, models: list[str] | None = None) -> str | None:
+    """Calls Google Gemini API with fallback across current and flash models."""
+    target_models = models or _get_gemini_models()
+    payload = {
+        "contents": [{"parts": [{"text": f"System Instruction: {system_instruction}\n\n{prompt}"}]}],
+    }
+    if json_mode:
+        payload["generationConfig"] = {"responseMimeType": "application/json"}
+
+    async with httpx.AsyncClient(timeout=35.0) as client:
+        for model in target_models:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+            try:
+                response = await client.post(url, json=payload)
+                if response.status_code == 200:
+                    data = response.json()
+                    candidates = data.get("candidates") or data.get("contents")
+                    if candidates:
+                        parts = candidates[0].get("content", {}).get("parts", [])
+                        if not parts and "parts" in candidates[0]:
+                            parts = candidates[0]["parts"]
+                        if parts:
+                            raw = parts[0].get("text", "").strip()
+                            if raw:
+                                logger.info(f"Respuesta de Gemini recibida exitosamente con {model}")
+                                return raw
+                else:
+                    logger.warning(f"Gemini {model} retornó código {response.status_code}: {response.text[:200]}")
+            except Exception as e:
+                logger.warning(f"Error llamando a Gemini {model}: {e}")
+    return None
+
+async def query_ai(db: Session, system_instruction: str, prompt: str, json_mode: bool = True) -> tuple[str | None, str]:
+    """
+    Unified AI query function for Sonero.
+    Supports both Anthropic Claude and Google Gemini with automatic cross-fallback!
+    Returns (raw_text_response, provider_label).
+    """
+    preferred = _get_ai_provider(db)
+    claude_key = _get_claude_api_key(db)
+    gemini_key = _get_gemini_api_key(db)
+
+    attempts = []
+    if preferred == "claude":
+        if claude_key:
+            attempts.append(("claude", claude_key))
+        if gemini_key:
+            attempts.append(("gemini", gemini_key))
+    else:
+        if gemini_key:
+            attempts.append(("gemini", gemini_key))
+        if claude_key:
+            attempts.append(("claude", claude_key))
+
+    for provider, key in attempts:
+        if provider == "claude":
+            models = _get_claude_models(db)
+            res = await _call_claude_api(key, system_instruction, prompt, json_mode=json_mode, models=models)
+            if res:
+                return res, "Claude AI"
+        elif provider == "gemini":
+            models = _get_gemini_models(db)
+            res = await _call_gemini_api(key, system_instruction, prompt, json_mode=json_mode, models=models)
+            if res:
+                return res, "Gemini AI"
+
+    return None, "None"
 
 async def parse_natural_language_context(user_prompt: str, db: Session) -> dict:
     """
-    Sends the user's natural language prompt describing their context or mood to the Gemini API
+    Sends the user's natural language prompt describing their context or mood to the AI (Gemini / Claude)
     to extract recommended ranges for BPM, energy, valence, and instrumental preference.
     Falls back to a keyword-matching heuristic parser if offline or if no API key is set.
     """
-    api_key = _get_gemini_api_key(db)
-    
-    if not api_key:
-        logger.info("No Gemini API key found in DB. Using offline heuristic parser.")
-        return _parse_context_offline_fallback(user_prompt)
-
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-    
     system_instruction = (
         "You are an expert music metadata and recommendation parser. "
         "Analyze the user's prompt describing their situation, activity, mood, or context, "
@@ -43,44 +245,14 @@ async def parse_natural_language_context(user_prompt: str, db: Session) -> dict:
         "Do not include any Markdown wrap, code blocks, or explanatory text. Output raw JSON only."
     )
 
-    prompt = f"System Instruction: {system_instruction}\n\nUser Prompt: {user_prompt}"
-
-    payload = {
-        "contents": [
-            {
-                "parts": [
-                    {"text": prompt}
-                ]
-            }
-        ],
-        "generationConfig": {
-            "responseMimeType": "application/json"
-        }
-    }
-
-    try:
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            response = await client.post(url, json=payload)
-            if response.status_code == 200:
-                data = response.json()
-                text = data["contents"][0]["parts"][0]["text"].strip()
-                # Clean up any markdown blocks if Gemini accidentally returned them
-                if text.startswith("```json"):
-                    text = text[7:]
-                if text.endswith("```"):
-                    text = text[:-3]
-                text = text.strip()
-                
-                parsed_json = json.loads(text)
-                # Verify schema
-                if all(k in parsed_json for k in ["bpm_range", "energy_range", "valence_range", "instrumental"]):
-                    return parsed_json
-                else:
-                    logger.warning("Gemini JSON response missing schema fields. Falling back.")
-            else:
-                logger.error(f"Gemini API returned status code {response.status_code}: {response.text}")
-    except Exception as e:
-        logger.error(f"Failed to query Gemini API: {e}")
+    raw_text, _ = await query_ai(db, system_instruction, user_prompt, json_mode=True)
+    if raw_text:
+        try:
+            parsed = json.loads(_clean_json_text(raw_text))
+            if all(k in parsed for k in ["bpm_range", "energy_range", "valence_range", "instrumental"]):
+                return parsed
+        except Exception as e:
+            logger.warning(f"Error parsing mood JSON from AI: {e}")
 
     # Fallback if request failed or JSON was invalid
     return _parse_context_offline_fallback(user_prompt)
@@ -160,18 +332,10 @@ def _parse_context_offline_fallback(prompt: str) -> dict:
 
 async def generate_weekly_productivity_report(user_data_summary: dict, db: Session) -> str:
     """
-    Sends aggregated user focus session data to Gemini to generate a weekly report.
-    Instructs Gemini to write a Markdown report with psychological insights and actionable tips.
+    Sends aggregated user focus session data to the AI (Gemini / Claude) to generate a weekly report.
+    Instructs the AI to write a Markdown report with psychological insights and actionable tips.
     Falls back to a local template engine if offline or if no API key is set.
     """
-    api_key = _get_gemini_api_key(db)
-    
-    if not api_key:
-        logger.info("No Gemini API key found in DB. Using local template report generator.")
-        return _generate_report_offline_fallback(user_data_summary)
-
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
-    
     system_instruction = (
         "You are an expert music psychologist and productivity coach. "
         "Your task is to analyze the user's weekly listening history, focus sessions, and track-specific interactions, "
@@ -192,29 +356,10 @@ async def generate_weekly_productivity_report(user_data_summary: dict, db: Sessi
         "Do not wrap the response in markdown code blocks (e.g., do not start with ```markdown). Output raw Markdown directly."
     )
 
-    prompt = f"System Instruction: {system_instruction}\n\nUser Data Summary: {json.dumps(user_data_summary)}"
-
-    payload = {
-        "contents": [
-            {
-                "parts": [
-                    {"text": prompt}
-                ]
-            }
-        ]
-    }
-
-    try:
-        async with httpx.AsyncClient(timeout=15.0) as client:
-            response = await client.post(url, json=payload)
-            if response.status_code == 200:
-                data = response.json()
-                text = data["contents"][0]["parts"][0]["text"].strip()
-                return text
-            else:
-                logger.error(f"Gemini API returned status code {response.status_code}: {response.text}")
-    except Exception as e:
-        logger.error(f"Failed to query Gemini API for report: {e}")
+    prompt = f"User Data Summary: {json.dumps(user_data_summary)}"
+    raw_text, _ = await query_ai(db, system_instruction, prompt, json_mode=False)
+    if raw_text and len(raw_text.strip()) > 50:
+        return raw_text.strip()
 
     # Fallback to offline report
     return _generate_report_offline_fallback(user_data_summary)
@@ -329,3 +474,228 @@ Evaluación de tu rendimiento según el bloque del día:
 *Nota: Este informe ha sido redactado por el motor de análisis local fuera de línea al no detectarse una clave API de Gemini válida en el sistema.*
 """
     return report
+
+
+# ── Creative AI Curation Engine (Activity-driven & Manual) ────────────────────
+
+async def curate_ai_mixes(db: Session, force: bool = False) -> dict:
+    """
+    Curates creative, non-templated playlists using Gemini based on the user's
+    real activity, listening patterns, time of day, and ratings.
+    """
+    from services.mixes import save_mix
+
+    if not _get_gemini_api_key(db) and not _get_claude_api_key(db):
+        return {
+            "success": False,
+            "message": "Configura tu API Key de Gemini o Claude en Ajustes para generar playlists con IA.",
+            "mixes": []
+        }
+
+    # 1. User ratings (likes and dislikes)
+    ratings = db.query(SongRating).all()
+    liked_songs = [f"{r.title} - {r.artist}" for r in ratings if r.rating == 1 and r.title]
+    disliked_songs = [f"{r.title} - {r.artist}" for r in ratings if r.rating == -1 and r.title]
+    disliked_artists = list(set([r.artist.strip() for r in ratings if r.rating == -1 and r.artist]))
+
+    # 2. Recent playback activity (last 14 days, especially recent sessions)
+    now = datetime.utcnow()
+    recent_cutoff = now - timedelta(days=14)
+    recent_events = (
+        db.query(PlaybackEvent, Media)
+        .join(Media, PlaybackEvent.media_id == Media.id)
+        .filter(PlaybackEvent.start_time >= recent_cutoff)
+        .order_by(PlaybackEvent.start_time.desc())
+        .limit(80)
+        .all()
+    )
+
+    completed_tracks = []
+    skipped_tracks = []
+    for evt, media in recent_events:
+        entry = f"{media.title} (Artista: {media.artist or 'Desconocido'}, Género: {media.genre or 'General'})"
+        if evt.completed or (evt.duration_watched and evt.duration_watched > 45):
+            completed_tracks.append(entry)
+        else:
+            skipped_tracks.append(entry)
+
+    completed_sample = list(dict.fromkeys(completed_tracks))[:20]
+    skipped_sample = list(dict.fromkeys(skipped_tracks))[:15]
+
+    current_hour = now.hour
+    time_label = "Madrugada" if current_hour < 6 else "Mañana" if current_hour < 12 else "Tarde" if current_hour < 19 else "Noche"
+
+    # 3. Available local library candidate songs
+    all_media = db.query(Media).filter(Media.type == "music").order_by(func.random()).limit(80).all()
+    library_candidates = [
+        {"media_id": m.id, "title": m.title, "artist": m.artist or "Desconocido", "genre": m.genre or ""}
+        for m in all_media
+    ]
+
+    user_context = {
+        "momento_actual": f"{time_label} (Hora local aproximada: {current_hour}:00)",
+        "canciones_escuchadas_completas_recientes": completed_sample,
+        "canciones_saltadas_recientes": skipped_sample,
+        "canciones_con_me_gusta": liked_songs[:15],
+        "canciones_con_no_me_gusta_PROHIBIDAS": disliked_songs[:20],
+        "artistas_descartados_PROHIBIDOS": disliked_artists[:10],
+        "candidatos_biblioteca_local": library_candidates,
+    }
+
+    system_instruction = (
+        "Eres el DJ y Curador Musical de Inteligencia Artificial exclusivo de Sonero.\n"
+        "Tu misión es diseñar recomendaciones de playlists ÚNICAS, FRESCAS y LIBRES, sin ningún esquema prefabricado.\n\n"
+        "REGLAS OBLIGATORIAS:\n"
+        "1. PROHIBIDO usar títulos o conceptos genéricos o prefabricados como 'Mix Diario', 'Tus Favoritas', 'Mix de Mañana'. "
+        "Inventa nombres creativos, conceptuales y atractivos para cada lista (por ejemplo: 'Inmersión Nocturna de Código', "
+        "'Fiebre de Baterías y Distorsión', 'Caminata Urbana Relajada', 'Rarezas Ocultas de tu Colección').\n"
+        "2. En el campo 'reason', explica al usuario la razón auténtica y personalizada por la que creaste esta lista basándote "
+        "en su actividad real (por ejemplo: 'Notamos que hoy escuchaste varias canciones instrumentales seguidas sin saltar ninguna; "
+        "esta lista amplía esa concentración con temas de ritmo similar').\n"
+        "3. PROHIBICIÓN ESTRICTA: NUNCA incluyas ninguna canción o artista que figure en 'canciones_con_no_me_gusta_PROHIBIDAS' "
+        "o 'artistas_descartados_PROHIBIDOS'.\n"
+        "4. En cada lista incluye entre 6 y 15 canciones. Para cada canción, usa preferentemente un 'media_id' de "
+        "'candidatos_biblioteca_local'. También puedes sugerir descubrimientos musicales nuevos poniendo 'title' y 'artist' "
+        "para canciones afines que enriquezcan la lista.\n"
+        "5. Devuelve entre 2 y 4 playlists bien diferenciadas en atmósfera y estilo.\n"
+        "6. Responde EXCLUSIVAMENTE con un JSON válido sin markdown ni texto extra:\n"
+        "{\n"
+        "  \"mixes\": [\n"
+        "    {\n"
+        "      \"title\": \"Título creativo\",\n"
+        "      \"description\": \"Descripción de 1 o 2 oraciones de la atmósfera\",\n"
+        "      \"reason\": \"Por qué te la recomendamos hoy\",\n"
+        "      \"items\": [\n"
+        "        {\"media_id\": 1, \"note\": \"Motivo breve de selección\"},\n"
+        "        {\"title\": \"Canción\", \"artist\": \"Artista\", \"note\": \"Descubrimiento nuevo\"}\n"
+        "      ]\n"
+        "    }\n"
+        "  ]\n"
+        "}"
+    )
+
+    prompt = f"Contexto del Usuario y Biblioteca:\n{json.dumps(user_context, ensure_ascii=False)}"
+
+    raw_text, provider_label = await query_ai(db, system_instruction, prompt, json_mode=True)
+    if not raw_text:
+        logger.error("No se pudo obtener respuesta de la IA (Gemini / Claude).")
+        return {
+            "success": False,
+            "message": "No se pudo generar la recomendación con la IA en este momento. Revisa tu conexión y clave API de Gemini o Claude.",
+            "mixes": []
+        }
+
+    try:
+        clean_text = _clean_json_text(raw_text)
+        parsed_json = json.loads(clean_text)
+    except Exception as e:
+        logger.error(f"Error parseando JSON de {provider_label}: {e}. Texto recibido: {raw_text[:300]}")
+        return {
+            "success": False,
+            "message": f"Error al procesar la respuesta estructurada de {provider_label}.",
+            "mixes": []
+        }
+
+    created_mixes = []
+    for m in parsed_json.get("mixes", []):
+        title = (m.get("title") or "").strip()
+        items = m.get("items", [])
+        if not title or not items:
+            continue
+        
+        saved = save_mix(
+            db,
+            title=title,
+            items=items,
+            description=m.get("description"),
+            reason=m.get("reason"),
+            source="agent",
+            author=provider_label,
+            kind="ai_curated"
+        )
+        created_mixes.append({"id": saved.id, "title": saved.title, "count": len(saved.items)})
+
+    play_setting = db.query(SystemSetting).filter(SystemSetting.key == "plays_since_last_curation").first()
+    if not play_setting:
+        play_setting = SystemSetting(key="plays_since_last_curation", value="0")
+        db.add(play_setting)
+    else:
+        play_setting.value = "0"
+
+    time_setting = db.query(SystemSetting).filter(SystemSetting.key == "last_ai_curation_timestamp").first()
+    now_iso = datetime.utcnow().isoformat()
+    if not time_setting:
+        time_setting = SystemSetting(key="last_ai_curation_timestamp", value=now_iso)
+        db.add(time_setting)
+    else:
+        time_setting.value = now_iso
+    db.commit()
+
+    return {
+        "success": True,
+        "count": len(created_mixes),
+        "mixes": created_mixes,
+        "message": f"Se crearon {len(created_mixes)} playlists personalizadas con IA."
+    }
+
+
+def check_activity_and_maybe_curate(db: Session, background_tasks: BackgroundTasks):
+    """
+    Checks user activity since last AI curation. If threshold is reached and
+    cooldown has elapsed, schedules an AI curation in the background.
+    Zero activity = Zero executions.
+    """
+    try:
+        if not _get_gemini_api_key(db) and not _get_claude_api_key(db):
+            return
+
+        play_setting = db.query(SystemSetting).filter(SystemSetting.key == "plays_since_last_curation").first()
+        if not play_setting:
+            play_setting = SystemSetting(key="plays_since_last_curation", value="1")
+            db.add(play_setting)
+            current_plays = 1
+        else:
+            current_plays = int(play_setting.value or "0") + 1
+            play_setting.value = str(current_plays)
+        db.commit()
+
+        MIN_PLAYS = 6
+        COOLDOWN_MINUTES = 45
+
+        if current_plays < MIN_PLAYS:
+            return
+
+        last_time_setting = db.query(SystemSetting).filter(SystemSetting.key == "last_ai_curation_timestamp").first()
+        now = datetime.utcnow()
+        if last_time_setting and last_time_setting.value:
+            try:
+                last_time = datetime.fromisoformat(last_time_setting.value)
+                if (now - last_time) < timedelta(minutes=COOLDOWN_MINUTES):
+                    return
+            except Exception:
+                pass
+
+        play_setting.value = "0"
+        if not last_time_setting:
+            last_time_setting = SystemSetting(key="last_ai_curation_timestamp", value=now.isoformat())
+            db.add(last_time_setting)
+        else:
+            last_time_setting.value = now.isoformat()
+        db.commit()
+
+        background_tasks.add_task(_run_background_curation)
+        logger.info(f"Disparador de actividad de IA activado tras {current_plays} reproducciones.")
+    except Exception as e:
+        logger.error(f"Error checking activity for AI curation: {e}")
+
+
+async def _run_background_curation():
+    """Background worker for activity-driven curation."""
+    from database import SessionLocal
+    db = SessionLocal()
+    try:
+        await curate_ai_mixes(db, force=False)
+    except Exception as e:
+        logger.error(f"Error in background AI curation worker: {e}")
+    finally:
+        db.close()

@@ -6,7 +6,7 @@ from fastapi import APIRouter, BackgroundTasks, UploadFile, File, HTTPException
 
 from schemas.jobs import BatchJobStatus, JobResponse
 from schemas.song import TrackInfo
-from services import searcher, downloader
+from services import searcher, downloader, youtube
 
 router = APIRouter()
 
@@ -121,7 +121,7 @@ async def _run_batch(job_id: str, csv_content: str) -> None:
 
             except Exception as exc:
                 batch_jobs[job_id].failed += 1
-                batch_jobs[job_id].errors.append(f"Error en '{query}': {str(exc)}")
+                batch_jobs[job_id].errors.append(f"Error en '{query}': {youtube.classify_error(exc)[1]}")
 
         batch_jobs[job_id].status = "done"
         done = batch_jobs[job_id].completed

@@ -25,7 +25,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from config import settings
-from routers import listen, batch, downloads, devices, playlists, metadata, analytics, search, settings as settings_router, smart_music, auth, sync, transfer, tv
+from routers import listen, batch, downloads, devices, playlists, metadata, analytics, search, settings as settings_router, smart_music, auth, sync, transfer, tv, mixes
 from services import wifi_transfer
 from services import mcp_server
 from services import tv_server
@@ -101,6 +101,7 @@ app.include_router(auth.router, prefix="/api/v1", tags=["🔒 Authentication"])
 app.include_router(sync.router, prefix="/api/v1", tags=["🔄 Sync"])
 app.include_router(transfer.router, prefix="/api/v1", tags=["📶 WiFi Transfer"])
 app.include_router(tv.router, prefix="/api/v1", tags=["📺 Sonero TV"])
+app.include_router(mixes.router, prefix="/api/v1", tags=["✨ Mixes & Recommendations"])
 
 # ── MCP (read-only usage statistics for AI agents) ───────────────────────────
 if settings.MCP_ENABLED:

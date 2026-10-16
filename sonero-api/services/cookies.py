@@ -16,6 +16,9 @@ def get_cookie_browser() -> str | None:
         record = db.query(SystemSetting).filter(SystemSetting.key == BROWSER_SETTING_KEY).first()
         value = (record.value or "").strip().lower() if record else ""
         return value if value in SUPPORTED_BROWSERS else None
+    except Exception:
+        # A settings lookup must never break a download: fall back to no cookies
+        return None
     finally:
         db.close()
 

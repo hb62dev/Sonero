@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from datetime import datetime, timedelta
@@ -6,6 +6,7 @@ from pydantic import BaseModel
 
 from database import get_db
 from models import PlaybackEvent, Media
+from services.gemini_service import check_activity_and_maybe_curate
 
 router = APIRouter()
 
@@ -24,7 +25,7 @@ class PlaybackLogByFilenameRequest(BaseModel):
     summary="Log playback event",
     description="Records the duration a user watched or listened to a specific media file."
 )
-async def log_playback(request: PlaybackLogRequest, db: Session = Depends(get_db)):
+async def log_playback(request: PlaybackLogRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     media = db.query(Media).filter(Media.id == request.media_id).first()
     if not media:
         raise HTTPException(status_code=404, detail="Media not found")
@@ -38,13 +39,16 @@ async def log_playback(request: PlaybackLogRequest, db: Session = Depends(get_db
     db.add(event)
     db.commit()
     
+    # Check if user activity threshold triggers AI playlist curation in background
+    check_activity_and_maybe_curate(db, background_tasks)
+    
     return {"message": "Playback logged successfully", "event_id": event.id}
 
 @router.post(
     "/analytics/log-by-filename",
     summary="Log playback event by filename",
 )
-async def log_playback_by_filename(request: PlaybackLogByFilenameRequest, db: Session = Depends(get_db)):
+async def log_playback_by_filename(request: PlaybackLogByFilenameRequest, background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     media = db.query(Media).filter(Media.filename == request.filename).first()
     if not media:
         return {"message": "Media not found, skipping", "event_id": None}
@@ -57,6 +61,9 @@ async def log_playback_by_filename(request: PlaybackLogByFilenameRequest, db: Se
     )
     db.add(event)
     db.commit()
+    
+    # Check if user activity threshold triggers AI playlist curation in background
+    check_activity_and_maybe_curate(db, background_tasks)
     
     return {"message": "Playback logged successfully", "event_id": event.id}
 

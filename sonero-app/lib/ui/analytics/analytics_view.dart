@@ -1,4 +1,3 @@
-import 'dart:html' as html;
 import 'dart:math';
 import 'dart:ui' as ui;
 import 'dart:typed_data';
@@ -9,8 +8,8 @@ import '../../providers/settings_provider.dart';
 import '../../core/api_client.dart';
 import '../theme.dart';
 
-// Web download helper
-import 'dart:html' as html;
+// PNG download: browser download on web, file on Android/desktop
+import 'image_download_io.dart' if (dart.library.js_interop) 'image_download_web.dart';
 
 class AnalyticsView extends StatefulWidget {
   const AnalyticsView({super.key});
@@ -1106,10 +1105,7 @@ class _ShareCardDialogState extends State<_ShareCardDialog> {
         final image = await boundary.toImage(pixelRatio: 4.0);
         final data = await image.toByteData(format: ui.ImageByteFormat.png);
         if (data == null) continue;
-        final blob = html.Blob([data.buffer.asUint8List()], 'image/png');
-        final url = html.Url.createObjectUrlFromBlob(blob);
-        html.AnchorElement(href: url)..setAttribute('download', 'sonero_slide_${i + 1}.png')..click();
-        html.Url.revokeObjectUrl(url);
+        await saveImageBytes(data.buffer.asUint8List(), 'sonero_slide_${i + 1}.png');
         await Future.delayed(const Duration(milliseconds: 300));
       }
       if (mounted) { Navigator.pop(context); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('6 slides descargados'), backgroundColor: widget.accent, behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)))); }
@@ -1127,10 +1123,7 @@ class _ShareCardDialogState extends State<_ShareCardDialog> {
       final image = await boundary.toImage(pixelRatio: ratio);
       final data = await image.toByteData(format: ui.ImageByteFormat.png);
       if (data == null) throw Exception('Error');
-      final blob = html.Blob([data.buffer.asUint8List()], 'image/png');
-      final url = html.Url.createObjectUrlFromBlob(blob);
-      html.AnchorElement(href: url)..setAttribute('download', 'sonero_${_format == 0 ? "post" : "story"}.png')..click();
-      html.Url.revokeObjectUrl(url);
+      await saveImageBytes(data.buffer.asUint8List(), 'sonero_${_format == 0 ? "post" : "story"}.png');
       if (mounted) { Navigator.pop(context); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Descargado ${_format == 0 ? "1080×1080" : "1080×1920"}'), backgroundColor: widget.accent, behavior: SnackBarBehavior.floating, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)))); }
     } catch (e) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red)); }
     finally { if (mounted) setState(() => _busy = false); }

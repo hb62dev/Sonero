@@ -1,7 +1,8 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:media_kit/media_kit.dart';
-import '../services/web_audio_eq.dart';
+import '../services/web_audio_eq_stub.dart'
+    if (dart.library.js_interop) '../services/web_audio_eq.dart';
 
 /// 10-band frequency labels (Hz).
 const List<String> kEqBandLabels = [
